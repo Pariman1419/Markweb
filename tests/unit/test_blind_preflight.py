@@ -1,7 +1,7 @@
 import json
 import csv
 import pytest
-from scripts.run_blind import preflight, independence_check
+from scripts.run_blind import preflight, independence_check, validate_source_fingerprints
 from mark_engine.domain.models import ExpectedMark, JobResult, ProcessingStatus
 
 
@@ -24,9 +24,9 @@ def test_preflight_refuses_unverified_model_manifest(tmp_path):
     (cache / 'images').mkdir(parents=True)
     (cache / 'images' / 'image.png').write_bytes(b'png')
     with (cache / 'images_index.csv').open('w', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=['elr', 'image'])
+        writer = csv.DictWriter(file, fieldnames=['elr', 'image', 'source_sha256'])
         writer.writeheader()
-        writer.writerow({'elr': 'ADI2609001', 'image': 'image.png'})
+        writer.writerow({'elr': 'ADI2609001', 'image': 'image.png', 'source_sha256': 'a' * 64})
     (cache / 'det_rec.json').write_text(json.dumps({'image.png': []}))
     (cache / 'detections.json').write_text(json.dumps({'image': []}))
     (cache / 'reocr.csv').write_text('key,old,new,score,method\n')
@@ -40,3 +40,8 @@ def test_independence_detects_asymmetric_missing_expected():
     blank = JobResult('A', ProcessingStatus.DONE, expected=ExpectedMark('A', (), 'r', 'e'))
     with pytest.raises(RuntimeError, match='Independence'):
         independence_check([(original, blank)])
+
+
+def test_index_requires_source_abs_fingerprint():
+    with pytest.raises(ValueError, match='source ABS fingerprint'):
+        validate_source_fingerprints([{'elr': 'ADI2607001', 'source_sha256': ''}])

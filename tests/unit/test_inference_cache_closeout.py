@@ -2,7 +2,7 @@ import csv
 import json
 
 import pytest
-from mark_engine.adapters.inference_cache import load_cached_inference
+from mark_engine.adapters.inference_cache import load_cached_inference, validate_cached_document
 
 
 def test_missing_inference_files_are_errors(tmp_path):
@@ -29,3 +29,19 @@ def test_resolved_elr_with_no_image_is_an_error(tmp_path):
     (tmp_path / 'reocr.csv').write_text('key,old,new,score,method\n', encoding='utf-8')
     with pytest.raises(ValueError, match='no inference index'):
         load_cached_inference(tmp_path, 'ADI2607001', 'ABS000001')
+
+
+def test_inference_requires_same_abs_content_as_extracted_image(tmp_path):
+    import hashlib
+    pdf = tmp_path / 'ABS000001.pdf'
+    pdf.write_bytes(b'original')
+    sha = hashlib.sha256(b'original').hexdigest()
+    (tmp_path / 'images_index.csv').write_text(
+        f'elr,abs_file,image,source_sha256\nADI2607001,ABS000001,x.png,{sha}\n', encoding='utf-8')
+    validate_cached_document(tmp_path, 'ADI2607001', pdf, sha)
+    pdf.write_bytes(b'changed')
+    with pytest.raises(ValueError, match='ABS content'):
+        validate_cached_document(tmp_path, 'ADI2607001', pdf, sha)
+    changed = hashlib.sha256(b'changed').hexdigest()
+    with pytest.raises(ValueError, match='ABS content'):
+        validate_cached_document(tmp_path, 'ADI2607001', pdf, changed)

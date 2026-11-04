@@ -1,13 +1,13 @@
 # Phase 1 closeout: July–November 2026 blind evaluation
 
-**Status: running — not yet a final result.**
+**Status: pending — internal network unavailable; not yet a final result.**
 
 ## Inputs and safeguards
 
 - Oracle snapshot: 402 ELRs across July–November 2026; 6,207 layout cells. The snapshot and source customer documents are stored only under ignored `artifacts/`.
 - Document extraction: 287 ELR/image mappings, 118 unique images, 115 document-resolution holds and no image-extraction exceptions.
 - Expected generation uses the current `MARK_ID_LAYOUT` snapshot, not TOP/BACK mark values. Fixed layout values override corresponding generator symbols. Missing layouts and overflow are recorded as job errors.
-- The AI pipeline, engine and rules are frozen; separate deployment bundles are generated under ignored `artifacts/release-phase1/`. Weights and customer images are not bundled.
+- A prior freeze was superseded by a source-integrity fix; a replacement freeze is required before the official AI batch. Earlier separate deployment bundles are stale and must be rebuilt after that freeze. Weights and customer images are not bundled.
 
 ## Historical checks before blind inference
 

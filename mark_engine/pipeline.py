@@ -75,6 +75,7 @@ def process_elr(
     *,
     layouts: Mapping[int, MarkLayout] | None = None,
     folder_index: dict[str, tuple[Path, ...]] | None = None,
+    inference_validator: Callable[[str, Path, str], None] | None = None,
 ) -> JobResult:
     """Run full mark verification pipeline for a single ELR.
 
@@ -201,6 +202,8 @@ def process_elr(
 
     # 5. Inference Loading
     abs_stem = Path(resolution.abs.path).stem if resolution.abs else ""
+    if inference_validator and resolution.abs:
+        inference_validator(meta.elr_no, Path(resolution.abs.path), resolution.abs.sha256)
     inference = _call_inference_loader(inference_loader, root, meta.elr_no, abs_stem)
 
     if inference.layout_source == "none" or not inference.lines:
@@ -231,6 +234,8 @@ def process_elr(
     # 6. Generate Expected Mark
     # CRITICAL INVARIANT: must run before touching oracle
     expected = generate_expected(meta, resolution, slr_facts, inference, rules)
+    if inference_validator and resolution.abs:
+        inference_validator(meta.elr_no, Path(resolution.abs.path), resolution.abs.sha256)
 
     layout_conflicts = {}
     if layouts is not None:

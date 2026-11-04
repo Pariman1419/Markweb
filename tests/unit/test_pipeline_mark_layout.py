@@ -81,3 +81,14 @@ def test_shift_match_warns_about_row_shift(month_tree, tmp_path):
     job = process_elr(meta, oracle, month_tree, ['1_JAN'], tmp_path / 'work', _rules(), loader, layouts={20168: layout})
     shifted = [row for row in job.comparisons if row.status.value == 'MATCH_SHIFT']
     assert shifted and all('LAYOUT_LINE_SHIFT' in row.warning for row in shifted)
+
+
+def test_resolved_abs_is_validated_before_and_after_generation(month_tree, tmp_path):
+    _, meta = _setup_elr(month_tree, 'ADI2601014')
+    loader = lambda elr, stem: InferenceResult(elr, (LayoutLine(Side.TOP, 1, 'ABC', ''),))
+    calls = []
+    def validate(elr, path, sha):
+        calls.append((elr, path, sha))
+    process_elr(meta, OracleMark(meta.elr_no, ((Side.TOP, 1, 'ABC'),)), month_tree,
+                ['1_JAN'], tmp_path / 'work', _rules(), loader, inference_validator=validate)
+    assert len(calls) == 2 and calls[0] == calls[1]

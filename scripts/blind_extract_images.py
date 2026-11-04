@@ -35,6 +35,8 @@ def main():
                 skipped.append({'elr': elr_no, 'reason': resolution.hold_reason or 'NO_ABS'})
                 continue
             data, method, page = extract_brand_image(Path(resolution.abs.path))
+            if hashlib.sha256(Path(resolution.abs.path).read_bytes()).hexdigest() != resolution.abs.sha256:
+                raise ValueError('ABS changed during image extraction')
             digest = hashlib.sha256(data).hexdigest()
             name = digest + '.png'
             destination = images / name
@@ -43,12 +45,13 @@ def main():
             elif hashlib.sha256(destination.read_bytes()).hexdigest() != digest:
                 raise RuntimeError(f'Image hash mismatch: {destination}')
             rows.append({'elr': elr_no, 'abs_file': Path(resolution.abs.path).stem,
-                         'image': name, 'method': method, 'page': page, 'sha256': digest})
+                         'image': name, 'method': method, 'page': page, 'sha256': digest,
+                         'source_sha256': resolution.abs.sha256})
         except Exception as exc:
             skipped.append({'elr': elr_no, 'reason': f'EXTRACT_ERROR: {type(exc).__name__}: {exc}'})
         if (len(rows) + len(skipped)) % 25 == 0:
             print('processed', len(rows) + len(skipped), flush=True)
-    for filename, fields, values in [('images_index.csv', ['elr', 'abs_file', 'image', 'method', 'page', 'sha256'], rows),
+    for filename, fields, values in [('images_index.csv', ['elr', 'abs_file', 'image', 'method', 'page', 'sha256', 'source_sha256'], rows),
                                      ('extract_skipped.csv', ['elr', 'reason'], skipped)]:
         with (args.out / filename).open('w', encoding='utf-8', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=fields)

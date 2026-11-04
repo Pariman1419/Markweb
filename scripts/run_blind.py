@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 from mark_engine.adapters.env import load_env
-from mark_engine.adapters.inference_cache import load_cached_inference
+from mark_engine.adapters.inference_cache import load_cached_inference, validate_cached_document
 from mark_engine.adapters.snapshot import load_elr_snapshot
 from mark_engine.documents.locate import build_folder_index
 from mark_engine.domain.models import OracleMark, ProcessingStatus
@@ -38,6 +38,13 @@ def independence_check(pairs):
     return len(checked), len(pairs) - len(checked)
 
 
+def validate_source_fingerprints(rows):
+    for row in rows:
+        digest = row.get('source_sha256', '')
+        if len(digest) != 64 or any(char not in '0123456789abcdef' for char in digest):
+            raise ValueError(f'{row.get("elr", "unknown")}: missing or invalid source ABS fingerprint')
+
+
 def preflight(root: Path, months: list[str], cache: Path) -> None:
     for month in months:
         if not (root / month).is_dir():
@@ -58,6 +65,7 @@ def preflight(root: Path, months: list[str], cache: Path) -> None:
             raise ValueError(f'Image checksum mismatch for {row["elr"]}: {name}')
     if not rows:
         raise ValueError('Inference image index is empty')
+    validate_source_fingerprints(rows)
     provenance = json.loads((cache / 'models.json').read_text(encoding='utf-8'))
     required = ('ocr_rec_sha256', 'symbol_sha256', 'detector_sha256', 'ocr_image_id', 'output_sha256')
     if not all(provenance.get(key) for key in required):
@@ -130,7 +138,8 @@ def main():
 
     def process(item):
         meta, oracle = item
-        kw = dict(layouts=layouts, folder_index=index)
+        kw = dict(layouts=layouts, folder_index=index,
+                  inference_validator=partial(validate_cached_document, args.cache))
         job = process_elr(meta, oracle, root, args.months, args.out / 'work', rules, loader, **kw)
         blank = process_elr(meta, OracleMark(meta.elr_no), root, args.months, args.out / 'work', rules, loader, **kw)
         return job, blank
