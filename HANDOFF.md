@@ -76,6 +76,7 @@
 - Replacement freeze was generated from code commit `a4c5897`; restart the blind batch using that freeze. No prior partial inference output is an official result.
 - The v2 inference batch was stopped before completion when a source-integrity gap was identified. The image index now records each source ABS SHA-256, extraction checks the PDF did not change during rendering, and the blind pipeline checks the same content before and after expected generation. Re-extract the index and create a new freeze; no partial inference result is official.
 - On resumption the NAS name did not resolve and the Oracle, PostgreSQL and AI-server ports timed out. The refreshed index and live batch are waiting for the internal network; existing snapshot and extracted images remain in ignored `artifacts/`.
+- Source-integrity fix committed as `318a770`; replacement freeze has been regenerated from it. The cache image index still needs to be refreshed from the NAS before any official inference.
 
 ### 2026-11-04 (plan: Phase 1 close-out)
 - Plan [`docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md`](docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md): 11 tasks — `.env` + read-only ACTL client, migration 0004, ACTIVEL `MARK_ID_LAYOUT` positions (warning only, compare stage), FREEZE-R1, Oracle snapshot Jul–Nov, inference cache + Brand extraction, AI-server batch (determinism check vs R0), blind runner, DB load + Marking / rule-approval lists. Run order puts every `mark_engine/` change before the freeze.

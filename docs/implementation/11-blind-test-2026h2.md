@@ -7,7 +7,7 @@
 - Oracle snapshot: 402 ELRs across July–November 2026; 6,207 layout cells. The snapshot and source customer documents are stored only under ignored `artifacts/`.
 - Document extraction: 287 ELR/image mappings, 118 unique images, 115 document-resolution holds and no image-extraction exceptions.
 - Expected generation uses the current `MARK_ID_LAYOUT` snapshot, not TOP/BACK mark values. Fixed layout values override corresponding generator symbols. Missing layouts and overflow are recorded as job errors.
-- A prior freeze was superseded by a source-integrity fix; a replacement freeze is required before the official AI batch. Earlier separate deployment bundles are stale and must be rebuilt after that freeze. Weights and customer images are not bundled.
+- A prior freeze was superseded by a source-integrity fix; the replacement freeze was generated from code commit `318a770`. The image index must be refreshed from NAS before the official AI batch. Weights and customer images are not bundled.
 
 ## Historical checks before blind inference
 
