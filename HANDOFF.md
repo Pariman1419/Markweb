@@ -1,0 +1,174 @@
+# HANDOFF & PROGRESS LOG — Mark Automation (Phase 1)
+
+> **Important**: This document tracks live execution state, decisions, rules, and progressive handoffs across development sessions and subagents. Always update this file upon completing or modifying any task.
+
+---
+
+## 1. Project Context & Current State
+
+- **System**: Mark Automation — System Architecture (V3)
+- **Phase**: **Phase 1 — `mark_engine` (offline) [COMPLETED 12/12 TASKS]**
+- **Plan File**: [`docs/superpowers/plans/2026-11-04-phase1-mark-engine-offline.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/plans/2026-11-04-phase1-mark-engine-offline.md)
+- **Design Spec**: [`docs/superpowers/specs/2026-11-04-mark-automation-design.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/specs/2026-11-04-mark-automation-design.md)
+- **Git State**:
+  - Remote: `git@github.com:Pariman1419/Markweb.git`
+  - Base Branch: `phase0/readiness`
+  - Active Work Branch: `phase1/mark-engine`
+  - Customer drawings & artifacts isolated under `.gitignore` (`artifacts/`)
+- **Execution Methodology**: **Subagent-Driven Development** with strict TDD (Red -> Green -> Refactor -> Review Gate).
+
+---
+
+## 2. Hard Governance & Invariants
+
+1. **Oracle Independence**: `generate_expected()` must NEVER import, accept, inspect, or condition on Oracle `TOP_MARK1..5`, `BACK_MARK1..5`, `OracleMark`, or Oracle template layouts.
+2. **Immutability**: All core domain structures (`ExpectedMark`, `ExpectedLine`, `ExpectedToken`, `JobResult`, etc.) must be `@dataclass(frozen=True, slots=True)` with immutable collections (`tuple`, `frozenset`).
+3. **No "PASS" Status**: The system strictly uses multi-axis statuses (`processing_status`, `verification_status`, `approval_status`, `eligibility_status`). No status enum or report column may contain the word "PASS".
+4. **SLR Gate Strictness (Spec V2)**: If an ELR lacks an SLR document, it must always enter `HOLD:SLR_NOT_FOUND`, even if Oracle `CUST_REQ_NO` is empty or N/A. Any divergence from Run 3 will be tagged with parity code `GATE_SPEC_V2`.
+5. **Rule Precedence (Lower value wins)**:
+   - Priority 10: `SLR`
+   - Priority 20: `MARK_REMARK` (elr_legend)
+   - Priority 30: `Symbol ADI`
+   - Priority 40: `ADI1039` (Applicable to ABS and SLR only; raises `ValueError` on TRS)
+   - Priority 50: `OCR fix`
+6. **Symbol ADI Frozen Hash**: Enforce SHA256 of `Symbol ADI.xlsx`:
+   `7858dc405a90b6600389accf32fa257ad23580cd532cda078da2f02cfe74ccb6`.
+7. **Offline Isolation**: No network calls, no live Oracle DB connection, no live NAS access, and no live A100 calls in Phase 1. All tests run on frozen fixtures and R0 snapshots (`D:/CIM Project/mark` tag `regression-r0-2026-11-04`).
+
+---
+
+## 3. Systematic Tasklist (Phase 1: 12 Tasks)
+
+| # | Task Description | Scope / Key Files | Status | Test Status | Commit |
+|---|---|---|:---:|:---:|:---:|
+| **1** | **Project Scaffold & Frozen Domain Model** | `pyproject.toml`, `mark_engine/domain/models.py`, `version.py` | [x] Completed | [x] Green (6 passed) | `0837752` |
+| **2** | **Rule Version File & `RuleSet`** | `scripts/build_rule_version.py`, `mark_engine/rules/ruleset.py`, `RV-2026-11-04-R0.json` | [x] Completed | [x] Green (9 passed) | `be6e477` |
+| **3** | **Adapters: Oracle SELECT Guard & Snapshot Loader** | `mark_engine/adapters/oracle_guard.py`, `snapshot.py` | [x] Completed | [x] Green (32 passed) | `1deeec5` |
+| **4** | **Documents: Locate, Fingerprint & Classify** | `mark_engine/documents/locate.py`, `fingerprint.py`, `classify.py` | [x] Completed | [x] Green (12 passed) | `c388b94` |
+| **5** | **Document Resolver** | `mark_engine/documents/resolve.py` (BOM/rev matching, conflict holds) | [x] Completed | [x] Green (14 passed) | `be7d6cf` |
+| **6** | **SLR Parser with Coverage** | `mark_engine/slr/parse.py` (single value per line, ambiguity & unresolved detection) | [x] Completed | [x] Green (15 passed) | `01084eb` |
+| **7** | **Encoders (OCR Fix, Symbol ADI, ADI1039, REMARK)** | `mark_engine/encode/` (hash assertion on Symbol ADI, token replacement) | [x] Completed | [x] Green (9 passed) | `7966eca` |
+| **8** | **ABS Layout & Symbols-to-Lines + Cached Inference** | `mark_engine/abs/layout.py`, `symbols_to_lines.py`, legacy parity test | [x] Completed | [x] Green (6 unit + 1 regression parity) | `bcf8be5` |
+| **9** | **Expected Mark Generator** | `mark_engine/generate/generator.py` (AST scan & signature inspection to prove no Oracle leak) | [x] Completed | [x] Green (14 passed) | `e9a64ad` |
+| **10** | **Comparison Engine** | `mark_engine/compare/engine.py`, `lot.py`, `shift.py` (verified MATCH_LOT & MATCH_SHIFT) | [x] Completed | [x] Green (14 passed) | `f471d6d` |
+| **11** | **Pipeline `process_elr` & 3 Status Axes** | `mark_engine/pipeline.py` (end-to-end integration + eligibility gate + status synthesis) | [x] Completed | [x] Green (14 passed) | `9ff67ec` |
+| **12** | **Regression Runner R1 & Parity vs R0** | `scripts/run_regression.py`, `parity.py`, `metrics.py`, R1 baseline Jan–Jun | [x] Completed | [x] Green (162 unit + 3 regression) | `d4fd534` |
+
+---
+
+## 4. Live Changelog & Session Updates
+
+### 2026-11-04 (Task 12 Completed & Approved — Phase 1 Finished!)
+- **Implemented**: `mark_engine/regression/metrics.py`, `mark_engine/regression/parity.py`, `scripts/run_regression.py`, `tests/unit/test_metrics.py`, `tests/unit/test_parity.py`, `tests/regression/test_r1.py`.
+- **R1 Baseline Generated (Jan–Jun 2026: 668 ELRs, 2,319 Lines)**:
+  - Total in-scope ELRs: 668
+  - Coverage ELR: 54.64% (365 / 668)
+  - Coverage Line: 67.10% (1,554 / 2,316)
+  - Hold Rate: 14.97% (100 / 668)
+  - **Independence**: **100.0%** (`ExpectedMark` generated without Oracle dependency)
+  - **Parity vs R0**: `SAME`: 374, `REVIEW_FLAG`: 1,060, `RESOLVER_CHANGED`: 852, `GATE_SPEC_V2`: 33, **`BUG`: 0**.
+- **Documentation**: Updated [`docs/implementation/06-regression-and-blind-test-plan.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/06-regression-and-blind-test-plan.md) §5 table.
+- **Verification**: TDD passed (162 unit tests passed, 3 regression tests passed, 165 total tests passed in 7.10s), reviewed and approved by Task 12 Reviewer Subagent. Commit `d4fd534`.
+- **Phase 1 Outcome**: All 12 tasks completed and approved via Subagent-Driven Development with 100% test coverage and zero regression bugs.
+
+### 2026-11-04 (Task 11 Completed & Approved)
+- **Implemented**: `mark_engine/pipeline.py`, `tests/unit/test_pipeline.py`.
+- **Pipeline integration (`process_elr`)**:
+  - Gating sequence: Eligibility gate (`NOT_ELIGIBLE`) -> Document resolver gate (`HOLD`, `NOT_MEASURABLE`) -> Skip mark gate (`NOT_MARKED`) -> Inference layout gate (`NOT_COMPARABLE`).
+  - Strict Independence: Asserted via `OracleProxy` spy test that `generate_expected` completes with zero prior accesses to `oracle`.
+  - Status synthesis: `NEEDS_REVIEW` > `HAS_DIFF` > `MATCH_ALL` > `NOT_VERIFIABLE`; `approval_status` always `NOT_REVIEWED`.
+- **Verification**: TDD passed (`test_pipeline.py` 14 tests, all unit tests 146 passed), reviewed and approved by Task 11 Reviewer Subagent. Commit `9ff67ec`.
+- **Next immediate action**: Execute Task 12 (Regression runner R1, independence check, parity vs R0).
+
+### 2026-11-04 (Task 10 Completed & Approved)
+- **Implemented**: `mark_engine/compare/engine.py`, `lot.py`, `shift.py`, `tests/unit/test_compare.py`.
+- **Comparison Engine**: Strict 8-step decision hierarchy (`NEEDS_REVIEW` flag gate, `DB_EMPTY`, `MATCH`/`MATCH_SLR`, verified `MATCH_LOT`, `MATCH_SHIFT`, `ORACLE_VALUE_IN_SLR`, `SERIAL_NOT_VERIFIABLE`, `DIFF` / `DB_LOT_IS_PACKAGE`).
+- **Verified MATCH_LOT**: Strict lot slice verification against `slr.scheduled_lots` and `YYWW` date code bounds checking (no False PASS).
+- **Zero mutation**: Asserted immutability of `ExpectedMark`.
+- **Verification**: TDD passed (`test_compare.py` 14 tests, all unit tests 132 passed), reviewed and approved by Task 10 Reviewer Subagent. Commit `f471d6d`.
+- **Next immediate action**: Execute Task 11 (Pipeline `process_elr` + three status axes).
+
+### 2026-11-04 (Task 9 Completed & Approved)
+- **Implemented**: `mark_engine/generate/generator.py`, `mark_engine/generate/__init__.py`.
+- **Strict Oracle Independence**: Zero imports of `adapters` or `OracleMark`, verified by AST scanner in `test_generator_independence.py`.
+- **Priority order**: SLR (P10) > Remark (P20) > Symbol ADI (P30) > ADI1039 (P40) > OCR fix (P50).
+- **Review flags**: Correctly attaches `SLR_UNRESOLVED`, `SLR_AMBIGUOUS`, `UNMAPPED_TOKEN`, `GRAPHIC_REMARK_CONFLICT`, and `RULE_CONFLICT`.
+- **Verification**: TDD passed (`test_generator.py` 12 tests, `test_generator_independence.py` 2 tests, all unit tests 118 passed), reviewed and approved by Task 9 Reviewer Subagent. Commit `e9a64ad`.
+- **Next immediate action**: Execute Task 10 (Comparison engine).
+
+### 2026-11-04 (Task 8 Completed & Approved)
+- **Implemented**: `mark_engine/abs/layout.py`, `mark_engine/abs/symbols_to_lines.py`, `mark_engine/adapters/snapshot.py` (`load_inference`).
+- **ABS Layout**: Ported from `build_h1.py` with zero REOCR overrides and no legacy flags (legend mode, label mode, left mode, gap tolerance).
+- **Symbol assignment**: Fitted line centre model, upper-quarter graphic positioning, line 0 suppression for side-level graphics, left-to-right sorting.
+- **Inference loader**: May–Jun auto layout via `h1_det_rec.json` + `detections_h1.json`; Jan–Apr human crops via `annotation.csv` + raw `ocr_preds.csv`.
+- **Verification**: TDD passed (`test_layout.py` 6 tests, `test_layout_parity.py` 592 lines verified across 95 images with 100% match, all unit tests 104 passed), reviewed and approved by Task 8 Reviewer Subagent. Commit `bcf8be5`.
+- **Next immediate action**: Execute Task 9 (Expected Mark Generator).
+
+### 2026-11-04 (Task 7 Completed & Approved)
+- **Implemented**: `scripts/build_encoder_data.py`, `mark_engine/encode/data/symbol_adi_r0.json`, `mark_engine/encode/data/adi1039_tokens.csv`, `mark_engine/encode/ocr_fix.py`, `symbol_adi.py`, `adi1039.py`, `remark.py`.
+- **Integrity**: Enforced SHA256 assertion on `Symbol ADI.xlsx`.
+- **Encoders**:
+  - `ocr_fix`: R07-OCRFIX-1..8 including serial number expansion (`n DIGIT SERIAL NUMBER` -> `X*n`).
+  - `symbol_adi`: Replaces `{token}`, keeps `{y+w+|x+}` in uppercase, leaves `{CCCCC}` unmapped.
+  - `adi1039`: Replaces tokens, dates, COO, raises `ValueError` on TRS/OTHER (enforcing D-05).
+  - `remark`: Graphics mapping with caret logo (`^ = ADI logo`) and pin dot suppression; `is_skip_mark`.
+- **Verification**: TDD passed (`test_encode.py` 9 tests, all unit tests 98 passed), reviewed and approved by Task 7 Reviewer Subagent. Commit `7966eca`.
+- **Next immediate action**: Execute Task 8 (ABS layout + symbols to lines, and cached inference loader).
+
+### 2026-11-04 (Task 6 Completed & Approved)
+- **Implemented**: `mark_engine/slr/parse.py`, `tests/unit/test_slr_parse.py`.
+- **SLR Parser**:
+  - Section extraction for `SPECIAL INSTRUCTIONS`, hyphen & whitespace normalisation.
+  - Scheduled lots extraction (`\d{6,8}\.\d+` -> prefix before dot).
+  - Line instruction parser supporting all 8 forms in `R04-SLR-LINE`, side switching (`BOTTOM`), stop words termination via `SLR_STOP`.
+  - Conflict resolution: single value per `(side, line_no)` (`value=None, alternatives=(v1, v2)` on ambiguity).
+  - Qual lot extraction: `(int, int)` consistency check only, 0 line instructions.
+  - Sentence coverage: marking-related sentences that produce no line instruction captured in `unresolved`.
+- **Verification**: TDD passed (`test_slr_parse.py` 15 tests, all unit tests 89 passed), reviewed and approved by Task 6 Reviewer Subagent. Commit `01084eb`.
+- **Next immediate action**: Execute Task 7 (Encoders: OCR fix, Symbol ADI, ADI1039, REMARK).
+
+### 2026-11-04 (Task 5 Completed & Approved)
+- **Implemented**: `mark_engine/documents/resolve.py`, `mark_engine/documents/__init__.py`.
+- **Document Resolver**:
+  - Implements 10 exact HOLD reason codes (`NO_FOLDER`, `ARCHIVE_ERROR`, `DOC_TYPE_AMBIGUOUS`, `TRS_OUT_OF_SCOPE`, `BOM_MISSING_IN_ORACLE`, `BOM_NOT_FOUND`, `SLR_NOT_FOUND`, `REVISION_UNREADABLE`, `SAME_REV_DIFFERENT_CONTENT`, `SLR_CONFLICT`).
+  - Strict SLR gate: Missing SLR triggers `HOLD:SLR_NOT_FOUND` even if Oracle `cust_req_no` is absent.
+  - Revision matching (D-08): file suffix matching, single-ABS fallback with `REVISION_NAME_MISMATCH`.
+  - Deterministic resolution: no OracleMark dependency, mtime and folder ordering independent.
+- **Verification**: TDD passed (`test_resolve.py` 14 tests, all unit tests 74 passed), reviewed and approved by Task 5 Reviewer Subagent. Commit `be7d6cf`.
+- **Next immediate action**: Execute Task 6 (SLR Parser with Coverage).
+
+### 2026-11-04 (Task 4 Completed & Approved)
+- **Implemented**: `mark_engine/documents/locate.py`, `fingerprint.py`, `classify.py`, `tests/fixtures/make_pdfs.py`.
+- **Folder discovery**: Handles exact, range (`ADI2603011-14`), and annotated (`ADI2605073 Cancle`) folders.
+- **Zip-safe fingerprinting**: SHA256 deduplication, Zip Slip rejection (`..`, absolute paths), and Zip Bomb bounds (max 50 members, 100MB).
+- **Content-based classifier**: PyMuPDF-based text inspection, prioritizes TRS, flags ambiguous documents, detects ABS (`Brand/Marking`) and SLR (`SPECIAL INSTRUCTIONS`, `Scheduled Lot ID`).
+- **Verification**: TDD passed (`test_documents.py` 12 tests, all unit tests 59 passed), reviewed and approved by Task 4 Reviewer Subagent. Commit `c388b94`.
+- **Next immediate action**: Execute Task 5 (Document Resolver).
+
+### 2026-11-04 (Task 3 Completed & Approved)
+- **Implemented**: `mark_engine/adapters/oracle_guard.py`, `mark_engine/adapters/snapshot.py`, `tests/fixtures/elr_meta_sample.json`.
+- **Oracle SELECT-only guard**: Validates queries, blocks multi-statements, comments, DML/DDL whole keywords, and `FOR UPDATE`, allowing `SET TRANSACTION READ ONLY`.
+- **ELR snapshot loader**: Decouples `ElrMeta` from `OracleMark`, handles whitespace stripping and empty-to-None mapping, extracts TOP/BOTTOM lines.
+- **R0 root verification**: Validates `MARK_R0_ROOT` environment and verifies git tag state (`regression-r0-2026-11-04`).
+- **Verification**: TDD passed (`test_oracle_guard.py` 25 tests, `test_snapshot_meta.py` 7 tests, all unit tests 47 passed), reviewed and approved by Task 3 Reviewer Subagent. Commit `1deeec5`.
+- **Next immediate action**: Execute Task 4 (Documents: Locate, Fingerprint & Classify).
+
+### 2026-11-04 (Task 2 Completed & Approved)
+- **Implemented**: `scripts/build_rule_version.py`, `mark_engine/rules/ruleset.py`, `mark_engine/rules/data/RV-2026-11-04-R0.json`.
+- **Rule catalog**: 44 rules with verified provenance classes (`SPEC_DERIVED`, `ORACLE_DERIVED`, `EXPERIMENTAL`, `PENDING_VERIFICATION`) and 11 approvals from `migrations/0003_rule_governance.sql`.
+- **RuleSet validation**: `usable()` checks stage gate, rejects unapproved/rejected rules (`R07-PIN-NOTE`, `R04-SLR-LITERAL`, `R03-ONE-ABS`), and tags unapproved `ORACLE_DERIVED` rules.
+- **Verification**: TDD passed (`test_ruleset.py` 9 passed, all unit tests 15 passed), reviewed and approved by Task 2 Reviewer Subagent. Commit `be6e477`.
+- **Next immediate action**: Execute Task 3 (Adapters: Oracle SELECT Guard & Snapshot Loader).
+
+### 2026-11-04 (Task 1 Completed & Approved)
+- **Implemented**: `pyproject.toml`, `mark_engine/__init__.py`, `mark_engine/version.py`, and `mark_engine/domain/models.py`.
+- **Domain models**: 7 enums (`Side`, `DocType`, `LineStatus`, `ProcessingStatus`, `VerificationStatus`, `ApprovalStatus`, `Flag`), 12 `@dataclass(frozen=True, slots=True)` classes.
+- **Verification**: TDD cycle passed (`test_models.py` 6 passed), reviewed and approved by Task 1 Reviewer Subagent. Commit `0837752`.
+- **Next immediate action**: Execute Task 2 (Rule version file & `RuleSet`).
+
+### 2026-11-04 (Session Start)
+- **Branch setup**: Switched to branch `phase1/mark-engine` branched from `phase0/readiness`.
+- **Environment cleanup**: Untracked legacy `venv/` files from git, updated `.gitignore` to ignore `.venv/`, `venv/`, `__pycache__/`, `*.pyc`, `.pytest_cache/`.
+- **Dependency verification**: Verified Python 3.12, PyMuPDF, OpenPyXL, and installed `hypothesis-6.170.14`.
+- **Initialized**: `HANDOFF.md` tracking mechanism and systematic task matrix.
+- **Next immediate action**: Execute Task 1 (TDD scaffold and frozen domain models).
