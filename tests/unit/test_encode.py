@@ -113,3 +113,14 @@ def test_ocrfix7_origin_eng_suffix_keeps_coo_then_adi1039_thailand():
 def test_adi1039_digit_lot_number_glued_to_date_code():
     """OCR glues the date code in front: 'YW6 DIGIT LOT NUMBER' (ADI2601045 TOP 3)."""
     assert apply_adi1039("YW6 DIGIT LOT NUMBER", DocType.ABS)[0] == "YWXXXXXX"
+
+
+def test_lot_number_u_suffix_keeps_field():
+    """R07-OCRFIX-6 drops the drafting suffix U1, not the field (ADI2604002 B2, old review 'ตีความผิดปะ')."""
+    from mark_engine.encode.ocr_fix import ocr_fix
+    from mark_engine.encode.adi1039 import apply_adi1039
+    from mark_engine.domain.models import DocType
+    fixed, _ = ocr_fix("LAST 2 DIGIT LOT NUMBERU1")
+    assert fixed == "LAST 2 DIGIT LOT NUMBER"
+    assert apply_adi1039(fixed, DocType.ABS)[0] == "XX"
+    assert ocr_fix("XXXU2")[0] == "XXX"

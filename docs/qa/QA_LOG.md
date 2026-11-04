@@ -200,3 +200,21 @@
 - "Accept but show" is kept as a field next to MATCH, not a new status, so agreement numbers stay comparable.
 - When two Oracle fields disagree, hold with the cause instead of choosing one.
 
+---
+
+## [2026-11-04] Old human review cross-checked against R1; OCRFIX-6 erased LOT NUMBER
+
+### Context & Symptom
+- **Component / Path**: [`mark_engine/encode/ocr_fix.py`](file:///D:/CIM%20Project/mark-web/mark_engine/encode/ocr_fix.py)
+- **Question / Issue**: R0 review files `mark/experiments/abs_vs_db/review/diff_review_2026-11-04*.csv` (132 reviewed rows) checked against R1 run 7. Five lines noted "LAST 2 DIGIT LOT NUMBERU1 ตีความผิดปะ" were DIFF in R1 with expected `LAST 2 DIGIT`.
+
+### Root Cause
+- `R07-OCRFIX-6` returned `""` for `(LOT) NUMBERU\d`, deleting the field. The catalog rule only drops the suffix (`(X+)U\d` → ``). Same pattern as the OCRFIX-7 bug.
+
+### Resolution & Code Fix
+- Keep `LOT NUMBER`, drop only `U\d`; ADI1039 LOT then gives `XX`. 5 lines DIFF → MATCH_LOT (verified against SLR lot). Agreement 82.7% → 83.0%, DIFF 57 → 52, BUG 0.
+
+### Prevention / Rules Learned
+- An OCR-noise rule must never return an empty string for a whole field; drop only the noise.
+- Old human review notes are a cheap source of regression cases — check them after every R1 run.
+
