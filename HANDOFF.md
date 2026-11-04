@@ -61,6 +61,12 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-04 (OCRFIX-6, D-24 split Oracle revision)
+- `R07-OCRFIX-6` keeps `LOT NUMBER`, drops only `U\d` (found from R0 human review notes) — 5 DIFF → MATCH_LOT.
+- D-24: Oracle revision = `CUST_BOM_NO` letter + `CUST_BOM_REVISION` (`ABS034529D` + `ENG-1` = `D-ENG-1`) — 11 ELR RULE_CONFLICT cleared.
+- R1: agreement **85.9%** (1,323/1,540), NEEDS_REVIEW **164**, DIFF 53, parity BUG 0; 203 unit + 3 regression. DB run 8 (OCRFIX-6) and run 9.
+- Review page: `scripts/make_review_page.py` (+ `--images` local only); SQL checks `docs/implementation/sql/r1_review_checks.sql`.
+
 ### 2026-11-04 (Mark Eng answers — D-22, D-23)
 - Q1 COO: Oracle short form of THAILAND (`TH`…`THAILAN`) = MATCH **with warning** (`lines.csv` column `warning`, metrics `warning_lines` = 13).
 - Q2 revision: `CUST_BOM_REVISION` vs `PRODUCT_NO` revision conflict → `HOLD:REVISION_CONFLICT`, cause in `hold_detail` (ADI2606077/078).

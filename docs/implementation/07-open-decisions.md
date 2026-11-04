@@ -64,4 +64,5 @@
 | ID | คำตัดสิน |
 |---|---|
 | D-22 | ✔ ชื่อประเทศแบบย่อใน Oracle ที่ยังอ่านเป็น THAILAND (`TH`, `THA`, `THAI`, `THAIL`, …) = **MATCH แต่มี warning** ให้ผู้ใช้เห็นว่าต่างจากชื่อเต็ม (`LineComparison.warning = "COO_ABBREVIATED: Oracle THAIL, expected THAILAND"`, metrics `warning_lines`) — R1: 13 บรรทัด |
+| D-24 | ✔ (ผู้ใช้ 2026-11-04) revision ใน Oracle อาจแยกเก็บ: ตัวอักษรท้าย `CUST_BOM_NO` + `CUST_BOM_REVISION` (`ABS034529D` + `ENG-1`) = ไฟล์ `ABS034529D-ENG-1` → นับว่าตรงกัน |
 | D-23 | ✔ `CUST_BOM_REVISION` ขัดกับ revision ใน `PRODUCT_NO` → **`HOLD:REVISION_CONFLICT`** ให้คนตรวจ พร้อมสาเหตุใน `hold_detail` (ไม่เดาว่า rev ไหนถูก); ใช้เมื่อทั้งสองค่าเป็น revision ตัวอักษร (`ENG-1` vs `B-ENG-1` ไม่นับ) — R1: ADI2606077/078. Oracle ที่ผิดให้รายงานเป็น error พร้อมสาเหตุ (ระบบไม่แก้ Oracle เอง) |

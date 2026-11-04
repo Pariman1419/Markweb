@@ -38,6 +38,19 @@ def _norm_rev(rev: str | None) -> str | None:
 _LETTER_REV_RE = re.compile(r"[A-Z]{1,2}")
 
 
+def _oracle_revision(bom_no: str | None, bom_rev: str | None) -> str | None:
+    """Full ABS revision as Oracle records it.
+
+    Oracle may split it: CUST_BOM_NO 'ABS034529D' + CUST_BOM_REVISION 'ENG-1' = 'D-ENG-1', the
+    same revision as the file ABS034529D-ENG-1 (user-confirmed 2026-11-04, ADI2602100).
+    """
+    rev = _norm_rev(bom_rev)
+    m = re.search(r"\d{6}([A-Z]{1,2})$", (bom_no or "").strip().upper())
+    if m and rev and not rev.startswith(m.group(1) + "-"):
+        return f"{m.group(1)}-{rev}"
+    return rev
+
+
 def _product_no_revision(product_no: str | None, bom: str) -> str | None:
     """Letter revision written after the ABS number in PRODUCT_NO (…-ABS068387C-A -> C)."""
     m6 = re.search(r"\d{6}", bom or "")
@@ -223,7 +236,7 @@ def resolve_documents(
         )
 
     # 5. Revision Resolution for ABS
-    oracle_rev = _norm_rev(meta.cust_bom_revision)
+    oracle_rev = _oracle_revision(meta.cust_bom_no, meta.cust_bom_revision)
 
     # 5a. REVISION_CONFLICT (Mark Eng 2026-11-04, 09 Q2): PRODUCT_NO carries the ABS revision
     #     (ADMFS7201-ABS068387C-A). If it is a plain letter revision that differs from

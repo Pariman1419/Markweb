@@ -86,7 +86,7 @@ main{max-width:1100px;margin:0 auto;padding-top:18px;display:flex;flex-direction
 <div class="top gut">
   <div class="topin">
     <div class="r1">
-      <h1>R1 Line Review · run 7</h1>
+      <h1>R1 Line Review · run 9</h1>
       <span class="save" id="saveState">กำลังเชื่อมต่อที่เก็บคำตัดสิน…</span>
     </div>
     <div class="tabs" role="tablist" id="tabs"></div>
@@ -106,8 +106,6 @@ main{max-width:1100px;margin:0 auto;padding-top:18px;display:flex;flex-direction
 <script>
 const ROWS=/*ROWS*/[];
 const TOPICS={
-  RC1:{name:"RULE_CONFLICT · ชื่อ ENG-n",q:"Oracle เก็บ revision เป็น ENG-1 แต่ชื่อไฟล์ ABS เป็นตัวอักษร+ENG-1 (เช่น ABS065954B-ENG-1) นับว่าเป็น revision เดียวกันได้หรือไม่",
-       hint:"ข้อเสนอ: นับว่าตรงกันเมื่อส่วน ENG-n ตรงกัน แล้วเอา flag ออก",opts:["เห็นด้วย นับว่าตรงกัน","ไม่เห็นด้วย ให้คนตรวจต่อ"]},
   RC2:{name:"RULE_CONFLICT · Oracle rev B แต่มีแค่ rev C",q:"ABS065744: Oracle CUST_BOM_REVISION = B แต่ในโฟลเดอร์มีแค่ ABS065744C และ mark ตรงกับ Oracle ทุกบรรทัด ให้ระบบทำอย่างไร",
        hint:"(a) ให้คนตรวจต่อพร้อมสาเหตุ (เหมือน D-23)  ·  (b) MATCH + warning (เหมือน D-22)",opts:["(a) ให้คนตรวจพร้อมสาเหตุ","(b) MATCH + warning"]},
   RC3:{name:"RULE_CONFLICT · PRODUCT_NO คนละ ABS",q:"PRODUCT_NO ใน Oracle ชี้ ABS คนละเลขกับฉบับที่ระบบเลือก ควรใช้ ABS ไหน",

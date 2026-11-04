@@ -218,3 +218,22 @@
 - An OCR-noise rule must never return an empty string for a whole field; drop only the noise.
 - Old human review notes are a cheap source of regression cases — check them after every R1 run.
 
+---
+
+## [2026-11-04] RULE_CONFLICT on ENG-n ELRs: Oracle splits the revision over two fields
+
+### Context & Symptom
+- **Component / Path**: [`mark_engine/documents/resolve.py`](file:///D:/CIM%20Project/mark-web/mark_engine/documents/resolve.py)
+- **Question / Issue**: 11 ELRs (46 lines, 45 already equal to Oracle) flagged `RULE_CONFLICT`: file `ABS034529D-ENG-1` (rev `D-ENG-1`) vs Oracle `CUST_BOM_REVISION = ENG-1`.
+
+### Root Cause
+- Oracle keeps the letter in `CUST_BOM_NO` (`ABS034529D`) and the ENG part in `CUST_BOM_REVISION`. The resolver compared the file revision with `CUST_BOM_REVISION` only (user-confirmed, D-24).
+- First fix skipped `E`: guard `rev.startswith(letter)` is true for `ENG-1` when the letter is `E` (ADI2606066). Fixed to `startswith(letter + "-")`, with a test.
+
+### Resolution & Code Fix
+- `_oracle_revision(bom_no, bom_rev)`: letter suffix of `CUST_BOM_NO` + `-` + `CUST_BOM_REVISION`.
+- RULE_CONFLICT 25 → 14 ELR; NEEDS_REVIEW 210 → 164; agreement 85.9%; BUG 0.
+
+### Prevention / Rules Learned
+- A revision can be spread over several Oracle fields; build it once in one function and test each letter, including the ones that collide with the ENG prefix.
+

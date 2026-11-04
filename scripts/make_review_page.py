@@ -20,7 +20,7 @@ R0_OUT = R0 / "experiments/abs_vs_db/out"
 R1 = Path("artifacts/regression-r1")
 
 RC_GROUPS = {
-    "RC1": "ADI2601052 ADI2601053 ADI2601054 ADI2601103 ADI2602033 ADI2602098 ADI2602100 ADI2602142 ADI2602161 ADI2603081 ADI2606066",
+    # RC1 (ENG-n naming) resolved 2026-11-04: Oracle CUST_BOM_NO letter + CUST_BOM_REVISION ENG-n = file rev
     "RC2": "ADI2603024 ADI2603025 ADI2603026 ADI2603027 ADI2603028 ADI2603029 ADI2603030 ADI2603072 ADI2603073 ADI2603074 ADI2603075 ADI2603076",
     "RC3": "ADI2602126 ADI2606076",
 }
@@ -100,7 +100,7 @@ def main() -> None:
     html = tpl.replace("/*ROWS*/[]", json.dumps(rows, ensure_ascii=False))
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(html, encoding="utf-8")
-    print(len(rows), "rows ->", a.out, {t: sum(x["topic"] == t for x in rows) for t in ("RC1", "RC2", "RC3", "DBW", "LEG", "OCR")})
+    print(len(rows), "rows ->", a.out, {t: sum(x["topic"] == t for x in rows) for t in ("RC2", "RC3", "DBW", "LEG", "OCR")})
 
 
 if __name__ == "__main__":

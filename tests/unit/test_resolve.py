@@ -423,3 +423,37 @@ def test_product_no_eng_revision_is_not_a_conflict(month_tree: Path, tmp_path: P
                    product_no="ADUM7250-ABS065954B-ENG-1-A")
     res = resolve_documents(meta, month_tree, ["1_JAN"], tmp_path / "work")
     assert res.hold_reason != "REVISION_CONFLICT"
+
+
+def test_bom_letter_plus_eng_revision_matches_file(month_tree: Path, tmp_path: Path):
+    """Oracle splits the revision: CUST_BOM_NO ABS034529D + CUST_BOM_REVISION ENG-1 = file rev D-ENG-1
+    (user 2026-11-04, ADI2602100) -> same revision, no REVISION_NAME_MISMATCH."""
+    f = month_tree / "2_FEB" / "ADI2602100"
+    f.mkdir(parents=True)
+    make_pdf(f / "ABS034529D-ENG-1.pdf", ["ABS034529 Rev D-ENG-1", "Brand/Marking diagram"])
+    make_pdf(f / "SLR240003.pdf", ["SPECIAL INSTRUCTIONS\nLine 1: TEST"])
+    meta = ElrMeta(elr_no="ADI2602100", cust_bom_no="ABS034529D", cust_bom_revision="ENG-1",
+                   product_no="LT3012ECPC-AQZ")
+    res = resolve_documents(meta, month_tree, ["2_FEB"], tmp_path / "work")
+    assert res.decision == "RESOLVED"
+    assert "REVISION_NAME_MISMATCH" not in res.steps
+
+
+def test_bom_letter_plus_eng_picks_matching_file(month_tree: Path, tmp_path: Path):
+    f = month_tree / "1_JAN" / "ADI2601052"
+    f.mkdir(parents=True)
+    make_pdf(f / "ABS065954B-ENG-1.pdf", ["ABS065954 Rev B-ENG-1", "Brand/Marking diagram"])
+    make_pdf(f / "ABS065954E-ENG-1.pdf", ["ABS065954 Rev E-ENG-1", "Brand/Marking diagram"])
+    make_pdf(f / "SLR240004.pdf", ["SPECIAL INSTRUCTIONS\nLine 1: TEST"])
+    meta = ElrMeta(elr_no="ADI2601052", cust_bom_no="ABS065954B", cust_bom_revision="ENG-1")
+    res = resolve_documents(meta, month_tree, ["1_JAN"], tmp_path / "work")
+    assert res.decision == "RESOLVED" and Path(res.abs.path).name == "ABS065954B-ENG-1.pdf"
+
+
+def test_oracle_revision_letter_e_with_eng():
+    """BOM letter 'E' + 'ENG-1' must give 'E-ENG-1' (ADI2606066), not stay 'ENG-1'."""
+    from mark_engine.documents.resolve import _oracle_revision
+    assert _oracle_revision("ABS065954E", "ENG-1") == "E-ENG-1"
+    assert _oracle_revision("ABS065954E", "E-ENG-1") == "E-ENG-1"
+    assert _oracle_revision("ABS065744", "B") == "B"
+    assert _oracle_revision("ABS034529D", "ENG-1") == "D-ENG-1"
