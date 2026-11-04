@@ -175,3 +175,24 @@ def test_ambiguous_doc_is_other(tmp_path: Path):
     doc_type, num = classify(pdf)
     assert doc_type == DocType.OTHER
     assert num == "AMBIGUOUS"
+
+
+def test_nested_other_elr_folder_excluded(tmp_path: Path):
+    """2_FEB/ADI2602092/ADI2602095/ holds ADI2602095's ABS+SLR; they must not resolve for ADI2602092."""
+    folder = tmp_path / "2_FEB" / "ADI2602092"
+    nested = folder / "ADI2602095"
+    sub = folder / "old"
+    nested.mkdir(parents=True)
+    sub.mkdir()
+    (folder / "ABS066254A.pdf").write_bytes(b"%PDF-own-abs")
+    (nested / "SLR231729.pdf").write_bytes(b"%PDF-other-elr-slr")
+    (sub / "SLR218462.pdf").write_bytes(b"%PDF-own-sub")
+    names = {p.name for p, _ in fingerprint_folder(folder, tmp_path / "x")}
+    assert names == {"ABS066254A.pdf", "SLR218462.pdf"}
+
+
+def test_nested_same_elr_folder_kept(tmp_path: Path):
+    folder = tmp_path / "2_FEB" / "ADI2602092"
+    (folder / "ADI2602092 rev2").mkdir(parents=True)
+    (folder / "ADI2602092 rev2" / "SLR1.pdf").write_bytes(b"%PDF-same")
+    assert [p.name for p, _ in fingerprint_folder(folder, tmp_path / "x")] == ["SLR1.pdf"]

@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -44,6 +45,46 @@ def load_r0_csv(path: Path) -> dict[tuple[str, str, int], dict[str, str]]:
             if elr and side and line_no:
                 result[(elr, side, line_no)] = r
     return result
+
+
+def load_r0_reocr(root: Path) -> set[tuple[str, str, int]]:
+    """(elr_no, side, line_no) whose R0 text came from ocr_reocr.csv (kept == 'Y').
+
+    Keys are either ``<image stem>|<SIDE>|<line>`` (May-Jun, images in dataset/eval_h1) or
+    ``<image_id>_TL<n>`` / ``_BL<n>`` (Jan-Apr, images in full_images / eval_4_apr).
+    """
+    out: set[tuple[str, str, int]] = set()
+    reocr = root / "experiments" / "abs_vs_db" / "out" / "ocr_reocr.csv"
+    if not reocr.is_file():
+        return out
+    img_to_elrs: dict[str, set[str]] = {}
+    h1 = root / "dataset" / "eval_h1" / "images_index.csv"
+    if h1.is_file():
+        for r in csv.DictReader(open(h1, encoding="utf-8-sig")):
+            img_to_elrs.setdefault(Path(r["image"]).stem, set()).add(r["elr"].strip().upper())
+    for idx in (root / "dataset" / "full_images" / "images_index.csv", root / "dataset" / "eval_4_apr" / "images_index.csv"):
+        if not idx.is_file():
+            continue
+        for r in csv.DictReader(open(idx, encoding="utf-8-sig")):
+            srcs = [x for x in (r.get("source_pdfs", "") or "").split(";")]
+            srcs += [r.get("source_test_file", ""), r.get("source_train_file", "")]
+            for src in srcs:
+                if "__" in src:
+                    img_to_elrs.setdefault(r["image_id"].strip(), set()).add(src.split("__")[0].strip().upper())
+    for r in csv.DictReader(open(reocr, encoding="utf-8-sig")):
+        if (r.get("kept") or "").strip().upper() != "Y":
+            continue
+        key = r["key"].strip()
+        if "|" in key:
+            img, side, line = key.split("|")
+        else:
+            m = re.match(r"^(.*)_([TB])L(\d+)$", key)
+            if not m:
+                continue
+            img, side, line = m.group(1), "TOP" if m.group(2) == "T" else "BOTTOM", m.group(3)
+        for elr in img_to_elrs.get(img, ()):
+            out.add((elr, side.upper(), int(line)))
+    return out
 
 
 def main() -> None:
@@ -105,6 +146,8 @@ def main() -> None:
 
     print(f"[*] Loading R0 run 2: {r0legacy_path}")
     r0legacy_data = load_r0_csv(r0legacy_path)
+    r0_reocr = load_r0_reocr(root)
+    print(f"[*] R0 re-OCR lines (kept=Y): {len(r0_reocr)}")
 
     prefixes = tuple(args.elr_prefix)
     in_scope_items = [
@@ -159,8 +202,12 @@ def main() -> None:
     for job in jobs:
         layout_source = job.layout_source
         abs_no = ""
+        abs_other_revisions = ""
         if job.resolution and job.resolution.abs:
             abs_no = Path(job.resolution.abs.path).stem
+            abs_other_revisions = ";".join(
+                sorted(Path(ref.path).stem for ref, why in job.resolution.rejected if why == "REVISION_SUPERSEDED")
+            )
 
         for c in job.comparisons:
             expected_str = c.expected or ""
@@ -183,6 +230,8 @@ def main() -> None:
                 "processing_status": job.processing_status.value,
                 "hold_reason": job.hold_reason or "",
                 "abs_no": abs_no,
+                "abs_other_revisions": abs_other_revisions,
+                "r0_reocr": "Y" if (job.elr_no, c.side.value, c.line_no) in r0_reocr else "",
             }
             lines_rows.append(r1_line_dict)
 

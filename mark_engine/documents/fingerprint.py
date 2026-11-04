@@ -1,4 +1,5 @@
 import hashlib
+import re
 from pathlib import Path
 import zipfile
 import zlib
@@ -42,6 +43,36 @@ def _safe_extract_zip(zip_path: Path, target_dir: Path) -> None:
         zf.extractall(target_dir)
 
 
+_ELR_RANGE_RE = re.compile(r"^(ADI\d{7})(?:-(?:ADI\d{3})?(\d{2,7}))?", re.IGNORECASE)
+
+
+def _folder_elrs(name: str) -> frozenset[str] | None:
+    """ELR numbers a folder name stands for (exact or range); None if it names no ELR."""
+    m = _ELR_RANGE_RE.match(name.strip())
+    if not m:
+        return None
+    start = m.group(1).upper()
+    if not m.group(2):
+        return frozenset({start})
+    tail = m.group(2)
+    end = start[: len(start) - len(tail)] + tail
+    lo, hi = int(start[3:]), int(end[3:])
+    if hi < lo or hi - lo > 200:
+        return frozenset({start})
+    return frozenset(f"ADI{n:07d}" for n in range(lo, hi + 1))
+
+
+def _in_other_elr_dir(rel: Path, own: frozenset[str] | None) -> bool:
+    """True if any parent directory of rel names an ELR not covered by the scanned folder."""
+    if own is None:
+        return False
+    for part in rel.parts[:-1]:
+        sub = _folder_elrs(part)
+        if sub is not None and not (sub & own):
+            return True
+    return False
+
+
 def fingerprint_folder(folder: Path, extract_dir: Path) -> list[tuple[Path, str]]:
     """Scan folder recursively for PDFs and ZIPs.
 
@@ -51,8 +82,17 @@ def fingerprint_folder(folder: Path, extract_dir: Path) -> list[tuple[Path, str]
     if not folder.is_dir():
         return []
 
-    # Collect *.pdf and *.zip recursively in folder
-    all_files = sorted([p for p in folder.rglob("*") if p.is_file()], key=lambda p: str(p))
+    # Collect *.pdf and *.zip recursively in folder, except inside a nested folder that is
+    # named after a *different* ELR (2_FEB/ADI2602092/ADI2602095/ holds ADI2602095's docs).
+    own = _folder_elrs(folder.name)
+    all_files = sorted(
+        [
+            p
+            for p in folder.rglob("*")
+            if p.is_file() and not _in_other_elr_dir(p.relative_to(folder), own)
+        ],
+        key=lambda p: str(p),
+    )
 
     candidate_pdfs: list[Path] = []
 

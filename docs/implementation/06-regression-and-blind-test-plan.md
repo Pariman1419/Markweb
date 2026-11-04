@@ -123,12 +123,12 @@ Phase 0 **ไม่ได้แก้ไขอะไรใน dataset** — บ�
 
 | ตัวชี้วัด | นิยาม | R0 (legacy) | R1 Jan–Jun | Blind Jul–Nov |
 |---|---|---|---|---|
-| Coverage ELR | ELR ที่ processing DONE และไม่ HOLD / ELR ในกรอบ (ตัวหาร = Oracle ไม่ใช่โฟลเดอร์ NAS) | 529/598 (88.5%) | **54.6%** (365/668) · auto 55.6% (114/205), human 54.2% (251/463) | วัด |
-| Coverage line | บรรทัดที่เทียบได้ / บรรทัดที่ oracle หรือ expected มีค่า | 1,982/2,381 (83.2%) | **67.1%** (1,554/2,316) · auto 73.5% (522/710), human 64.3% (1,032/1,606) | วัด |
-| Hold Rate | HOLD + NOT_VERIFIABLE / ELR | 12.1% (ตัวหาร 602) | **15.0%** (100/668) · auto 9.8% (20/205), human 17.3% (80/463) | วัด |
-| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **65.3%** (1,015/1,554) · auto 78.7% (411/522), human 58.5% (604/1,032) [MATCH 932 (ในนี้ COO ย่อ 22), MATCH_SLR 68, MATCH_SHIFT 15, MATCH_LOT 0, DIFF 64, NEEDS_REVIEW 475] | วัด |
+| Coverage ELR | ELR ที่ processing DONE และไม่ HOLD / ELR ในกรอบ (ตัวหาร = Oracle ไม่ใช่โฟลเดอร์ NAS) | 529/598 (88.5%) | **54.5%** (364/668) · auto 55.6% (114/205), human 54.0% (250/463) | วัด |
+| Coverage line | บรรทัดที่เทียบได้ / บรรทัดที่ oracle หรือ expected มีค่า | 1,982/2,381 (83.2%) | **66.9%** (1,550/2,316) · auto 73.5% (522/710), human 64.0% (1,028/1,606) | วัด |
+| Hold Rate | HOLD + NOT_VERIFIABLE / ELR | 12.1% (ตัวหาร 602) | **15.1%** (101/668) · auto 9.8% (20/205), human 17.5% (81/463) | วัด |
+| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **65.4%** (1,014/1,550) · auto 78.7% (411/522), human 58.7% (603/1,028) [MATCH 931 (ในนี้ COO ย่อ 22), MATCH_SLR 68, MATCH_SHIFT 15, MATCH_LOT 0, DIFF 61, NEEDS_REVIEW 475] | วัด |
 | Independence | expected เท่าเดิมเมื่อลบ oracle_mark | ไม่ผ่าน (by design) | **100.0%** (668/668 — วัดจริง: รัน `process_elr` ซ้ำด้วย `OracleMark` ว่างแล้วเทียบ `ExpectedMark`) | ต้อง 100% |
-| Parity vs R0 BUG | divergence จาก R0 ที่ไม่มีคำอธิบายทางสถาปัตยกรรม | — | **13 — ยังไม่ผ่าน D-03** (SAME 1,401, REVIEW_FLAG 475, RESOLVER_CHANGED 351, ORACLE_INFLUENCE_REMOVED 43, GATE_SPEC_V2 33, GRAPHIC_NOW_COUNTED 2, OCR_SOURCE_CHANGED 1, BUG 13) | — |
+| Parity vs R0 BUG | divergence จาก R0 ที่ไม่มีคำอธิบายทางสถาปัตยกรรม | — | **0 — ผ่าน** (SAME 1,400, REVIEW_FLAG 475, RESOLVER_CHANGED 362, ORACLE_INFLUENCE_REMOVED 41, GATE_SPEC_V2 37, OCR_SOURCE_CHANGED 3, BUG 0) | — |
 | Correctness | expected == engineer_verified | — | ตัวอย่าง | ตัวอย่าง |
 | False PASS | MATCH* และ engineer_verified ≠ expected | — | **ต้อง 0** | **ต้อง 0** |
 
@@ -146,9 +146,9 @@ independence เป็นค่า default (ไม่ได้ส่ง blank ru
 5. `R07-OCRFIX-7` ไม่ลบทั้งช่อง COUNTRY OF ORIGIN เมื่อเจอ suffix `ENGn`
 6. `R07-ADI1039-COO` ฝั่ง compare: Oracle `THAI`…`THAILAN` = MATCH, `detail = COO_ABBREVIATED` (ADI1039 5.5.3)
 
-BUG ที่เหลือ 13 บรรทัด (ต้องแก้ใน inference loader, Task 8):
-- `ADI2602092` TOP 2–4 (human_crop, ABS066254A): ข้อความมาจากภาพของ drawing อื่น → การจับคู่ `image_id` ใน `load_inference` ม.ค.–เม.ย.
-- `ADI2606077/078` TOP 2–5 (auto, ABS068387B): ตัดบรรทัด/คำต่างจาก R0 (`FS7201`/`BCPZA` vs `S7201BCP`/`ZA#YYWW`) → การเลือกภาพตาม revision หรือ layout
-- `ADI2605013`, `ADI2606019` TOP 2: OCR อ่าน `LHYBN` (R0 `LHYB`)
+BUG 13 บรรทัดสุดท้าย — triage แล้ว (BUG = 0):
+- `ADI2602092` TOP 2–4 → **แก้ resolver** (`fingerprint.py`): โฟลเดอร์ `2_FEB/ADI2602092/` มีโฟลเดอร์ย่อย `ADI2602095/` (ABS062830A + SLR231729 ของ ELR อื่น) ซึ่งถูกสแกนรวม → SLR ของสินค้าอื่นเขียนทับบรรทัด 2–5; ตอนนี้ข้ามโฟลเดอร์ย่อยที่ตั้งชื่อเป็น ELR อื่น (ยังเก็บโฟลเดอร์ย่อยของ ELR เดียวกัน/อยู่ใน range) → ELR นี้เหลือแต่อีเมล (OTHER) จึงเป็น `HOLD:SLR_NOT_FOUND` (`GATE_SPEC_V2`, CUST_REQ_NO ว่าง)
+- `ADI2606077/078` TOP 2–5 → `RESOLVER_CHANGED` (ไม่ใช่บั๊ก): โฟลเดอร์มี ABS068387**B** และ **C**, Oracle `CUST_BOM_REVISION = B` → R1 ใช้ B ตาม D-08 (ภาพเดียวกัน MATCH ทั้งหมดใน ADI2606035–037) แต่ TOP_MARK ใน Oracle ตรงกับ rev C; R0 เลือก ABS ที่ตรง Oracle (R03-ONE-ABS, rejected D-06). **ข้อค้นพบสำหรับ Mark Eng: Oracle ระบุ rev B แต่ mark ที่บันทึกเป็นของ rev C** — parity ใช้ `abs_other_revisions` (REVISION_SUPERSEDED จาก resolver) เพราะ R0 ไม่เก็บ revision
+- `ADI2605013`, `ADI2606019` TOP 2 → `OCR_SOURCE_CHANGED`: R0 ใช้ `ocr_reocr.csv` (`LHYBN` → `LHYB`, kept = Y คัดด้วย GT, R04-REOCR-*) ส่วน R1 ใช้ OCR ดิบ; parity อ่าน `ocr_reocr.csv` จริงแทน ELR ที่ hard-code ไว้ (5 บรรทัด kept = Y)
 
 ยังต้องดูต่อ (ไม่ใช่ BUG): `GRAPHIC_REMARK_CONFLICT` 303 บรรทัด (233 human_crop) — 406/475 บรรทัด NEEDS_REVIEW มีค่าเท่า Oracle อยู่แล้ว

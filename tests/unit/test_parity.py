@@ -78,7 +78,7 @@ from mark_engine.regression.parity import classify
         ),
         # OCR_SOURCE_CHANGED: Jan-Apr row from ocr_reocr.csv
         (
-            {"status": "DIFF", "expected_mark": "@% SAD", "elr_no": "ADI2604053", "side": "TOP", "line_no": 1},
+            {"status": "DIFF", "expected_mark": "@% SAD", "elr_no": "ADI2604053", "side": "TOP", "line_no": 1, "r0_reocr": "Y"},
             {"status": "MATCH", "final_mark": "@% ADW", "cause": "GRAPHIC_SYMBOL", "month": "4_APR"},
             None,
             "OCR_SOURCE_CHANGED",
@@ -144,3 +144,21 @@ def test_parity_r0_db_line_empty_is_oracle_influence():
     r1 = {"status": "DB_EMPTY", "expected_mark": "@ EB{1-DC}", "elr_no": "ADI2602124", "side": "TOP", "line_no": 1}
     r0 = {"status": "MATCH", "final_mark": "@ MYW", "cause": "DB_LINE_EMPTY"}
     assert classify(r1, r0, None) == "ORACLE_INFLUENCE_REMOVED"
+
+
+def test_parity_ocr_source_only_when_r0_reocr_flagged():
+    """Same divergence without the R0 re-OCR flag is a BUG (no hard-coded ELR list)."""
+    r1 = {"status": "DIFF", "expected_mark": "LHYBN", "elr_no": "ADI2605013", "side": "TOP", "line_no": 2}
+    r0 = {"status": "MATCH", "final_mark": "LHYB", "cause": "OK"}
+    assert classify(r1, r0, None) == "BUG"
+    assert classify({**r1, "r0_reocr": "Y"}, r0, None) == "OCR_SOURCE_CHANGED"
+
+
+def test_parity_other_abs_revision_rejected_is_resolver_changed():
+    """Folder has ABS068387B and C; Oracle BOM rev B -> R1 uses B; R0 picked by Oracle (R03-ONE-ABS)."""
+    r1 = {"status": "DIFF", "expected_mark": "FS7201", "abs_no": "ABS068387B", "elr_no": "ADI2606077",
+          "side": "TOP", "line_no": 2, "abs_other_revisions": "ABS068387C"}
+    r0 = {"status": "MATCH", "final_mark": "S7201BCP", "abs_no": "ABS068387", "cause": "OK"}
+    assert classify(r1, r0, None) == "RESOLVER_CHANGED"
+    r1_same = {**r1, "status": "MATCH", "expected_mark": "S7201BCP"}
+    assert classify(r1_same, r0, None) == "SAME"

@@ -42,7 +42,8 @@ def classify(
       - RESOLVER_CHANGED: ELR measurable status differs, or different ABS selected
       - GATE_SPEC_V2: R0 was measurable via CUST_REQ_NO relaxation in run 3, but R1 is SLR_NOT_FOUND
       - REVIEW_FLAG: R1 line status is NEEDS_REVIEW
-      - OCR_SOURCE_CHANGED: Jan–Apr row whose R0 OCR came from ocr_reocr.csv
+      - OCR_SOURCE_CHANGED: R0 line text came from ocr_reocr.csv (kept == 'Y'); flag r0_reocr
+      - RESOLVER_CHANGED also when R1 rejected other revisions of the same ABS (abs_other_revisions)
       - BUG: anything else
     """
     if r0_row is None and r0legacy_row is not None:
@@ -88,8 +89,9 @@ def classify(
     if r1_is_measurable != r0_is_measurable:
         return "RESOLVER_CHANGED"
 
-    # 5. OCR_SOURCE_CHANGED: Jan–Apr row whose R0 OCR came from ocr_reocr.csv
-    if elr_no == "ADI2604053" and side.upper() == "TOP" and line_no == "1":
+    # 5. OCR_SOURCE_CHANGED: R0 text for this line came from ocr_reocr.csv (kept == 'Y',
+    #    selected with human GT, R04-REOCR-*); R1 uses the raw cached OCR. Flag set by the runner.
+    if _clean_str(r1_row.get("r0_reocr")).upper() == "Y":
         return "OCR_SOURCE_CHANGED"
 
     # 6. SAME: r1 status equals r0 status (or both match/comparable) and expected/final text equals
@@ -106,6 +108,12 @@ def classify(
     )
     if statuses_match and (r1_exp == r0_final or is_non_compared_same):
         return "SAME"
+
+    # 6b. RESOLVER_CHANGED: folder holds other revisions of the same ABS; R1 chose by Oracle
+    #     CUST_BOM_REVISION (D-08) while R0 picked the ABS that best matched Oracle (R03-ONE-ABS,
+    #     rejected D-06). R0 abs_no carries no revision, so this comes from the R1 resolution.
+    if _clean_str(r1_row.get("abs_other_revisions")):
+        return "RESOLVER_CHANGED"
 
     # 7. LOT_NOW_VERIFIED: R0 status MATCH_LOT where R1 verified lot or flagged diff
     if r0_status == "MATCH_LOT":
