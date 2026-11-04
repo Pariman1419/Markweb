@@ -117,8 +117,10 @@ def test_metrics_counts():
     assert m["NOT_MEASURABLE"] == 1
     assert m["needs_review_lines"] == 0
 
-    # Independence
-    assert m["independence"] == 1.0
+    # Independence is not measured without a blank-Oracle re-run (never a default 1.0)
+    assert m["independence"] is None
+    m_ind = compute(jobs, oracle_snapshot, prefixes, blank_jobs=list(reversed(jobs)))
+    assert m_ind["independence"] == 1.0
 
     # Layout source split
     assert "auto" in m["by_layout_source"]
@@ -161,3 +163,10 @@ def test_independence_detects_leak():
     # Identity check gives 1.0
     score_clean = compute_independence([j1], blank_jobs=[j1])
     assert score_clean == 1.0
+
+
+def test_independence_missing_blank_counts_as_leak():
+    j1 = JobResult(elr_no="ADI2605001", processing_status=ProcessingStatus.DONE)
+    j2 = JobResult(elr_no="ADI2605002", processing_status=ProcessingStatus.DONE)
+    assert compute_independence([j1, j2], blank_jobs=[j1]) == 0.5
+    assert compute_independence([j1], blank_jobs=None) is None

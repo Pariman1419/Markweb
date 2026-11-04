@@ -82,3 +82,34 @@ def test_skip_mark():
     assert is_skip_mark("skipmark", None) is True
     assert is_skip_mark(None, None) is False
     assert is_skip_mark("Standard mark", None) is False
+
+
+@pytest.mark.parametrize(
+    "text, expected, lot_slice",
+    [
+        # ADI1039 Table 2 preview text "n Digit Lot Number" = {Lot-n}; R1 triage ADI2601001 TOP 3
+        ("3 DIGIT LOT NUMBERYWW", "XXXYWW", "last-3"),
+        ("7 DIGIT LOT NUMBER", "XXXXXXX", "last-7"),
+        ("9 Digit Lot Number", "XXXXXXXXX", "last-9"),
+        ("LAST 2 DIGIT LOT NUMBER", "XX", "last-2"),
+    ],
+)
+def test_adi1039_plain_text_digit_lot_number(text, expected, lot_slice):
+    out, tokens = apply_adi1039(text, DocType.ABS)
+    assert out == expected
+    assert any(t.rule_id == "R07-ADI1039-LOT" and t.lot_slice == lot_slice for t in tokens)
+
+
+def test_ocrfix7_origin_eng_suffix_keeps_coo_then_adi1039_thailand():
+    """Drafting suffix ORIGINENG4 is noise; the field itself is COUNTRY OF ORIGIN (ADI2605079 TOP 5)."""
+    fixed, rules = ocr_fix("COUNTRY OF ORIGINENG4")
+    assert fixed == "COUNTRY OF ORIGIN"
+    assert "R07-OCRFIX-7" in rules
+    out, _ = apply_adi1039(fixed, DocType.ABS)
+    assert out == "THAILAND"
+    assert ocr_fix("THAILANDENG2")[0] == "THAILAND"
+
+
+def test_adi1039_digit_lot_number_glued_to_date_code():
+    """OCR glues the date code in front: 'YW6 DIGIT LOT NUMBER' (ADI2601045 TOP 3)."""
+    assert apply_adi1039("YW6 DIGIT LOT NUMBER", DocType.ABS)[0] == "YWXXXXXX"

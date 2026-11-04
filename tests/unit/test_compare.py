@@ -329,3 +329,21 @@ def test_both_empty_skipped() -> None:
 
     results = compare(expected, oracle, slr, meta)
     assert len(results) == 0
+
+
+def test_coo_abbreviated_in_oracle_is_match_with_rule() -> None:
+    """ADI1039 5.5.3: full COO when space allows; Oracle THAIL/THAI is the short form."""
+    expected = _make_expected((ExpectedLine(side=Side.TOP, line_no=4, text="THAILAND#"),))
+    for ora in ("THAIL#", "THAI#", "THAILAND#"):
+        res = compare(expected, _make_oracle(((Side.TOP, 4, ora),)), _make_slr(), _make_meta())
+        assert res[0].status == LineStatus.MATCH, ora
+    res = compare(expected, _make_oracle(((Side.TOP, 4, "THAIL#"),)), _make_slr(), _make_meta())
+    assert res[0].compare_rules == ("R07-ADI1039-COO",)
+    assert res[0].detail == "COO_ABBREVIATED"
+
+
+def test_coo_too_short_or_other_text_is_diff() -> None:
+    expected = _make_expected((ExpectedLine(side=Side.TOP, line_no=4, text="THAILAND#"),))
+    for ora in ("THA#", "THAIX#", "THAIL"):
+        res = compare(expected, _make_oracle(((Side.TOP, 4, ora),)), _make_slr(), _make_meta())
+        assert res[0].status == LineStatus.DIFF, ora

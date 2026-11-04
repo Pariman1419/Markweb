@@ -4,9 +4,11 @@ import argparse
 import csv
 import json
 import os
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 # Ensure workspace root is in sys.path
 WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +21,7 @@ from mark_engine.adapters.snapshot import (
     r0_root,
     verify_r0_root,
 )
-from mark_engine.domain.models import JobResult, LineStatus, ProcessingStatus
+from mark_engine.domain.models import JobResult, LineStatus, OracleMark, ProcessingStatus
 from mark_engine.pipeline import process_elr
 from mark_engine.regression.metrics import COMPARED_STATUSES, MATCH_ALL_STATUSES, compute
 from mark_engine.regression.parity import classify
@@ -43,6 +45,46 @@ def load_r0_csv(path: Path) -> dict[tuple[str, str, int], dict[str, str]]:
             if elr and side and line_no:
                 result[(elr, side, line_no)] = r
     return result
+
+
+def load_r0_reocr(root: Path) -> set[tuple[str, str, int]]:
+    """(elr_no, side, line_no) whose R0 text came from ocr_reocr.csv (kept == 'Y').
+
+    Keys are either ``<image stem>|<SIDE>|<line>`` (May-Jun, images in dataset/eval_h1) or
+    ``<image_id>_TL<n>`` / ``_BL<n>`` (Jan-Apr, images in full_images / eval_4_apr).
+    """
+    out: set[tuple[str, str, int]] = set()
+    reocr = root / "experiments" / "abs_vs_db" / "out" / "ocr_reocr.csv"
+    if not reocr.is_file():
+        return out
+    img_to_elrs: dict[str, set[str]] = {}
+    h1 = root / "dataset" / "eval_h1" / "images_index.csv"
+    if h1.is_file():
+        for r in csv.DictReader(open(h1, encoding="utf-8-sig")):
+            img_to_elrs.setdefault(Path(r["image"]).stem, set()).add(r["elr"].strip().upper())
+    for idx in (root / "dataset" / "full_images" / "images_index.csv", root / "dataset" / "eval_4_apr" / "images_index.csv"):
+        if not idx.is_file():
+            continue
+        for r in csv.DictReader(open(idx, encoding="utf-8-sig")):
+            srcs = [x for x in (r.get("source_pdfs", "") or "").split(";")]
+            srcs += [r.get("source_test_file", ""), r.get("source_train_file", "")]
+            for src in srcs:
+                if "__" in src:
+                    img_to_elrs.setdefault(r["image_id"].strip(), set()).add(src.split("__")[0].strip().upper())
+    for r in csv.DictReader(open(reocr, encoding="utf-8-sig")):
+        if (r.get("kept") or "").strip().upper() != "Y":
+            continue
+        key = r["key"].strip()
+        if "|" in key:
+            img, side, line = key.split("|")
+        else:
+            m = re.match(r"^(.*)_([TB])L(\d+)$", key)
+            if not m:
+                continue
+            img, side, line = m.group(1), "TOP" if m.group(2) == "T" else "BOTTOM", m.group(3)
+        for elr in img_to_elrs.get(img, ()):
+            out.add((elr, side.upper(), int(line)))
+    return out
 
 
 def main() -> None:
@@ -104,6 +146,8 @@ def main() -> None:
 
     print(f"[*] Loading R0 run 2: {r0legacy_path}")
     r0legacy_data = load_r0_csv(r0legacy_path)
+    r0_reocr = load_r0_reocr(root)
+    print(f"[*] R0 re-OCR lines (kept=Y): {len(r0_reocr)}")
 
     prefixes = tuple(args.elr_prefix)
     in_scope_items = [
@@ -113,14 +157,25 @@ def main() -> None:
     ]
     print(f"[*] Total in-scope ELRs to process: {len(in_scope_items)}")
 
-    def run_one(item: tuple) -> JobResult:
+    def run_one(item: tuple) -> tuple[JobResult, JobResult]:
         meta, oracle = item
         job_work = work_dir / meta.elr_no
-        return process_elr(meta, oracle, root, args.months, job_work, rules, load_inference)
+        job = process_elr(meta, oracle, root, args.months, job_work, rules, load_inference)
+        # Independence check (D-03): same ELR again with a blank OracleMark. The ExpectedMark
+        # must be identical, otherwise generate depends on Oracle TOP/BACK_MARK.
+        blank = process_elr(
+            meta, OracleMark(meta.elr_no, ()), root, args.months, job_work, rules, load_inference
+        )
+        return job, blank
 
-    print(f"[*] Running pipeline with {args.workers} workers...")
+    print(f"[*] Running pipeline (+ blank-Oracle re-run) with {args.workers} workers...")
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
-        jobs = list(executor.map(run_one, in_scope_items))
+        pairs = list(executor.map(run_one, in_scope_items))
+    jobs = [p[0] for p in pairs]
+    blank_jobs = [p[1] for p in pairs]
+    leaks = sorted(j.elr_no for j, b in pairs if j.expected != b.expected)
+    if leaks:
+        print(f"[!] Independence leak in {len(leaks)} ELR(s): {', '.join(leaks[:20])}")
 
     # Sort jobs by elr_no
     jobs.sort(key=lambda j: j.elr_no)
@@ -128,7 +183,7 @@ def main() -> None:
 
     # 1. Compute Metrics
     print("[*] Computing regression metrics...")
-    metrics = compute(jobs, snapshot, prefixes)
+    metrics = compute(jobs, snapshot, prefixes, blank_jobs=blank_jobs)
 
     # 2. Write metrics.json
     metrics_path = out_dir / "metrics.json"
@@ -147,8 +202,12 @@ def main() -> None:
     for job in jobs:
         layout_source = job.layout_source
         abs_no = ""
+        abs_other_revisions = ""
         if job.resolution and job.resolution.abs:
             abs_no = Path(job.resolution.abs.path).stem
+            abs_other_revisions = ";".join(
+                sorted(Path(ref.path).stem for ref, why in job.resolution.rejected if why == "REVISION_SUPERSEDED")
+            )
 
         for c in job.comparisons:
             expected_str = c.expected or ""
@@ -171,6 +230,8 @@ def main() -> None:
                 "processing_status": job.processing_status.value,
                 "hold_reason": job.hold_reason or "",
                 "abs_no": abs_no,
+                "abs_other_revisions": abs_other_revisions,
+                "r0_reocr": "Y" if (job.elr_no, c.side.value, c.line_no) in r0_reocr else "",
             }
             lines_rows.append(r1_line_dict)
 
@@ -298,7 +359,8 @@ def main() -> None:
     print(f"Coverage Line:          {metrics['coverage_line']:.2%} ({metrics['coverage_line_num']}/{metrics['coverage_line_denom']})")
     print(f"Hold Rate:              {metrics['hold_rate']:.2%} ({metrics['hold_count']}/{metrics['total_jobs']})")
     print(f"Oracle Agreement:       {metrics['oracle_agreement']:.2%} ({metrics['oracle_agreement_num']}/{metrics['oracle_agreement_denom']})")
-    print(f"Independence:           {metrics['independence']:.2%}")
+    ind = metrics["independence"]
+    print(f"Independence:           {'NOT MEASURED' if ind is None else f'{ind:.2%}'}")
     print(f"Needs Review Lines:     {metrics['needs_review_lines']}")
     print("Status counts:")
     for st, cnt in metrics["status_counts"].items():

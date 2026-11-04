@@ -26,6 +26,22 @@ def nospace(s: str | None) -> str:
     return re.sub(r"\s+", "", s)
 
 
+_COO_FULL = "THAILAND"
+_COO_MIN_ABBR = 4  # "THAI" (Symbol ADI {Country of Origin} -> THAI)
+
+
+def _coo_abbreviation_match(exp_text: str, ora_text: str) -> bool:
+    """True when Oracle equals expected with THAILAND shortened to a prefix of >= 4 chars."""
+    exp_ns = nospace(exp_text).upper()
+    ora_ns = nospace(ora_text).upper()
+    if _COO_FULL not in exp_ns:
+        return False
+    return any(
+        exp_ns.replace(_COO_FULL, _COO_FULL[:k]) == ora_ns
+        for k in range(_COO_MIN_ABBR, len(_COO_FULL))
+    )
+
+
 def _serial_digits_match(exp_text: str | None, ora_text: str) -> bool:
     if not exp_text or not ora_text:
         return False
@@ -48,6 +64,8 @@ def compare(
     1. Review Flags Gate: If expected line has flags other than SLR_OVERRIDE -> NEEDS_REVIEW
     2. Empty Oracle: If oracle text is "" -> DB_EMPTY
     3. Exact Match: If nospace(expected) == nospace(oracle) -> MATCH_SLR or MATCH
+    3b. COO abbreviation: Oracle has THAILAND shortened to THAI..THAILAN -> MATCH
+        (compare_rules R07-ADI1039-COO, detail COO_ABBREVIATED)
     4. Verified Lot Match: match_lot -> MATCH_LOT
     5. Line Shift: side-level match_shift -> MATCH_SHIFT
     6. Oracle Value in SLR -> NEEDS_REVIEW (ORACLE_VALUE_IN_SLR)
@@ -137,6 +155,22 @@ def compare(
                             detail="",
                         )
                     )
+                continue
+
+            # 3b. COO abbreviation (R07-ADI1039-COO, ADI1039 5.5.3: full name only "when space
+            # allows"). Expected always carries THAILAND; Oracle may hold the short form.
+            if exp_text is not None and _coo_abbreviation_match(exp_text, ora_text):
+                comparisons.append(
+                    LineComparison(
+                        side=side,
+                        line_no=line_no,
+                        expected=exp_text,
+                        oracle=ora_text,
+                        status=LineStatus.MATCH,
+                        compare_rules=("R07-ADI1039-COO",),
+                        detail="COO_ABBREVIATED",
+                    )
+                )
                 continue
 
             # 4. Verified Lot Match
