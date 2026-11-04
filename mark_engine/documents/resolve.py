@@ -1,4 +1,5 @@
 import re
+from dataclasses import replace
 import zipfile
 from pathlib import Path
 from typing import Sequence
@@ -35,6 +36,7 @@ def _norm_rev(rev: str | None) -> str | None:
     return r if r else None
 
 
+_ABS_STEM_RE = re.compile(r"^(ABS\d{6})", re.I)
 _LETTER_REV_RE = re.compile(r"[A-Z]{1,2}")
 
 
@@ -141,6 +143,8 @@ def resolve_documents(
     abs_docs: list[DocumentRef] = []
     slr_docs: list[DocumentRef] = []
 
+    by_name: list[tuple[Path, str, str]] = []
+
     for pdf_path, sha in fingerprinted:
         try:
             doc_type, doc_number = classify(pdf_path)
@@ -157,6 +161,13 @@ def resolve_documents(
                 rejected=(),
                 steps=tuple(steps),
             )
+
+        # D-28: some ABS PDFs have a garbled / image-only text layer (custom font encoding), so neither
+        # ABS###### nor "Brand/Marking" is readable. The NAS file name is the ABS number then.
+        # Only a fallback: used after the loop when no ABS with that number was read from content.
+        if doc_type == DocType.OTHER and _ABS_STEM_RE.match(pdf_path.stem):
+            by_name.append((pdf_path, sha, _ABS_STEM_RE.match(pdf_path.stem).group(1).upper()))
+            continue
 
         if doc_type == DocType.TRS:
             return DocumentResolution(
@@ -203,6 +214,17 @@ def resolve_documents(
             )
             rejected.append((other_ref, "OTHER_DOC_TYPE"))
 
+    content_abs = {(ref.number or "").upper() for ref in abs_docs}
+    for pdf_path, sha, number in by_name:
+        rev = extract_abs_revision(pdf_path.stem)
+        ref = DocumentRef(path=str(pdf_path), sha256=sha, doc_type=DocType.ABS, number=number,
+                          revision=rev, revision_source="filename" if rev is not None else None)
+        if number in content_abs:
+            rejected.append((replace(ref, doc_type=DocType.OTHER), "OTHER_DOC_TYPE"))
+        else:
+            abs_docs.append(ref)
+            steps.append(f"ABS_BY_FILENAME:{pdf_path.name}")
+
     # 4. Check BOM in Oracle metadata
     bom_clean = meta.cust_bom_no.strip() if meta.cust_bom_no else ""
     if not bom_clean or bom_clean.upper() in ("N/A", "NONE"):
@@ -224,7 +246,25 @@ def resolve_documents(
         else:
             rejected.append((ref, "BOM_MISMATCH"))
 
+    review_notes: list[str] = []
+    pn_abs = re.search(r"ABS(\d{6})", (meta.product_no or "").upper())
+    bom6 = re.search(r"\d{6}", bom_clean)
+
+    # 4a. CUST_BOM_NO not in the folder but the ABS named by PRODUCT_NO is (D-28): build from it and
+    #     alert -- the lines stay NEEDS_REVIEW (RULE_CONFLICT) until the user fixes Oracle.
+    if not matching_abs and pn_abs and bom6 and pn_abs.group(1) != bom6.group(0):
+        by_pn = [ref for ref, why in rejected if why == "BOM_MISMATCH" and _matches_bom(ref, "ABS" + pn_abs.group(1))]
+        if by_pn:
+            matching_abs = by_pn
+            rejected = [(ref, why) for ref, why in rejected if ref not in by_pn]
+            steps.append("PRODUCT_NO_ABS_MISMATCH")
+            review_notes.append(
+                f"PRODUCT_NO_ABS_MISMATCH: CUST_BOM_NO {bom_clean.upper()} not in folder; used "
+                f"{Path(by_pn[0].path).stem} named by PRODUCT_NO {meta.product_no.strip()}"
+            )
+
     if not matching_abs:
+        in_folder = sorted({Path(ref.path).stem for ref in abs_docs})
         return DocumentResolution(
             elr_no=meta.elr_no,
             decision="HOLD",
@@ -233,14 +273,11 @@ def resolve_documents(
             slr=(),
             rejected=tuple(sorted(rejected, key=lambda item: (item[0].sha256, item[0].path, item[1]))),
             steps=tuple(steps),
+            hold_detail=f"CUST_BOM_NO {bom_clean.upper()} not in folder; ABS in folder: {', '.join(in_folder) or 'none'}",
         )
 
-    review_notes: list[str] = []
-
     # 4b. PRODUCT_NO_ABS_MISMATCH (D-25): PRODUCT_NO names another ABS number than CUST_BOM_NO
-    pn_abs = re.search(r"ABS(\d{6})", (meta.product_no or "").upper())
-    bom6 = re.search(r"\d{6}", bom_clean)
-    if pn_abs and bom6 and pn_abs.group(1) != bom6.group(0):
+    if pn_abs and bom6 and pn_abs.group(1) != bom6.group(0) and "PRODUCT_NO_ABS_MISMATCH" not in steps:
         steps.append("PRODUCT_NO_ABS_MISMATCH")
         review_notes.append(
             f"PRODUCT_NO_ABS_MISMATCH: PRODUCT_NO {meta.product_no.strip()} names ABS{pn_abs.group(1)} "

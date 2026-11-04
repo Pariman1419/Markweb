@@ -277,3 +277,22 @@
 ### Prevention / Rules Learned
 - Look at the drawing before calling a line an OCR error; a cached re-read can be reused only with a selection rule that does not see GT or Oracle.
 
+---
+
+## [2026-11-04] Template C ELRs held before layout (garbled ABS text, CUST_BOM_NO absent)
+
+### Context & Symptom
+- **Component / Path**: [`mark_engine/documents/resolve.py`](file:///D:/CIM%20Project/mark-web/mark_engine/documents/resolve.py)
+- **Question / Issue**: user: ABS with the legend layout (picture example + `LINE n:` text) must be read from the text below. Layout already does this; Jan-Apr Template C ELRs never reached it (HOLD BOM_NOT_FOUND).
+
+### Root Cause
+- ABS065710-ENG-2.pdf (and ~20 other ABS files) have a garbled text layer, so `classify` finds neither ABS###### nor Brand/Marking → OTHER.
+- ADI2603049-052 etc.: Oracle CUST_BOM_NO (ABS065577) is not in the folder; the folder has the ABS named in PRODUCT_NO.
+
+### Resolution & Code Fix
+- Filename fallback after content classification, only if no content-read ABS has the same number (first version broke ADI2601043: a zip held a second ABS067786_ENG-2.pdf; test added).
+- PRODUCT_NO ABS used when CUST_BOM_NO is absent, with `review_detail` alert; BOM_NOT_FOUND hold_detail lists the ABS in the folder.
+
+### Prevention / Rules Learned
+- Check why a layout case is missing before adding layout logic: here the documents gate held it.
+

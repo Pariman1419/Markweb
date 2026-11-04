@@ -61,6 +61,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-04 (D-28 Template C / resolver)
+- Template C (legend `LINE n:` below a format example) was already handled by `abs/layout.py` (May-Jun) and annotation rule D7 (Jan-Apr). The Jan-Apr Template C ELRs were held before layout: BOM_NOT_FOUND.
+- Causes: ABS PDFs with a garbled text layer classified OTHER (e.g. ADI2601082 ABS065710-ENG-2) → `ABS_BY_FILENAME` fallback; CUST_BOM_NO absent but PRODUCT_NO's ABS present (ADI2603049-052, ADI2602093, ADI2602064-074, ADI2601072, ADI2602018) → build + `PRODUCT_NO_ABS_MISMATCH` alert. BOM_NOT_FOUND now has hold_detail.
+- 17 ELR / 69 lines now compared (47 equal Oracle, 11 DB_WRONG `LSNvNN`, 11 `THAILAND#`/`THAIL#`), all NEEDS_REVIEW with the alert. Hold 103 → 85. Agreement 82.36% (1,326/1,610; denominator grew), BUG 0. 217 unit + 3 regression. DB run 12.
+
 ### 2026-11-04 (D-27 re-OCR)
 - Cached re-OCR (`ocr_reocr.csv`: legend value after `LINE n:`, logo trimmed off the line crop) now used by R1 with a GT-free rule (new ≠ old, score ≥ 0.9). 5 lines fixed by the system: ADI2604053 T1 `ADW`, ADI2605013/2606019 T2 `LHYB`, ADI2605047/048 T4 `UJH` (checked against the drawings).
 - Parity `OCR_SOURCE_CHANGED` now only after SAME → 0 lines. ADI2602089 T5 stays HUMAN_FIXED (`0.0` on the drawing, Oracle `O.0`).

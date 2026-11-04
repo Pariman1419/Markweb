@@ -481,3 +481,55 @@ def test_product_no_other_abs_gives_user_reason(month_tree: Path, tmp_path: Path
     res = resolve_documents(meta, month_tree, ["6_JUN"], tmp_path / "work")
     assert "PRODUCT_NO_ABS_MISMATCH" in res.steps
     assert res.review_detail.startswith("PRODUCT_NO_ABS_MISMATCH: PRODUCT_NO ADMFS7201-ABS071101-ENG-2-A names ABS071101")
+
+
+def test_abs_with_unreadable_text_uses_filename(month_tree: Path, tmp_path: Path):
+    """D-28: garbled text layer (ADI2601082 ABS065710-ENG-2.pdf) -> ABS by file name, recorded in steps."""
+    f = month_tree / "1_JAN" / "ADI2601082"
+    f.mkdir(parents=True)
+    make_pdf(f / "ABS065710-ENG-2.pdf", ["]f_af]]paf_ Sqq]eTd}", "VmUse]fr t]pa"])
+    make_pdf(f / "SLR230663.pdf", ["SPECIAL INSTRUCTIONS\nLine 1: TEST"])
+    meta = ElrMeta(elr_no="ADI2601082", cust_bom_no="ABS065710", cust_bom_revision="ENG-2")
+    res = resolve_documents(meta, month_tree, ["1_JAN"], tmp_path / "work")
+    assert res.decision == "RESOLVED" and Path(res.abs.path).name == "ABS065710-ENG-2.pdf"
+    assert "ABS_BY_FILENAME:ABS065710-ENG-2.pdf" in res.steps
+
+
+def test_bom_absent_uses_product_no_abs_with_alert(month_tree: Path, tmp_path: Path):
+    """D-28: CUST_BOM_NO ABS065577 not in folder, PRODUCT_NO names ABS065710 which is -> build + alert."""
+    f = month_tree / "3_MAR" / "ADI2603049"
+    f.mkdir(parents=True)
+    make_pdf(f / "ABS065710-ENG-2.pdf", ["ABS065710 Rev ENG-2", "Brand/Marking diagram"])
+    make_pdf(f / "SLR231940.pdf", ["SPECIAL INSTRUCTIONS\nLine 1: TEST"])
+    meta = ElrMeta(elr_no="ADI2603049", cust_bom_no="ABS065577", cust_bom_revision="ENG-2",
+                   product_no="LT83405-ABS065710-ENG-2-A")
+    res = resolve_documents(meta, month_tree, ["3_MAR"], tmp_path / "work")
+    assert res.decision == "RESOLVED" and Path(res.abs.path).name == "ABS065710-ENG-2.pdf"
+    assert res.steps.count("PRODUCT_NO_ABS_MISMATCH") == 1
+    assert res.review_detail == (
+        "PRODUCT_NO_ABS_MISMATCH: CUST_BOM_NO ABS065577 not in folder; used ABS065710-ENG-2 "
+        "named by PRODUCT_NO LT83405-ABS065710-ENG-2-A"
+    )
+
+
+def test_bom_not_found_says_what_folder_has(month_tree: Path, tmp_path: Path):
+    f = month_tree / "3_MAR" / "ADI2603099"
+    f.mkdir(parents=True)
+    make_pdf(f / "ABS011111A.pdf", ["ABS011111 Rev A", "Brand/Marking diagram"])
+    meta = ElrMeta(elr_no="ADI2603099", cust_bom_no="ABS022222", cust_bom_revision="A")
+    res = resolve_documents(meta, month_tree, ["3_MAR"], tmp_path / "work")
+    assert res.hold_reason == "BOM_NOT_FOUND"
+    assert res.hold_detail == "CUST_BOM_NO ABS022222 not in folder; ABS in folder: ABS011111A"
+
+
+def test_filename_fallback_not_used_when_content_abs_exists(month_tree: Path, tmp_path: Path):
+    """ADI2601043: a zip holds another file named ABS067786_ENG-2.pdf; the readable ABS wins."""
+    f = month_tree / "1_JAN" / "ADI2601043"
+    f.mkdir(parents=True)
+    make_pdf(f / "ABS067786-ENG-2.pdf", ["ABS067786 Rev ENG-2", "Brand/Marking diagram"])
+    make_pdf(f / "ABS067786_ENG-2.pdf", ["garbled ]f_af]]"])
+    make_pdf(f / "SLR231068.pdf", ["SPECIAL INSTRUCTIONS\nLine 1: TEST"])
+    meta = ElrMeta(elr_no="ADI2601043", cust_bom_no="ABS067786", cust_bom_revision="ENG-2")
+    res = resolve_documents(meta, month_tree, ["1_JAN"], tmp_path / "work")
+    assert res.decision == "RESOLVED" and Path(res.abs.path).name == "ABS067786-ENG-2.pdf"
+    assert not any(s.startswith("ABS_BY_FILENAME") for s in res.steps)
