@@ -11,7 +11,7 @@
 - **Plan File**: [`docs/superpowers/plans/2026-11-04-phase1-mark-engine-offline.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/plans/2026-11-04-phase1-mark-engine-offline.md)
 - **Design Spec**: [`docs/superpowers/specs/2026-11-04-mark-automation-design.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/specs/2026-11-04-mark-automation-design.md)
 - **QA & Knowledge Base Log**: [`docs/qa/QA_LOG.md`](file:///D:/CIM%20Project/mark-web/docs/qa/QA_LOG.md)
-- **Database Tables (`mark_web.mark_logic`)**: [`docs/implementation/08-database-tables.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/08-database-tables.md) — 15 ตาราง, run 1–3 = R0 (run 3 freeze), run 5 = R1 ปัจจุบัน
+- **Database Tables (`mark_web.mark_logic`)**: [`docs/implementation/08-database-tables.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/08-database-tables.md) — 15 ตาราง, run 1–3 = R0 (run 3 freeze), run 6 = R1 ปัจจุบัน
 - **Mark Eng confirmation (open)**: [`docs/implementation/09-mark-eng-confirmation.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/09-mark-eng-confirmation.md)
 - **Git State**:
   - Remote: `git@github.com:Pariman1419/Markweb.git`
@@ -55,11 +55,17 @@
 | **9** | **Expected Mark Generator** | `mark_engine/generate/generator.py` (AST scan & signature inspection to prove no Oracle leak) | [x] Completed | [x] Green (14 passed) | `e9a64ad` |
 | **10** | **Comparison Engine** | `mark_engine/compare/engine.py`, `lot.py`, `shift.py` (verified MATCH_LOT & MATCH_SHIFT) | [x] Completed | [x] Green (14 passed) | `f471d6d` |
 | **11** | **Pipeline `process_elr` & 3 Status Axes** | `mark_engine/pipeline.py` (end-to-end integration + eligibility gate + status synthesis) | [x] Completed | [x] Green (14 passed) | `9ff67ec` |
-| **12** | **Regression Runner R1 & Parity vs R0** | `scripts/run_regression.py`, `parity.py`, `metrics.py`, R1 baseline Jan–Jun; R1 triage fixes (branch `phase1/r1-fixes`) | [x] Completed | [x] Green (189 unit + 3 regression, BUG 0) | `d4fd534` → `cb9b74e` (merge `8d930fd`) |
+| **12** | **Regression Runner R1 & Parity vs R0** | `scripts/run_regression.py`, `parity.py`, `metrics.py`, R1 baseline Jan–Jun; R1 triage fixes (branch `phase1/r1-fixes`) | [x] Completed | [x] Green (195 unit + 3 regression, BUG 0) | `d4fd534` → `cb9b74e` (merge `8d930fd`) + GRC fix |
 
 ---
 
 ## 4. Live Changelog & Session Updates
+
+### 2026-11-04 (R1 — GRAPHIC_REMARK_CONFLICT and Pb-free code)
+- Merged `phase1/r1-fixes` into `phase1/mark-engine` (`8d930fd`, no conflicts — the other session only changed docs).
+- `GRAPHIC_REMARK_CONFLICT` now checked once per ELR on the finished expected text (`% { * ^`), not per side on YOLO `%`/`{` only → 303 → 4 lines. Pb-free `{e3}` follows MARK_REMARK (`e3 =` → `e3`, else `<`). Details `01` §7 rows 6–7.
+- **R1**: agreement **82.1%** (1,273/1,550; auto 89.7%, human 78.3%), NEEDS_REVIEW **210** (was 475), DIFF 67, MATCH_LOT 23, parity BUG 0, independence 100%; 195 unit + 3 regression passed. DB run 6.
+- Next: `RULE_CONFLICT` 112 lines (`REVISION_NAME_MISMATCH`), Mark Eng answers in `09`.
 
 ### 2026-11-04 (Task 12 R1 triage — supersedes the d4fd534 numbers below)
 - **The `d4fd534` R1 figures were not valid**: `independence` defaulted to 1.0 (no blank-Oracle run was made), and parity compared `abs_no` in two formats (`ABS066973-ENG-1` vs `ABS066973`), so 327 MATCH/MATCH rows and 101 real BUG rows were counted as `RESOLVER_CHANGED`. Oracle agreement was 25.8% and was not used in the verdict.

@@ -159,3 +159,23 @@
 ### Prevention / Rules Learned
 - Rerun = new `run_id`; never update runs 1–3. Password only via `MARK_PG_PASSWORD`; the `postgres` password was shared in chat and should be rotated.
 
+---
+
+## [2026-11-04] GRAPHIC_REMARK_CONFLICT flagged 303 lines that were mostly correct
+
+### Context & Symptom
+- **Component / Path**: [`mark_engine/generate/generator.py`](file:///D:/CIM%20Project/mark-web/mark_engine/generate/generator.py)
+- **Question / Issue**: 303 NEEDS_REVIEW lines with `GRAPHIC_REMARK_CONFLICT` in 94 ELRs; 259 already equal to Oracle; 53 of them already contained a logo.
+
+### Root Cause
+- The check ran per side and only looked at YOLO graphics `%`/`{`. MARK_REMARK declares symbols for the part, so every BOTTOM line was flagged; LTC logo `*` and caret `^`, and logos that come from the drawing text (`{LTC-PARTIAL-LOGO}` → `*`), were not recognised.
+
+### Resolution & Code Fix
+- Check once per ELR after all lines are built: conflict only if the remark declares a logo and no expected line contains `% { * ^`. 303 → 4 lines (1 ELR).
+- The unhidden lines exposed `{e3}` → `<` where MARK_REMARK says `e3 = Pb-free` (ADI2603063); remark (P20) now beats OCRFIX-5 (P50). Data check: remark `e3` (42 ELR) → Oracle never `<`; remark `<` (94 ELR) → Oracle `<`.
+- R1: NEEDS_REVIEW 475 → 210, agreement 65.4% → 82.1%, BUG 0.
+
+### Prevention / Rules Learned
+- A review flag must be scoped to what it is about (part-level declaration → part-level check) and must use the same symbol set as the encoder.
+- Lowering a review flag can reveal hidden BUG rows — always re-run parity after it.
+

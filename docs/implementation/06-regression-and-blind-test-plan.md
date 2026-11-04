@@ -126,9 +126,9 @@ Phase 0 **ไม่ได้แก้ไขอะไรใน dataset** — บ�
 | Coverage ELR | ELR ที่ processing DONE และไม่ HOLD / ELR ในกรอบ (ตัวหาร = Oracle ไม่ใช่โฟลเดอร์ NAS) | 529/598 (88.5%) | **54.5%** (364/668) · auto 55.6% (114/205), human 54.0% (250/463) | วัด |
 | Coverage line | บรรทัดที่เทียบได้ / บรรทัดที่ oracle หรือ expected มีค่า | 1,982/2,381 (83.2%) | **66.9%** (1,550/2,316) · auto 73.5% (522/710), human 64.0% (1,028/1,606) | วัด |
 | Hold Rate | HOLD + NOT_VERIFIABLE / ELR | 12.1% (ตัวหาร 602) | **15.1%** (101/668) · auto 9.8% (20/205), human 17.5% (81/463) | วัด |
-| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **65.4%** (1,014/1,550) · auto 78.7% (411/522), human 58.7% (603/1,028) [MATCH 931 (ในนี้ COO ย่อ 13), MATCH_SLR 68, MATCH_SHIFT 15, MATCH_LOT 0, DIFF 61, NEEDS_REVIEW 475] | วัด |
+| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **82.1%** (1,273/1,550) · auto 89.7% (468/522), human 78.3% (805/1,028) [MATCH 1,148 (ในนี้ COO ย่อ 13), MATCH_SLR 87, MATCH_SHIFT 15, MATCH_LOT 23, DIFF 67, NEEDS_REVIEW 210] | วัด |
 | Independence | expected เท่าเดิมเมื่อลบ oracle_mark | ไม่ผ่าน (by design) | **100.0%** (668/668 — วัดจริง: รัน `process_elr` ซ้ำด้วย `OracleMark` ว่างแล้วเทียบ `ExpectedMark`) | ต้อง 100% |
-| Parity vs R0 BUG | divergence จาก R0 ที่ไม่มีคำอธิบายทางสถาปัตยกรรม | — | **0 — ผ่าน** (SAME 1,400, REVIEW_FLAG 475, RESOLVER_CHANGED 362, ORACLE_INFLUENCE_REMOVED 41, GATE_SPEC_V2 37, OCR_SOURCE_CHANGED 3, BUG 0) | — |
+| Parity vs R0 BUG | divergence จาก R0 ที่ไม่มีคำอธิบายทางสถาปัตยกรรม | — | **0 — ผ่าน** (SAME 1,640, RESOLVER_CHANGED 362, REVIEW_FLAG 210, ORACLE_INFLUENCE_REMOVED 60, GATE_SPEC_V2 37, LOT_NOW_VERIFIED 5, OCR_SOURCE_CHANGED 3, GRAPHIC_NOW_COUNTED 1, BUG 0) | — |
 | Correctness | expected == engineer_verified | — | ตัวอย่าง | ตัวอย่าง |
 | False PASS | MATCH* และ engineer_verified ≠ expected | — | **ต้อง 0** | **ต้อง 0** |
 
@@ -151,4 +151,7 @@ BUG 13 บรรทัดสุดท้าย — triage แล้ว (BUG = 0)
 - `ADI2606077/078` TOP 2–5 → `RESOLVER_CHANGED` (ไม่ใช่บั๊ก): โฟลเดอร์มี ABS068387**B** และ **C**, Oracle `CUST_BOM_REVISION = B` → R1 ใช้ B ตาม D-08 (ภาพเดียวกัน MATCH ทั้งหมดใน ADI2606035–037) แต่ TOP_MARK ใน Oracle ตรงกับ rev C; R0 เลือก ABS ที่ตรง Oracle (R03-ONE-ABS, rejected D-06). **ข้อค้นพบสำหรับ Mark Eng: Oracle ระบุ rev B แต่ mark ที่บันทึกเป็นของ rev C** — parity ใช้ `abs_other_revisions` (REVISION_SUPERSEDED จาก resolver) เพราะ R0 ไม่เก็บ revision
 - `ADI2605013`, `ADI2606019` TOP 2 → `OCR_SOURCE_CHANGED`: R0 ใช้ `ocr_reocr.csv` (`LHYBN` → `LHYB`, kept = Y คัดด้วย GT, R04-REOCR-*) ส่วน R1 ใช้ OCR ดิบ; parity อ่าน `ocr_reocr.csv` จริงแทน ELR ที่ hard-code ไว้ (5 บรรทัด kept = Y)
 
-ยังต้องดูต่อ (ไม่ใช่ BUG): `GRAPHIC_REMARK_CONFLICT` 303 บรรทัด (233 human_crop) — 406/475 บรรทัด NEEDS_REVIEW มีค่าเท่า Oracle อยู่แล้ว
+`GRAPHIC_REMARK_CONFLICT` (`01` §7 ข้อ 6–7): ตรวจโลโก้ระดับ ELR จากข้อความ expected → NEEDS_REVIEW 475 → **210**, agreement 65.4% → **82.1%**;
+บรรทัดที่เคยถูกซ่อนด้วย flag เผย `{e3}` ที่ remark ประกาศเป็น `e3` (แก้ในข้อ 7) และ MATCH_LOT 23 บรรทัดที่ตรวจกับ SLR ได้จริง
+
+ยังต้องดูต่อ: NEEDS_REVIEW 210 = `RULE_CONFLICT` 112 (`REVISION_NAME_MISMATCH` — ABS ฉบับเดียวแต่ชื่อ revision ไม่ตรง Oracle), `SLR_UNRESOLVED` 86, `ORACLE_VALUE_IN_SLR` 5, `GRAPHIC_REMARK_CONFLICT` 4; 179/210 มีค่าเท่า Oracle

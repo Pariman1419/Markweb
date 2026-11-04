@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 
 from mark_engine.domain.models import (
     DocType,
@@ -44,13 +45,11 @@ def _remark_declares_logo(remark: str | None, require: str | None) -> bool:
     return False
 
 
-def _yolo_saw_logo_on_side(inference: InferenceResult, side: Side) -> bool:
-    for line in inference.lines:
-        if line.side == side:
-            gfx = line.graphics or ""
-            if "%" in gfx or "{" in gfx:
-                return True
-    return False
+_E3_DECL_PATTERN = re.compile(r"\be3\s*[:=]", re.IGNORECASE)
+_LT_DECL_PATTERN = re.compile(r"<\s*[:=]")
+_LOGO_SYMBOLS = frozenset("%{*^")  # ADI logo, full logo, LTC logo, caret (= ADI logo)
+
+
 
 
 def _rule_flags(rules: RuleSet, rule_id: str) -> frozenset[Flag]:
@@ -86,6 +85,11 @@ def generate_expected(
 
     parts = [s.strip() for s in (meta.mark_remark, meta.mark_require) if s and s.strip()]
     rm_joined = " | ".join(parts)
+    pbfree_code = (
+        "e3"
+        if _E3_DECL_PATTERN.search(rm_joined) and not _LT_DECL_PATTERN.search(rm_joined)
+        else "<"
+    )
 
     revision_mismatch = (
         docs is not None
@@ -106,9 +110,6 @@ def generate_expected(
         if revision_mismatch:
             line_flags.add(Flag.RULE_CONFLICT)
 
-        if remark_declares_logo and not _yolo_saw_logo_on_side(inference, side):
-            line_flags.add(Flag.GRAPHIC_REMARK_CONFLICT)
-
         inf_line = inf_by_loc.get((side, line_no))
         slr_inst = slr_by_loc.get((side, line_no))
 
@@ -119,6 +120,10 @@ def generate_expected(
         if inf_line is not None and raw_text:
             fixed_text, ocr_rules = ocr_fix(raw_text)
             applied_rules.update(ocr_rules)
+            # MARK_REMARK (P20) beats OCR fix (P50): OCRFIX-5 writes the Pb-free mark as '<',
+            # but a remark declaring "e3 = Pb-free" (and no '<') means the code is 'e3'.
+            if "R07-OCRFIX-5" in ocr_rules and pbfree_code == "e3":
+                fixed_text = re.sub(r"<(?=\s*$)", "e3", fixed_text)
 
             encoded_text, unmapped_tokens = encode_symbol_adi(fixed_text)
             if unmapped_tokens:
@@ -195,6 +200,17 @@ def generate_expected(
                 flags=frozenset(line_flags),
             )
         )
+
+    # MARK_REMARK declares a logo for the part (not per side). Conflict only when no expected
+    # line carries any logo symbol — from YOLO graphics or from the drawing text
+    # (e.g. {LTC-PARTIAL-LOGO} -> '*'). Checking per side with only '%'/'{' flagged every
+    # BOTTOM line and every LTC/caret logo (R1: 303 lines, 259 already equal to Oracle).
+    if remark_declares_logo and not any(
+        ch in _LOGO_SYMBOLS for line in lines for ch in line.text
+    ):
+        lines = [
+            replace(line, flags=line.flags | {Flag.GRAPHIC_REMARK_CONFLICT}) for line in lines
+        ]
 
     return ExpectedMark(
         elr_no=meta.elr_no,

@@ -8,7 +8,7 @@
   (`experiments/abs_vs_db/export_logic_pg.py`, `export_adi1039_pg.py`, `rule_scope_pg.py`, `mapping_gap_analysis.py`)
 - **ยังไม่ได้ apply** `migrations/0001_roles.sql`, `0002_regression_frozen.sql` (`mark_regression.r0_*`), `0003_rule_governance.sql` (`mark_rules.*`) — ดูแผนใน [05](05-database-migration-plan.md)
 - `mark_engine` Phase 1 **ไม่อ่าน DB ตอนรัน** — ใช้ snapshot ที่ commit ไว้ในแพ็กเกจ (ดูคอลัมน์ "ใน mark_engine")
-- Run ที่มีอยู่: 1–3 = R0 (legacy, Oracle-conditioned; **run 3 = baseline ที่ freeze**), 4–5 = R1 (`mark_engine`; **run 5 = ปัจจุบัน**, run 4 ถูกแทนที่)
+- Run ที่มีอยู่: 1–3 = R0 (legacy, Oracle-conditioned; **run 3 = baseline ที่ freeze**), 4–5 = R1 (`mark_engine`; run 6 = ปัจจุบัน, run 4 ถูกแทนที่)
 
 ## 2. สรุปตาราง
 
