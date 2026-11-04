@@ -8,14 +8,14 @@
   (`experiments/abs_vs_db/export_logic_pg.py`, `export_adi1039_pg.py`, `rule_scope_pg.py`, `mapping_gap_analysis.py`)
 - **ยังไม่ได้ apply** `migrations/0001_roles.sql`, `0002_regression_frozen.sql` (`mark_regression.r0_*`), `0003_rule_governance.sql` (`mark_rules.*`) — ดูแผนใน [05](05-database-migration-plan.md)
 - `mark_engine` Phase 1 **ไม่อ่าน DB ตอนรัน** — ใช้ snapshot ที่ commit ไว้ในแพ็กเกจ (ดูคอลัมน์ "ใน mark_engine")
-- Run ที่มีอยู่: 1–3 = R0 (legacy, Oracle-conditioned; **run 3 = baseline ที่ freeze**), 4–6 = R1 (`mark_engine`; **run 6 = ปัจจุบัน**, run 4–5 ถูกแทนที่)
+- Run ที่มีอยู่: 1–3 = R0 (legacy, Oracle-conditioned; **run 3 = baseline ที่ freeze**), 4–7 = R1 (`mark_engine`; **run 7 = ปัจจุบัน**, run 4–6 ถูกแทนที่)
 
 ## 2. สรุปตาราง
 
 | กลุ่ม | ตาราง | แถว | PK | หน้าที่ | ใน mark_engine |
 |---|---|---:|---|---|---|
-| ผลการรัน | [`run`](#run) | 6 | `run_id` | หัวของแต่ละ regression run + ตัวเลขสรุป | R1 เขียนเป็น run ใหม่ (`scripts/load_r1_to_pg.py`) |
-| ผลการรัน | [`line_result`](#line_result) | 14,098 | `(run_id, elr_no, abs_no, side, line_no)` | ผลรายบรรทัด expected vs Oracle ของทุก run | R1 เขียน 2,318 แถวต่อ run (run 6) |
+| ผลการรัน | [`run`](#run) | 7 | `run_id` | หัวของแต่ละ regression run + ตัวเลขสรุป | R1 เขียนเป็น run ใหม่ (`scripts/load_r1_to_pg.py`) |
+| ผลการรัน | [`line_result`](#line_result) | 16,416 | `(run_id, elr_no, abs_no, side, line_no)` | ผลรายบรรทัด expected vs Oracle ของทุก run | R1 เขียน 2,318 แถวต่อ run (run 7) |
 | ผลการรัน | [`stage_accuracy`](#stage_accuracy) | 90 | `(run_id, stage_order, stage_no, period)` | ความแม่นยำสะสมทีละขั้น pipeline ของ R0 | ไม่ใช้ (R1 ไม่ได้เขียน) |
 | ผลการรัน | [`elr_document`](#elr_document) | 602 | `elr_no` | ELR มี ABS / SLR / วัดได้หรือไม่ (R0) | ไม่ใช้ — R1 ใช้ `resolve_documents` |
 | ผลการรัน | [`review_verdict`](#review_verdict) | 146 | `(review_file, line_id)` | คำตัดสินของคนจากไฟล์ diff review | ไม่ใช้ |
@@ -31,7 +31,7 @@
 | ข้อมูล ELR | [`slr_line_instruction`](#slr_line_instruction) | 209 | `(elr_no, side, line_no)` | คำสั่ง SLR รายบรรทัด (candidate หลายค่า) | ไม่ใช้ — ของ R0 เป็น candidate ที่ใช้ match กับ Oracle |
 
 **ข้อควรระวังเมื่ออ่านค่า**
-- `line_result` ของ run 1–3 กับ run 4–6 **เทียบกันตรง ๆ ไม่ได้**: R0 ปรับ `final_mark` ตาม Oracle (`docs/implementation/01` §4), R1 สร้าง expected โดยไม่เห็น Oracle
+- `line_result` ของ run 1–3 กับ run 4–7 **เทียบกันตรง ๆ ไม่ได้**: R0 ปรับ `final_mark` ตาม Oracle (`docs/implementation/01` §4), R1 สร้าง expected โดยไม่เห็น Oracle
 - ตาราง ELR/encoder ด้านล่างเป็น **ผลของ R0** ไม่ใช่ข้อมูลต้นทาง — แหล่งจริงคือ Oracle `ACTLDBA.ELR`, ไฟล์ใน NAS, `Symbol ADI.xlsx`, ADI1039 Rev AE
 
 ## 3. รายละเอียดแต่ละตาราง
@@ -57,12 +57,13 @@
 | 3 | R0 v3 gates (**baseline freeze**, tag `regression-r0-2026-11-04`) | 1,747/1,773 = 98.53% |
 | 4 | R1 `9dce03e` — ถูกแทน | 1,015/1,554 = 65.32% |
 | 5 | R1 `cb9b74e` — ถูกแทน, parity BUG 0 | 1,014/1,550 = 65.42% |
-| 6 | R1 `c3c46fb` — **ปัจจุบัน**, GRAPHIC_REMARK_CONFLICT ต่อ ELR, parity BUG 0, NEEDS_REVIEW 210 | 1,273/1,550 = 82.13% |
+| 6 | R1 `c3c46fb` — ถูกแทน, GRAPHIC_REMARK_CONFLICT ต่อ ELR, NEEDS_REVIEW 210 | 1,273/1,550 = 82.13% |
+| 7 | R1 `6162cfb` — **ปัจจุบัน**, D-22 COO warning (13), D-23 REVISION_CONFLICT (2 ELR), parity BUG 0 | 1,273/1,540 = 82.66% |
 
 ### line_result
 ผลรายบรรทัด — ลบอัตโนมัติเมื่อลบ `run` (FK `ON DELETE CASCADE`)
 
-| คอลัมน์ | R0 (run 1–3) | R1 (run 4–6) |
+| คอลัมน์ | R0 (run 1–3) | R1 (run 4–7) |
 |---|---|---|
 | `elr_no`, `abs_no`, `side`, `line_no`, `month` | ตามชื่อ | `abs_no` = `ABS\d{6}` (ว่างถ้า HOLD); `month` จาก `ADI26MM` |
 | `ocr_text`, `encoded`, `encoded_after_rules`, `yolo` | ผลแต่ละขั้น (OCR → Symbol ADI → กฎ → กราฟิก YOLO) | ว่าง |
