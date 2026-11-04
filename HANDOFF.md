@@ -63,6 +63,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-04 (next-phase design)
+- New design: [`docs/superpowers/specs/2026-11-04-phase1-completion-and-phase2-design.md`](docs/superpowers/specs/2026-11-04-phase1-completion-and-phase2-design.md) — part A closes Phase 1 (A1 rule freeze … A8 merge), part B = Phase 2 on the user's microservices architecture (B1–B7); web scope TOP only; Dashboard + ELR Preview + edit/approve (mockups v5–v6 in `.superpowers/brainstorm/`, not committed).
+- Access now works: Oracle ACTL direct (thick mode) reads `MARK_ID_LAYOUT` / `MARK_ID_INSTRUC` / `MARK_ID_SYMBOL` / `PROD_MARKLAYOUT`; NAS `ELR Online 2026` 1_JAN…11_NOV readable with the account the user gave. Credentials only via env vars, never in files.
+- Waiting on user: 2 questions in spec §9 (notification channel, G1–G9 before/after freeze), then writing-plans.
+
 ### 2026-11-04 (process rule)
 - User rule: **every change updates HANDOFF.md §4 and `docs/qa/QA_LOG.md` in the same commit.** QA_LOG backfilled for `a024da1`, `2823d23`, `ea5d2f5`.
 

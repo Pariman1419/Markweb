@@ -333,3 +333,22 @@
 ### Prevention / Rules Learned
 - Every change updates HANDOFF.md and this log in the same commit (user rule 2026-11-04). These three commits had only HANDOFF; this entry backfills them.
 
+---
+
+## [2026-11-04] Next-phase design; Oracle layout tables and NAS now reachable
+
+### Context & Symptom
+- **Component / Path**: [`docs/superpowers/specs/2026-11-04-phase1-completion-and-phase2-design.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/specs/2026-11-04-phase1-completion-and-phase2-design.md)
+- **Question / Issue**: user asked to analyse and plan from the unfinished parts of Phase 1, with the microservices architecture diagram, a Dashboard + ELR Preview (TOP only, ACTIVEL 21-cell grid, MARK_REMARK, edit/approve), and new DB / NAS access.
+
+### Root Cause
+- Spec §19 open items blocked the plan: `MARK_ID_LAYOUT` gave ORA-00942 through `@actl`; NAS 2026 gave Access denied, so the Jul–Nov blind test could not run.
+
+### Resolution & Code Fix
+- Direct connection to ACTL 10.151.26.3:1521 with python-oracledb thick mode (10g needs it; thin gives DPY-3010), read-only transaction: all 4 layout tables readable. `MARK_ID_LAYOUT` = one row per (MARK_ROW 1–5, MARK_COLUMN 1–18, MARK_DATA); missing cells line up with the per-ELR values (assumption, to verify in task A2).
+- NAS share mounted non-persistent with the user's account: 1_JAN…11_NOV present.
+- Design doc written (part A A1–A8, part B B1–B7). No code changed.
+
+### Prevention / Rules Learned
+- Credentials pasted in chat are used only as env vars in the command; never written to repo, memory or logs. Recommend rotating them before go-live.
+
