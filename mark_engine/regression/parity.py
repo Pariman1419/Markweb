@@ -89,11 +89,6 @@ def classify(
     if r1_is_measurable != r0_is_measurable:
         return "RESOLVER_CHANGED"
 
-    # 5. OCR_SOURCE_CHANGED: R0 text for this line came from ocr_reocr.csv (kept == 'Y',
-    #    selected with human GT, R04-REOCR-*); R1 uses the raw cached OCR. Flag set by the runner.
-    if _clean_str(r1_row.get("r0_reocr")).upper() == "Y":
-        return "OCR_SOURCE_CHANGED"
-
     # 6. SAME: r1 status equals r0 status (or both match/comparable) and expected/final text equals
     statuses_match = (
         (r1_status == r0_status)
@@ -108,6 +103,12 @@ def classify(
     )
     if statuses_match and (r1_exp == r0_final or is_non_compared_same):
         return "SAME"
+
+    # 6a. OCR_SOURCE_CHANGED: R0 text for this line came from ocr_reocr.csv (kept == 'Y', some
+    #     rows selected with human GT); R1 applies the same re-reads with a GT-free rule
+    #     (snapshot._load_reocr), so this only explains lines whose result still differs.
+    if _clean_str(r1_row.get("r0_reocr")).upper() == "Y":
+        return "OCR_SOURCE_CHANGED"
 
     # 6b. RESOLVER_CHANGED: folder holds other revisions of the same ABS; R1 chose by Oracle
     #     CUST_BOM_REVISION (D-08) while R0 picked the ABS that best matched Oracle (R03-ONE-ABS,

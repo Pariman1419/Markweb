@@ -61,6 +61,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-04 (D-27 re-OCR)
+- Cached re-OCR (`ocr_reocr.csv`: legend value after `LINE n:`, logo trimmed off the line crop) now used by R1 with a GT-free rule (new ≠ old, score ≥ 0.9). 5 lines fixed by the system: ADI2604053 T1 `ADW`, ADI2605013/2606019 T2 `LHYB`, ADI2605047/048 T4 `UJH` (checked against the drawings).
+- Parity `OCR_SOURCE_CHANGED` now only after SAME → 0 lines. ADI2602089 T5 stays HUMAN_FIXED (`0.0` on the drawing, Oracle `O.0`).
+- R1: agreement **86.05%** (1,326/1,541), DIFF 49, BUG 0; after review DB_WRONG 5, HUMAN_FIXED 1. 213 unit + 3 regression. DB run 11.
+
 ### 2026-11-04 (D-25 alerts, D-26 old review verdicts)
 - D-25: resolver writes `review_detail` for `REVISION_MISMATCH` (Oracle rev vs only ABS in folder) and new `PRODUCT_NO_ABS_MISMATCH` (also sets RULE_CONFLICT) — real alerts for the user.
 - D-26: `mark_engine/regression/review_overlay.py` applies R0 review verdicts after compare → `lines.csv` `final_status` (DB_WRONG 5, HUMAN_FIXED 6, MATCH 4); system `status` unchanged. Loader writes `final_status` as `status`, system value in `cause_detail system_status=`; new status `HUMAN_FIXED`.

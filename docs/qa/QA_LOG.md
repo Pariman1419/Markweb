@@ -257,3 +257,23 @@
 ### Prevention / Rules Learned
 - Keep the system result and the human result in separate fields; metrics stay honest and the backlog still shrinks.
 
+---
+
+## [2026-11-04] HUMAN_FIXED lines fixed at the OCR (re-OCR on tight crops, no GT)
+
+### Context & Symptom
+- **Component / Path**: [`mark_engine/adapters/snapshot.py`](file:///D:/CIM%20Project/mark-web/mark_engine/adapters/snapshot.py)
+- **Question / Issue**: 6 lines were HUMAN_FIXED from the old review. User: fix the OCR; for "มีบอกในภาพ" look at the drawing.
+
+### Root Cause
+- Drawings checked: legend rows read as one box add a phantom `N` (`LINE 2: LHYB` → `LHYBN`, `LINE 4: UJH` → `UJHN`); a solid ADI logo inside the line crop is read as `S` (`ADW` → `SAD`).
+- R0 already re-read these (`reocr.py`) but chose trim_logo rows with human GT, so R1 had dropped all re-reads.
+
+### Resolution & Code Fix
+- `_load_reocr`: use a re-read when it differs from the first read and scores ≥ 0.9 (ignores `kept`/`gt`); applied to the auto key `image|SIDE|n` and the human-crop `sample_id`, only when the first read is unchanged. 5 lines → MATCH.
+- Parity: `OCR_SOURCE_CHANGED` checked after SAME.
+- Not fixable by OCR: ADI2602089 T5 — the drawing shows `0.0 #YWW` with identical glyphs; Oracle has `O.0#YWW`.
+
+### Prevention / Rules Learned
+- Look at the drawing before calling a line an OCR error; a cached re-read can be reused only with a selection rule that does not see GT or Oracle.
+

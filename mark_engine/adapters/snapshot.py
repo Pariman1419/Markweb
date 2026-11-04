@@ -134,6 +134,38 @@ def _load_manifest_mapping(root_str: str) -> dict[str, str]:
     return res
 
 
+REOCR_MIN_SCORE = 0.9
+
+
+def _load_reocr(path_str: str) -> dict[str, tuple[str, str]]:
+    """Cached re-OCR on tighter crops (R0 experiments/abs_vs_db/reocr.py, EXP09 recognizer).
+
+    Methods: ``legend_value`` (May-Jun: read only the value after ``LINE n:`` -- 'LINE 2: LHYBN' -> LHYB)
+    and ``trim_logo`` (Jan-Apr: cut the logo block off the line crop -- '[logo] ADW' read as SAD -> ADW).
+    Selection is independent of GT and Oracle: use the re-read when it differs from the first read and
+    scores >= 0.9. The R0 ``kept``/``gt`` columns are ignored (R0 chose trim_logo rows with human GT).
+    Returns key -> (old, new); key = '<image stem>|<SIDE>|<n>' or human-crop sample_id.
+    """
+    out: dict[str, tuple[str, str]] = {}
+    p = Path(path_str)
+    if not p.is_file():
+        return out
+    for r in _load_csv_cached(path_str):
+        old, new = (r.get("old") or "").strip(), (r.get("new") or "").strip()
+        try:
+            sc = float(r.get("score") or 0)
+        except ValueError:
+            sc = 0.0
+        if new and new != old and sc >= REOCR_MIN_SCORE:
+            out[(r.get("key") or "").strip()] = (old, new)
+    return out
+
+
+def _reread(reocr: dict[str, tuple[str, str]], key: str, text: str) -> str:
+    hit = reocr.get(key)
+    return hit[1] if hit and (text or "").strip() == hit[0] else text
+
+
 def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResult:
     """Loads inference result (OCR layout + graphic tokens) for an ELR and ABS drawing.
 
@@ -173,7 +205,10 @@ def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResu
             lines = layout_lines(items)
             gfx = assign_graphics(lines, detections)
 
-            lines_by_key = {(s, n): (txt, sc) for s, n, txt, sc, bb in lines}
+            reocr = _load_reocr(str(root / "experiments" / "abs_vs_db" / "out" / "ocr_reocr.csv"))
+            lines_by_key = {
+                (s, n): (_reread(reocr, f"{img_stem}|{s.value}|{n}", txt), sc) for s, n, txt, sc, bb in lines
+            }
             all_keys = sorted(
                 set(lines_by_key.keys()) | set(gfx.keys()),
                 key=lambda k: (0 if k[0] == Side.TOP else 1, k[1]),
@@ -270,6 +305,7 @@ def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResu
                     if ln >= 1:
                         graphics_map[(s, ln)] = r.get("tokens", "")
 
+        reocr = _load_reocr(str(root / "experiments" / "abs_vs_db" / "out" / "ocr_reocr.csv"))
         lines_dict: dict[tuple[Side, int], dict[str, Any]] = {}
         for r in ann_rows:
             side_str = r.get("side", "").strip().upper()
@@ -284,7 +320,7 @@ def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResu
 
             sid = r.get("sample_id", "")
             ocr_info = ocr_preds.get(sid, {})
-            text = ocr_info.get("ocr_text", "")
+            text = _reread(reocr, sid, ocr_info.get("ocr_text", ""))
             sc_raw = ocr_info.get("ocr_score")
             score = float(sc_raw) if sc_raw else None
 

@@ -64,6 +64,7 @@
 | ID | คำตัดสิน |
 |---|---|
 | D-22 | ✔ ชื่อประเทศแบบย่อใน Oracle ที่ยังอ่านเป็น THAILAND (`TH`, `THA`, `THAI`, `THAIL`, …) = **MATCH แต่มี warning** ให้ผู้ใช้เห็นว่าต่างจากชื่อเต็ม (`LineComparison.warning = "COO_ABBREVIATED: Oracle THAIL, expected THAILAND"`, metrics `warning_lines`) — R1: 13 บรรทัด |
+| D-27 | ✔ (ผู้ใช้ 2026-11-04) HUMAN_FIXED ที่เป็น OCR อ่านผิด → แก้ที่ OCR: ใช้ re-OCR ครอปแคบ (legend value / ตัดโลโก้) แบบไม่ใช้ GT; ADI2602089 TOP 5 (`0.0` vs Oracle `O.0`) แก้ด้วย OCR ไม่ได้ — ในภาพเป็นตัวเดียวกัน |
 | D-25 | ✔ (ผู้ใช้ 2026-11-04) concept งาน = ตรวจจับแล้วแจ้งให้ user แก้: revision ไม่ตรง (`REVISION_MISMATCH`) และ PRODUCT_NO ชี้ ABS คนละเลข (`PRODUCT_NO_ABS_MISMATCH`) → NEEDS_REVIEW พร้อมสาเหตุใน `review_detail` (ไม่นับเป็น MATCH) |
 | D-26 | ✔ (ผู้ใช้ 2026-11-04) บรรทัดที่มีรีวิวเก่า (`mark/experiments/abs_vs_db/review/diff_review_*.csv`) → ใช้คำตัดสินนั้นเป็น `final_status` (DB_WRONG / HUMAN_FIXED / MATCH) หลัง compare; `status` ของระบบไม่เปลี่ยน (agreement, independence, parity ใช้ค่าระบบ) |
 | D-24 | ✔ (ผู้ใช้ 2026-11-04) revision ใน Oracle อาจแยกเก็บ: ตัวอักษรท้าย `CUST_BOM_NO` + `CUST_BOM_REVISION` (`ABS034529D` + `ENG-1`) = ไฟล์ `ABS034529D-ENG-1` → นับว่าตรงกัน |
