@@ -1,0 +1,7 @@
+﻿artifacts/
+
+# model weights (README/manifest/REGISTRY stay tracked)
+models/**/*.pdiparams
+models/**/*.pt
+models/**/*.safetensors
+models/**/inference.json
