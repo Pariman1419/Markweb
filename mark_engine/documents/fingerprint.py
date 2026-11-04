@@ -1,6 +1,7 @@
 import hashlib
 from pathlib import Path
 import zipfile
+import zlib
 
 MAX_ZIP_MEMBERS = 50
 MAX_UNCOMPRESSED_SIZE_BYTES = 100 * 1024 * 1024  # 100MB
@@ -65,7 +66,11 @@ def fingerprint_folder(folder: Path, extract_dir: Path) -> list[tuple[Path, str]
             dest_dir = extract_dir / zip_sha
             if not dest_dir.exists():
                 dest_dir.mkdir(parents=True, exist_ok=True)
-                _safe_extract_zip(file_path, dest_dir)
+                try:
+                    _safe_extract_zip(file_path, dest_dir)
+                except (zlib.error, EOFError, zipfile.BadZipFile, OSError):
+                    # Ignore corrupted or invalid zip archive payload
+                    pass
 
             # Discover all PDFs extracted from this zip
             extracted_pdfs = sorted(

@@ -153,8 +153,8 @@ def process_elr(
             resolution=resolution,
             expected=None,
             comparisons=comparisons,
+            layout_source="none",
         )
-
     # 4. SLR Extraction
     slr_texts: list[str] = []
     for ref in resolution.slr:
@@ -206,6 +206,7 @@ def process_elr(
             resolution=resolution,
             expected=None,
             comparisons=comparisons,
+            layout_source=inference.layout_source,
         )
 
     # 6. Generate Expected Mark
@@ -245,4 +246,5 @@ def process_elr(
         resolution=resolution,
         expected=expected,
         comparisons=comparisons if isinstance(comparisons, tuple) else tuple(comparisons),
+        layout_source=inference.layout_source,
     )

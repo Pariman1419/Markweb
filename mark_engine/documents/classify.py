@@ -18,27 +18,17 @@ def classify(pdf: Path) -> tuple[DocType, str | None]:
     pages_1_2 = [doc[i].get_text() for i in range(min(2, num_pages))]
     text_1_2 = "\n".join(pages_1_2)
 
-    # 1. TRS markers: Test Requirement or \bTRS\d+
+    # 1. TRS markers: Test Requirement or \bTRS\d+ in pages 1-2
     is_trs = bool(re.search(r"Test Requirement|\bTRS\d+", text_1_2, re.IGNORECASE))
-    if not is_trs and num_pages > 2:
-        for i in range(2, num_pages):
-            if re.search(r"Test Requirement|\bTRS\d+", doc[i].get_text(), re.IGNORECASE):
-                is_trs = True
-                break
 
-    # 2. SLR markers: SPECIAL INSTRUCTIONS or Scheduled Lot ID
-    has_slr = bool(re.search(r"SPECIAL INSTRUCTIONS|Scheduled Lot ID", text_1_2, re.IGNORECASE))
-    if not has_slr and num_pages > 2:
-        for i in range(2, num_pages):
-            if re.search(r"SPECIAL INSTRUCTIONS|Scheduled Lot ID", doc[i].get_text(), re.IGNORECASE):
-                has_slr = True
-                break
+    # 2. SLR markers: SPECIAL INSTRUCTIONS or Scheduled Lot ID in pages 1-2
+    has_slr = bool(re.search(r"SPECIAL INSTRUCTIONS|Scheduled Lot ID|SCHEDULED LOT ID", text_1_2))
 
-    # 3. ABS markers: ABS\d{6} in text AND any page has "Brand/Marking"
-    has_abs_num = bool(re.search(r"\bABS\d{6}\b", text_1_2))
+    # 3. ABS markers: ABS\d{6} in pages 1-2 AND any page has "Brand/Marking"
+    has_abs_num = bool(re.search(r"\bABS\d{6}", text_1_2))
     if not has_abs_num and num_pages > 2:
         for i in range(2, num_pages):
-            if re.search(r"\bABS\d{6}\b", doc[i].get_text()):
+            if re.search(r"\bABS\d{6}", doc[i].get_text()):
                 has_abs_num = True
                 break
 
@@ -67,7 +57,7 @@ def classify(pdf: Path) -> tuple[DocType, str | None]:
 
     # Doc number: first match of ABS\d{6} or SLR\d{6} in text,
     # fallback to filename stem if matches regex (ABS\d{6}|SLR\d{6})
-    num_match = re.search(r"\b(ABS\d{6}|SLR\d{6})\b", text_1_2)
+    num_match = re.search(r"\b(ABS\d{6}|SLR\d{6})", text_1_2)
     if not num_match and doc_type == DocType.TRS:
         trs_match = re.search(r"\b(TRS\d+)\b", text_1_2)
         if trs_match:

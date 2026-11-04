@@ -198,3 +198,4 @@ class JobResult:
     resolution: DocumentResolution | None = None
     expected: ExpectedMark | None = None
     comparisons: tuple[LineComparison, ...] = ()
+    layout_source: str = "none"

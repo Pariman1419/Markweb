@@ -1,4 +1,5 @@
 import csv
+import functools
 import json
 import os
 import re
@@ -9,6 +10,18 @@ from typing import Any
 from mark_engine.abs.layout import layout_lines
 from mark_engine.abs.symbols_to_lines import assign_graphics
 from mark_engine.domain.models import ElrMeta, InferenceResult, LayoutLine, OracleMark, Side
+
+
+@functools.lru_cache(maxsize=32)
+def _load_csv_cached(path_str: str) -> list[dict[str, str]]:
+    with open(path_str, encoding="utf-8-sig") as f:
+        return list(csv.DictReader(f))
+
+
+@functools.lru_cache(maxsize=32)
+def _load_json_cached(path_str: str) -> Any:
+    with open(path_str, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def _clean_str(val: Any) -> str | None:
@@ -96,6 +109,31 @@ def verify_r0_root(root: Path) -> None:
         )
 
 
+@functools.lru_cache(maxsize=4)
+def _load_ocr_preds_map(path_str: str) -> dict[str, dict[str, str]]:
+    res: dict[str, dict[str, str]] = {}
+    for r in _load_csv_cached(path_str):
+        sid = r.get("sample_id")
+        if sid:
+            res[sid] = r
+    return res
+
+
+@functools.lru_cache(maxsize=4)
+def _load_manifest_mapping(root_str: str) -> dict[str, str]:
+    root = Path(root_str)
+    res: dict[str, str] = {}
+    for p, key in (("Train/_manifest.csv", "train_file"), ("Test/_manifest.csv", "test_file")):
+        mf = root / p
+        if mf.is_file():
+            for r in _load_csv_cached(str(mf)):
+                job = r.get("job", "").strip().upper()
+                primary = r.get("duplicate_of") or r.get(key)
+                if job and primary:
+                    res[job] = primary.strip()
+    return res
+
+
 def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResult:
     """Loads inference result (OCR layout + graphic tokens) for an ELR and ABS drawing.
 
@@ -110,13 +148,12 @@ def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResu
     eval_h1_idx = root / "dataset" / "eval_h1" / "images_index.csv"
     if eval_h1_idx.is_file():
         matched_image: str | None = None
-        with open(eval_h1_idx, encoding="utf-8-sig") as f:
-            for r in csv.DictReader(f):
-                if r.get("elr", "").strip().upper() == clean_elr.upper():
-                    r_abs = r.get("abs_file", "").strip()
-                    if not abs_clean or r_abs == abs_clean or r_abs.startswith(abs_clean) or abs_clean.startswith(r_abs):
-                        matched_image = r.get("image", "").strip()
-                        break
+        for r in _load_csv_cached(str(eval_h1_idx)):
+            if r.get("elr", "").strip().upper() == clean_elr.upper():
+                r_abs = r.get("abs_file", "").strip()
+                if not abs_clean or r_abs == abs_clean or r_abs.startswith(abs_clean) or abs_clean.startswith(r_abs):
+                    matched_image = r.get("image", "").strip()
+                    break
 
         if matched_image:
             img_stem = Path(matched_image).stem
@@ -125,15 +162,13 @@ def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResu
 
             items: list[Any] = []
             if det_rec_path.is_file():
-                with open(det_rec_path, encoding="utf-8") as f:
-                    dr_data = json.load(f)
-                    items = dr_data.get(matched_image) or dr_data.get(f"{img_stem}.png") or dr_data.get(img_stem) or []
+                dr_data = _load_json_cached(str(det_rec_path))
+                items = dr_data.get(matched_image) or dr_data.get(f"{img_stem}.png") or dr_data.get(img_stem) or []
 
             detections: list[Any] = []
             if detections_path.is_file():
-                with open(detections_path, encoding="utf-8") as f:
-                    det_data = json.load(f)
-                    detections = det_data.get(img_stem) or det_data.get(matched_image) or []
+                det_data = _load_json_cached(str(detections_path))
+                detections = det_data.get(img_stem) or det_data.get(matched_image) or []
 
             lines = layout_lines(items)
             gfx = assign_graphics(lines, detections)
@@ -156,6 +191,13 @@ def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResu
             return InferenceResult(elr_no=clean_elr, lines=layout_lines_result, layout_source="auto")
 
     # 2. Jan-Apr check
+    manifest_map = _load_manifest_mapping(str(root))
+    primary_file = manifest_map.get(clean_elr.upper())
+    primary_elr = primary_file.split("__")[0].strip() if primary_file and "__" in primary_file else None
+    target_elrs = {clean_elr.upper()}
+    if primary_elr:
+        target_elrs.add(primary_elr.upper())
+
     jan_apr_files = [
         root / "dataset" / "full_images" / "images_index.csv",
         root / "dataset" / "eval_4_apr" / "images_index.csv",
@@ -166,27 +208,34 @@ def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResu
     for idx_path in jan_apr_files:
         if not idx_path.is_file():
             continue
-        with open(idx_path, encoding="utf-8-sig") as f:
-            for r in csv.DictReader(f):
-                candidates: list[str] = []
-                if "source_pdfs" in r:
-                    candidates.extend(s.strip() for s in r["source_pdfs"].split(";") if s.strip())
-                for col in ["source_test_file", "source_train_file"]:
-                    val = r.get(col, "").strip()
-                    if val and val != "NO":
-                        candidates.append(val)
+        for r in _load_csv_cached(str(idx_path)):
+            candidates: list[str] = []
+            if "source_pdfs" in r:
+                candidates.extend(s.strip() for s in r["source_pdfs"].split(";") if s.strip())
+            for col in ["source_test_file", "source_train_file"]:
+                val = r.get(col, "").strip()
+                if val and val != "NO":
+                    candidates.append(val)
 
-                for c in candidates:
-                    c_elr = c.split("__")[0].strip() if "__" in c else ""
-                    if c_elr.upper() == clean_elr.upper():
-                        matched_image_id = r.get("image_id", "").strip()
-                        matched_image_stem = Path(r.get("file", "").strip()).stem
-                        if not abs_clean or abs_clean in c or abs_clean in r.get("abs_revisions", ""):
-                            break
-                if matched_image_id and (
-                    not abs_clean or abs_clean in str(candidates) or abs_clean in r.get("abs_revisions", "")
-                ):
-                    break
+            for c in candidates:
+                c_elr = c.split("__")[0].strip() if "__" in c else ""
+                if c_elr.upper() in target_elrs or (primary_file and primary_file.upper() in c.upper()):
+                    matched_image_id = r.get("image_id", "").strip()
+                    matched_image_stem = Path(r.get("file", "").strip()).stem
+                    if (
+                        not abs_clean
+                        or abs_clean in c
+                        or abs_clean in r.get("abs_revisions", "")
+                        or (primary_file and abs_clean in primary_file)
+                    ):
+                        break
+            if matched_image_id and (
+                not abs_clean
+                or abs_clean in str(candidates)
+                or abs_clean in r.get("abs_revisions", "")
+                or (primary_file and abs_clean in primary_file)
+            ):
+                break
         if matched_image_id:
             break
 
@@ -198,32 +247,28 @@ def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResu
         ann_rows: list[dict[str, str]] = []
         for ap in annotation_paths:
             if ap.is_file():
-                with open(ap, encoding="utf-8-sig") as f:
-                    for r in csv.DictReader(f):
-                        if r.get("image_id", "").strip() == matched_image_id:
-                            ann_rows.append(r)
+                for r in _load_csv_cached(str(ap)):
+                    if r.get("image_id", "").strip() == matched_image_id:
+                        ann_rows.append(r)
 
         ocr_preds: dict[str, dict[str, Any]] = {}
         ocr_preds_path = root / "experiments" / "abs_vs_db" / "out" / "ocr_preds.csv"
         if ocr_preds_path.is_file():
-            with open(ocr_preds_path, encoding="utf-8-sig") as f:
-                for r in csv.DictReader(f):
-                    ocr_preds[r["sample_id"]] = r
+            ocr_preds = _load_ocr_preds_map(str(ocr_preds_path))
 
         graphics_map: dict[tuple[Side, int], str] = {}
         graphics_path = root / "experiments" / "symbol_det" / "graphics_by_line.csv"
         if graphics_path.is_file():
-            with open(graphics_path, encoding="utf-8-sig") as f:
-                for r in csv.DictReader(f):
-                    img_key = r.get("image", "").strip()
-                    if img_key in (matched_image_stem, matched_image_id):
-                        s = Side.TOP if r.get("side", "").strip().upper() == "TOP" else Side.BOTTOM
-                        try:
-                            ln = int(r.get("line", "0"))
-                        except ValueError:
-                            ln = 0
-                        if ln >= 1:
-                            graphics_map[(s, ln)] = r.get("tokens", "")
+            for r in _load_csv_cached(str(graphics_path)):
+                img_key = r.get("image", "").strip()
+                if img_key in (matched_image_stem, matched_image_id):
+                    s = Side.TOP if r.get("side", "").strip().upper() == "TOP" else Side.BOTTOM
+                    try:
+                        ln = int(r.get("line", "0"))
+                    except ValueError:
+                        ln = 0
+                    if ln >= 1:
+                        graphics_map[(s, ln)] = r.get("tokens", "")
 
         lines_dict: dict[tuple[Side, int], dict[str, Any]] = {}
         for r in ann_rows:

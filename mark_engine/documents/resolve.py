@@ -300,10 +300,6 @@ def resolve_documents(
             if facts_i.instructions != first_facts.instructions:
                 has_conflict = True
                 break
-            if not facts_i.instructions and not first_facts.instructions:
-                if "".join(text_i.split()) != "".join(first_text.split()):
-                    has_conflict = True
-                    break
 
         if has_conflict:
             return DocumentResolution(

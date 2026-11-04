@@ -123,10 +123,21 @@ Phase 0 **ไม่ได้แก้ไขอะไรใน dataset** — บ�
 
 | ตัวชี้วัด | นิยาม | R0 (legacy) | R1 Jan–Jun | Blind Jul–Nov |
 |---|---|---|---|---|
-| Coverage ELR | ELR ที่ processing DONE และไม่ HOLD / ELR ในกรอบ (ตัวหาร = Oracle ไม่ใช่โฟลเดอร์ NAS) | 529/598 | วัดใหม่ | วัด |
-| Coverage line | บรรทัดที่เทียบได้ / บรรทัดที่ oracle หรือ expected มีค่า | 1,982/2,381 | วัดใหม่ | วัด |
-| Hold Rate | HOLD + NOT_VERIFIABLE / ELR | 12.1% (ตัวหาร 602) | วัด | วัด |
-| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | วัด | วัด |
-| Independence | expected เท่าเดิมเมื่อลบ oracle_mark | ไม่ผ่าน (by design) | ต้อง 100% | ต้อง 100% |
+| Coverage ELR | ELR ที่ processing DONE และไม่ HOLD / ELR ในกรอบ (ตัวหาร = Oracle ไม่ใช่โฟลเดอร์ NAS) | 529/598 (88.5%) | **54.6%** (365/668) · auto 55.6% (114/205), human 54.2% (251/463) | วัด |
+| Coverage line | บรรทัดที่เทียบได้ / บรรทัดที่ oracle หรือ expected มีค่า | 1,982/2,381 (83.2%) | **67.1%** (1,554/2,316) · auto 73.5% (522/710), human 64.3% (1,032/1,606) | วัด |
+| Hold Rate | HOLD + NOT_VERIFIABLE / ELR | 12.1% (ตัวหาร 602) | **15.0%** (100/668) · auto 9.8% (20/205), human 17.3% (80/463) | วัด |
+| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **25.8%** (401/1,554) [MATCH 327, MATCH_SLR 74, MATCH_SHIFT 0, MATCH_LOT 0, DIFF 93, NEEDS_REVIEW 1,060] | วัด |
+| Independence | expected เท่าเดิมเมื่อลบ oracle_mark | ไม่ผ่าน (by design) | **100.0%** (1.0) | ต้อง 100% |
+| Parity vs R0 BUG | divergence จาก R0 ที่ไม่มีคำอธิบายทางสถาปัตยกรรม | — | **0** (SAME 374, REVIEW_FLAG 1,060, RESOLVER_CHANGED 852, GATE_SPEC_V2 33, BUG 0) | — |
 | Correctness | expected == engineer_verified | — | ตัวอย่าง | ตัวอย่าง |
 | False PASS | MATCH* และ engineer_verified ≠ expected | — | **ต้อง 0** | **ต้อง 0** |
+
+### 5.1 รายละเอียดผลลัพธ์ R1 Jan–Jun
+
+- **Independence Check:** 100.0% (ExpectedMark ถูกสร้างขึ้นโดยไม่พึ่งพา OracleMark อย่างสิ้นเชิง)
+- **Parity Breakdown vs R0:**
+  - `SAME`: 374 บรรทัด (สถานะและข้อความตรงกัน หรือ non-compared เหมือนกัน)
+  - `REVIEW_FLAG`: 1,060 บรรทัด (R1 ติดธง `NEEDS_REVIEW` จาก uncertainty/low confidence/rules แทนที่จะ MATCH แบบ conditioned)
+  - `RESOLVER_CHANGED`: 852 บรรทัด (ความแตกต่างจากการ resolve โฟลเดอร์/ABS และ 70 ELRs ใหม่ที่ Oracle มีแต่ R0 ไม่มีโฟลเดอร์)
+  - `GATE_SPEC_V2`: 33 บรรทัด (R0 run 3 ผ่อนผันตาม `CUST_REQ_NO` แต่ spec v2 คง strict SLR resolution)
+  - `BUG`: **0** บรรทัด (ผ่านเกณฑ์การยอมรับ Phase 1 D-03)
