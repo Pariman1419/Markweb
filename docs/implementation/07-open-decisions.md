@@ -44,9 +44,14 @@
 
 | ID | เรื่อง | ทำไมสำคัญ | เจ้าของ |
 |---|---|---|---|
-| D-15 | **session/โปรเซสอื่นที่เขียน `mark_logic` และแก้โค้ดใน repo `mark`** (run 2 15:52, run 3 16:05) | ยังเขียนต่อหลังตรวจรอบแรก; run 3 เปลี่ยนกฎสำคัญเอง (ดู D-19) | เจ้าของ |
-| D-19 | **run 3 ผ่อน gate SLR**: "SLR required only when CUST_REQ_NO set" (`R03-ABS-SLR-GATE.pattern`) และตั้ง R07-REMARK-*/PIN-NOTE เป็น `rule_origin = elr_legend`, `approved` | ขัดกับ spec v2 anti-goal "ขาด SLR ต้อง HOLD" และขัดกับ D-06 (PIN-NOTE ถูกปฏิเสธ) — ต้องเลือกว่าใช้แบบไหน | เจ้าของ |
 | D-07 | คำตอบที่ถูกของ 20 โฟลเดอร์ multi-ABS / 41 multi-SLR | golden test ของ resolver | Mark Eng |
-| D-16 | ELR measurable: 531 (`elr_document`) vs 529 (run 2) vs 470 (run 3) | ตัวหาร regression | ผู้พัฒนา (Phase 1) |
-| D-20 | push branch `phase0/regression-r0` ขึ้น GitHub หรือไม่ | มีภาพแบบของลูกค้า | เจ้าของ |
-| D-21 | Symbol ADI.xlsx ยังเปิดอยู่ใน Excel — hash ไม่ได้ | freeze encoder | เจ้าของ (ปิดไฟล์) |
+| D-16 | ELR measurable: 531 (`elr_document`) vs 529 (run 2) vs 470 (run 3) | ตัวหาร regression — Phase 1 ใช้ตัวหารจาก Oracle (plan Task 12) | ผู้พัฒนา (Phase 1) |
+
+### ปิดแล้วรอบ 3 (2026-11-04)
+
+| ID | ตัดสิน |
+|---|---|
+| D-15 | ✔ เจ้าของปิด session อื่นแล้ว; R0 ยังยึด run 3 + commit `d7d788e` |
+| D-19 | ✔ (ผู้พัฒนาตัดสินตาม delegation) `mark_engine` ใช้ spec v2: ขาด SLR → `HOLD:SLR_NOT_FOUND` แม้ `CUST_REQ_NO` ว่าง; PIN-NOTE คง REJECTED (D-06). ส่วนต่างจาก run 3 ติด reason code `GATE_SPEC_V2` ใน parity report |
+| D-20 | ✔ repo `mark-web` ใช้ remote `git@github.com:Pariman1419/Markweb.git` (branch `phase0/readiness` push แล้ว); repo `mark` branch `phase0/regression-r0` **ไม่ push** (มีภาพแบบลูกค้า) |
+| D-21 | ✔ `Symbol ADI.xlsx` sha256 `7858dc405a90b6600389accf32fa257ad23580cd532cda078da2f02cfe74ccb6` — ใช้เป็นค่าตรวจใน plan Task 7 |
