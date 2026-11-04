@@ -61,6 +61,10 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-04 (R1 review round 1)
+- User review from the R1 review page saved to `reviews/r1_review_2026-11-04.csv` (R0 folder is read-only); `review_overlay.load_r1_verdicts` reads it after the R0 verdicts (later wins). DB_WRONG / SYSTEM_OK = system expected is right.
+- ADI2602089 TOP 5 `0.0 #YWW` vs Oracle `O.0#YWW`: user verdict DB_WRONG (was HUMAN_FIXED). After review: DB_WRONG 17, HUMAN_FIXED 0. Agreement 82.36%, BUG 0. 218 unit + 3 regression. DB run 13.
+
 ### 2026-11-04 (D-28 Template C / resolver)
 - Template C (legend `LINE n:` below a format example) was already handled by `abs/layout.py` (May-Jun) and annotation rule D7 (Jan-Apr). The Jan-Apr Template C ELRs were held before layout: BOM_NOT_FOUND.
 - Causes: ABS PDFs with a garbled text layer classified OTHER (e.g. ADI2601082 ABS065710-ENG-2) → `ABS_BY_FILENAME` fallback; CUST_BOM_NO absent but PRODUCT_NO's ABS present (ADI2603049-052, ADI2602093, ADI2602064-074, ADI2601072, ADI2602018) → build + `PRODUCT_NO_ABS_MISMATCH` alert. BOM_NOT_FOUND now has hold_detail.

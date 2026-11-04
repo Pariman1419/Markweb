@@ -23,7 +23,7 @@ from mark_engine.adapters.snapshot import (
 )
 from mark_engine.domain.models import JobResult, LineStatus, OracleMark, ProcessingStatus
 from mark_engine.pipeline import process_elr
-from mark_engine.regression.review_overlay import final_status, load_verdicts
+from mark_engine.regression.review_overlay import final_status, load_r1_verdicts, load_verdicts
 from mark_engine.regression.metrics import COMPARED_STATUSES, MATCH_ALL_STATUSES, compute
 from mark_engine.regression.parity import classify
 from mark_engine.rules.ruleset import RuleSet
@@ -149,7 +149,10 @@ def main() -> None:
     r0legacy_data = load_r0_csv(r0legacy_path)
     r0_reocr = load_r0_reocr(root)
     # Human verdicts from the R0 review exports, applied AFTER compare (final_status only)
-    verdicts = load_verdicts(root / "experiments" / "abs_vs_db" / "review")
+    verdicts = load_r1_verdicts(
+        Path(__file__).resolve().parent.parent / "reviews",
+        load_verdicts(root / "experiments" / "abs_vs_db" / "review"),
+    )
     print(f"[*] R0 re-OCR lines (kept=Y): {len(r0_reocr)}")
 
     prefixes = tuple(args.elr_prefix)

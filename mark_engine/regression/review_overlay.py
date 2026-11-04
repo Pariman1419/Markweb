@@ -51,6 +51,25 @@ def load_verdicts(review_dir: Path) -> dict[str, Verdict]:
     return out
 
 
+# R1 review page exports (reviews/r1_review_*.csv): verdict DB_WRONG / SYSTEM_OK both mean the
+# system's expected mark (as shown at review time) is the right one. Empty verdict = not reviewed.
+R1_SYSTEM_RIGHT = frozenset({"DB_WRONG", "SYSTEM_OK"})
+R1_ORACLE_RIGHT = frozenset({"ORACLE_OK", "SYSTEM_WRONG"})
+
+
+def load_r1_verdicts(review_dir: Path, into: dict[str, Verdict] | None = None) -> dict[str, Verdict]:
+    """Later R1 reviews override R0 verdicts for the same line."""
+    out = dict(into or {})
+    for f in sorted(review_dir.glob("r1_review_*.csv")):
+        for r in csv.DictReader(open(f, encoding="utf-8-sig")):
+            v, note = (r.get("verdict") or "").strip(), (r.get("note") or "").strip()
+            if v in R1_SYSTEM_RIGHT:
+                out[r["id"]] = Verdict(r["id"], v, note, answer=r.get("expected") or "")
+            elif v in R1_ORACLE_RIGHT:
+                out[r["id"]] = Verdict(r["id"], v, note, answer=None)
+    return out
+
+
 def final_status(row: dict, v: Verdict | None) -> str:
     status = row["status"]
     # only lines the system actually compared (a held / ineligible ELR has no expected to judge)

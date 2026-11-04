@@ -39,3 +39,14 @@ def test_no_verdict_keeps_status():
 def test_held_line_is_not_overridden():
     v = Verdict("ADI2603041_B1", "OCR wrong", "", answer=None)
     assert final_status(_row("", "#YWW", "NOT_MEASURABLE"), v) == "NOT_MEASURABLE"
+
+
+def test_r1_review_db_wrong_overrides_r0_ocr_wrong(tmp_path):
+    from mark_engine.regression.review_overlay import load_r1_verdicts
+    (tmp_path / "r1_review_2026-11-04.csv").write_text(
+        "id,expected,oracle,verdict,note\nADI2602089_T5,0.0 #YWW,O.0#YWW,DB_WRONG,\nX_T1,A,B,,\n",
+        encoding="utf-8")
+    r0 = {"ADI2602089_T5": Verdict("ADI2602089_T5", "OCR wrong", "", answer=None)}
+    v = load_r1_verdicts(tmp_path, r0)
+    assert "X_T1" not in v
+    assert final_status(_row("0.0 #YWW", "O.0#YWW"), v["ADI2602089_T5"]) == "DB_WRONG"
