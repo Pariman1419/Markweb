@@ -19,18 +19,8 @@ R0 = Path("D:/CIM Project/mark")
 R0_OUT = R0 / "experiments/abs_vs_db/out"
 R1 = Path("artifacts/regression-r1")
 
-RC_GROUPS = {
-    # RC1 (ENG-n naming) resolved 2026-11-04: Oracle CUST_BOM_NO letter + CUST_BOM_REVISION ENG-n = file rev
-    "RC2": "ADI2603024 ADI2603025 ADI2603026 ADI2603027 ADI2603028 ADI2603029 ADI2603030 ADI2603072 ADI2603073 ADI2603074 ADI2603075 ADI2603076",
-    "RC3": "ADI2602126 ADI2606076",
-}
-OLD_TOPIC = {
-    # (verdict or note keyword) -> topic, from diff_review_2026-11-04*.csv cross-check
-    "DBW": {"ADI2605086_T3", "ADI2605087_T3", "ADI2605088_T3", "ADI2602044_T2", "ADI2602050_T2"},
-    "LEG": {"ADI2605013_T2", "ADI2606019_T2", "ADI2605047_T3", "ADI2605047_T4", "ADI2605047_T5",
-            "ADI2605048_T3", "ADI2605048_T4", "ADI2605048_T5"},
-    "OCR": {"ADI2602089_T5", "ADI2604053_T1", "ADI2605076_T1"},
-}
+# Topics come from the run itself (D-25 alerts in review_detail, old verdicts in final_status)
+TOPIC_ORDER = ("RC2", "RC3", "OLD")
 
 
 def rd(p: Path) -> list[dict]:
@@ -69,16 +59,17 @@ def main() -> None:
             old[r["id"]] = r
     imgs = image_index() if a.images else {}
 
-    rc_of = {e: g for g, s in RC_GROUPS.items() for e in s.split()}
     rows = []
     for r in rd(R1 / "lines.csv"):
         lid = f"{r['elr_no']}_{r['side'][0]}{r['line_no']}"
-        topic = None
-        if r["elr_no"] in rc_of and "RULE_CONFLICT" in r["flags"]:
-            topic = rc_of[r["elr_no"]]
+        rd_ = r.get("review_detail", "")
+        if "PRODUCT_NO_ABS_MISMATCH" in rd_ and r["status"] == "NEEDS_REVIEW":
+            topic = "RC3"
+        elif "REVISION_MISMATCH" in rd_ and r["status"] == "NEEDS_REVIEW":
+            topic = "RC2"
+        elif r.get("final_status", r["status"]) != r["status"]:
+            topic = "OLD"
         else:
-            topic = next((t for t, ids in OLD_TOPIC.items() if lid in ids), None)
-        if topic is None:
             continue
         m = meta.get(r["elr_no"], {})
         o = old.get(lid, {})
@@ -89,6 +80,7 @@ def main() -> None:
             "exp": r["expected_mark"], "ora": r["oracle_mark"], "status": r["status"],
             "flags": r["flags"], "detail": r["detail"],
             "remark": " | ".join(x for x in (m.get("MARK_REMARK"), m.get("MARK_REQUIRE")) if x),
+            "alert": rd_, "final": r.get("final_status", r["status"]),
             "ov": o.get("verdict", ""), "on": o.get("note", ""), "ofinal": o.get("final", ""),
         }
         if a.images and (r["elr_no"], r["side"], r["line_no"]) in imgs:
@@ -100,7 +92,7 @@ def main() -> None:
     html = tpl.replace("/*ROWS*/[]", json.dumps(rows, ensure_ascii=False))
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(html, encoding="utf-8")
-    print(len(rows), "rows ->", a.out, {t: sum(x["topic"] == t for x in rows) for t in ("RC2", "RC3", "DBW", "LEG", "OCR")})
+    print(len(rows), "rows ->", a.out, {t: sum(x["topic"] == t for x in rows) for t in TOPIC_ORDER})
 
 
 if __name__ == "__main__":

@@ -94,7 +94,7 @@ def generate_expected(
     revision_mismatch = (
         docs is not None
         and hasattr(docs, "steps")
-        and "REVISION_NAME_MISMATCH" in docs.steps
+        and ("REVISION_NAME_MISMATCH" in docs.steps or "PRODUCT_NO_ABS_MISMATCH" in docs.steps)
     )
     has_unresolved_slr = bool(slr.unresolved) if slr is not None else False
 

@@ -86,7 +86,7 @@ main{max-width:1100px;margin:0 auto;padding-top:18px;display:flex;flex-direction
 <div class="top gut">
   <div class="topin">
     <div class="r1">
-      <h1>R1 Line Review · run 9</h1>
+      <h1>R1 Line Review · run 10</h1>
       <span class="save" id="saveState">กำลังเชื่อมต่อที่เก็บคำตัดสิน…</span>
     </div>
     <div class="tabs" role="tablist" id="tabs"></div>
@@ -106,16 +106,12 @@ main{max-width:1100px;margin:0 auto;padding-top:18px;display:flex;flex-direction
 <script>
 const ROWS=/*ROWS*/[];
 const TOPICS={
-  RC2:{name:"RULE_CONFLICT · Oracle rev B แต่มีแค่ rev C",q:"ABS065744: Oracle CUST_BOM_REVISION = B แต่ในโฟลเดอร์มีแค่ ABS065744C และ mark ตรงกับ Oracle ทุกบรรทัด ให้ระบบทำอย่างไร",
-       hint:"(a) ให้คนตรวจต่อพร้อมสาเหตุ (เหมือน D-23)  ·  (b) MATCH + warning (เหมือน D-22)",opts:["(a) ให้คนตรวจพร้อมสาเหตุ","(b) MATCH + warning"]},
-  RC3:{name:"RULE_CONFLICT · PRODUCT_NO คนละ ABS",q:"PRODUCT_NO ใน Oracle ชี้ ABS คนละเลขกับฉบับที่ระบบเลือก ควรใช้ ABS ไหน",
-       hint:"ข้อเสนอ: ให้คนตรวจต่อ และแสดงสาเหตุ \"PRODUCT_NO ชี้ ABS คนละเลข\"",opts:["เห็นด้วย ให้คนตรวจพร้อมสาเหตุ","ระบบเลือก ABS ผิด"]},
-  DBW:{name:"รีวิวเก่า · Oracle ผิด",q:"รีวิวเก่าตัดสินว่า Oracle ผิด และ expected ของ R1 ตรงกับคำตอบที่ถูก ให้ติดสถานะ DB_WRONG แทน DIFF/NEEDS_REVIEW หรือไม่",
-       hint:"DB_WRONG ไม่นับใน agreement และไม่ต้องให้คนตรวจซ้ำ",opts:["ติด DB_WRONG","คงเดิม"]},
-  LEG:{name:"รีวิวเก่า · legend บนภาพ",q:"คำตอบอยู่ใน legend LINE n: บนภาพ ABS (\"มีบอกในภาพ\") ควรให้ระบบอ่าน legend มาใช้แทนข้อความตัวอย่างหรือไม่",
-       hint:"กฎ R06-LEGEND ของ R0 ยังเป็นสถานะทดลอง",opts:["ทำกฎอ่าน legend","ให้คนตรวจต่อ"]},
-  OCR:{name:"รีวิวเก่า · OCR อ่านผิด",q:"รีวิวเก่าบอกว่า OCR อ่านผิด บรรทัดเหล่านี้ยังเป็น DIFF ถูกต้องหรือไม่",
-       hint:"ไม่มีกฎแก้ เป็นข้อจำกัดของ OCR",opts:["ถูก คง DIFF","มีวิธีแก้"]},
+  RC2:{name:"แจ้งเตือน · revision ไม่ตรง",q:"Oracle ระบุ revision หนึ่ง แต่ในโฟลเดอร์มี ABS revision อื่นฉบับเดียว ระบบสร้าง mark จากฉบับที่มีและแจ้งเตือนให้ผู้ใช้แก้",
+       hint:"สิ่งที่ผู้ใช้ต้องทำ: ยืนยันว่า ABS ฉบับนี้ถูก แล้วแก้ CUST_BOM_REVISION ใน Oracle หรือขอ ABS ฉบับที่ Oracle ระบุ",opts:["แก้ Oracle ให้ตรง ABS","ขอ ABS ฉบับที่ถูก"]},
+  RC3:{name:"แจ้งเตือน · PRODUCT_NO คนละ ABS",q:"PRODUCT_NO ใน Oracle ระบุเลข ABS คนละเลขกับ CUST_BOM_NO ระบบแจ้งเตือนให้ผู้ใช้ตรวจว่าเลขไหนถูก",
+       hint:"สิ่งที่ผู้ใช้ต้องทำ: ตรวจว่าใช้ ABS ไหน แล้วแก้ CUST_BOM_NO หรือ PRODUCT_NO ใน Oracle",opts:["CUST_BOM_NO ถูก","PRODUCT_NO ถูก"]},
+  OLD:{name:"แก้ตามรีวิวเก่าแล้ว",q:"บรรทัดที่ใช้คำตัดสินจากรีวิวเก่า (diff_review_2026-11-04) แล้ว — ตรวจว่าสถานะใหม่ถูกต้อง",
+       hint:"DB_WRONG = Oracle ผิด แจ้งทีม Marking · HUMAN_FIXED = ระบบอ่านผิด คนให้ค่าที่ถูก · MATCH = รีวิวยืนยันว่าถูก",opts:["ถูกต้องทั้งหมด","มีที่ผิด (ดูหมายเหตุ)"]},
 };
 const VERDICTS=[["SYSTEM_OK","ระบบถูก"],["DB_WRONG","Oracle ผิด"],["OCR_WRONG","OCR ผิด"],["RULE_WRONG","กฎผิด"],["UNSURE","ต้องดูเพิ่ม"]];
 const ns=s=>(s||"").replace(/\s+/g,"");
@@ -175,6 +171,8 @@ function card(r){
       ${r.pn?`<dt>PRODUCT_NO</dt><dd class="mono">${esc(r.pn)}</dd>`:""}
       ${r.flags||r.detail?`<dt>flags</dt><dd class="mono" style="font-size:.78rem">${esc([r.flags,r.detail].filter(Boolean).join(" · "))}</dd>`:""}
     </dl>
+    ${r.alert?`<div class="old" style="background:var(--bad-soft);color:var(--fg)"><b style="color:var(--bad)">แจ้งเตือน</b> ${esc(r.alert)}</div>`:""}
+    ${r.final&&r.final!==r.status?`<div class="old" style="background:var(--ok-soft)">สถานะหลังรีวิว: <b>${esc(r.final)}</b> (ระบบ: ${esc(r.status)})</div>`:""}
     ${r.ov||r.on?`<div class="old">รีวิวเก่า: <b>${esc(r.ov||"—")}</b>${r.ofinal?` · คำตอบเก่า <span class="mono">${esc(r.ofinal)}</span>`:""}${r.on?` · ${esc(r.on)}`:""}</div>`:""}
     ${r.remark?`<div class="rem">MARK_REMARK: ${esc(r.remark)}</div>`:""}
     <div class="dec">${VERDICTS.map(([k,l])=>`<button type="button" class="opt${v.verdict===k?" on":""}" data-v="${k}">${l}</button>`).join("")}

@@ -23,6 +23,7 @@ from mark_engine.adapters.snapshot import (
 )
 from mark_engine.domain.models import JobResult, LineStatus, OracleMark, ProcessingStatus
 from mark_engine.pipeline import process_elr
+from mark_engine.regression.review_overlay import final_status, load_verdicts
 from mark_engine.regression.metrics import COMPARED_STATUSES, MATCH_ALL_STATUSES, compute
 from mark_engine.regression.parity import classify
 from mark_engine.rules.ruleset import RuleSet
@@ -147,6 +148,8 @@ def main() -> None:
     print(f"[*] Loading R0 run 2: {r0legacy_path}")
     r0legacy_data = load_r0_csv(r0legacy_path)
     r0_reocr = load_r0_reocr(root)
+    # Human verdicts from the R0 review exports, applied AFTER compare (final_status only)
+    verdicts = load_verdicts(root / "experiments" / "abs_vs_db" / "review")
     print(f"[*] R0 re-OCR lines (kept=Y): {len(r0_reocr)}")
 
     prefixes = tuple(args.elr_prefix)
@@ -204,6 +207,7 @@ def main() -> None:
         abs_no = ""
         abs_other_revisions = ""
         hold_detail = (job.resolution.hold_detail or "") if job.resolution else ""
+        review_detail = (job.resolution.review_detail or "") if job.resolution else ""
         if job.resolution and job.resolution.abs:
             abs_no = Path(job.resolution.abs.path).stem
             abs_other_revisions = ";".join(
@@ -235,7 +239,12 @@ def main() -> None:
                 "abs_no": abs_no,
                 "abs_other_revisions": abs_other_revisions,
                 "r0_reocr": "Y" if (job.elr_no, c.side.value, c.line_no) in r0_reocr else "",
+                "review_detail": review_detail,
             }
+            v = verdicts.get(f"{job.elr_no}_{r1_line_dict['side'][0]}{c.line_no}")
+            r1_line_dict["review_verdict"] = (v.verdict or "NOTE") if v else ""
+            r1_line_dict["review_note"] = v.note if v else ""
+            r1_line_dict["final_status"] = final_status(r1_line_dict, v)
             lines_rows.append(r1_line_dict)
 
             # Parity check against R0
@@ -275,12 +284,28 @@ def main() -> None:
         "processing_status",
         "hold_reason",
         "hold_detail",
+        "review_detail",
+        "review_verdict",
+        "review_note",
+        "final_status",
     ]
     with open(lines_csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=lines_fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(lines_rows)
     print(f"[+] Wrote {len(lines_rows)} line comparisons to {lines_csv_path}")
+
+    # After human review (final_status): system status stays the metric; this is the work left
+    after: dict[str, int] = {}
+    for r in lines_rows:
+        after[r["final_status"]] = after.get(r["final_status"], 0) + 1
+    metrics["after_review"] = {
+        "final_status_counts": after,
+        "reviewed_lines": sum(1 for r in lines_rows if r["review_verdict"]),
+        "open_review_lines": after.get("NEEDS_REVIEW", 0) + after.get("DIFF", 0),
+    }
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2)
 
     # Write parity.csv
     parity_fieldnames = [
@@ -327,6 +352,7 @@ def main() -> None:
             "processing_status": job.processing_status.value,
             "hold_reason": job.hold_reason or "",
             "hold_detail": (job.resolution.hold_detail or "") if job.resolution else "",
+            "review_detail": (job.resolution.review_detail or "") if job.resolution else "",
             "verification_status": job.verification_status.value if job.verification_status else "",
             "approval_status": job.approval_status.value,
             "layout_source": layout_source,
@@ -343,6 +369,7 @@ def main() -> None:
         "processing_status",
         "hold_reason",
         "hold_detail",
+        "review_detail",
         "verification_status",
         "approval_status",
         "layout_source",
@@ -370,6 +397,9 @@ def main() -> None:
     print(f"Independence:           {'NOT MEASURED' if ind is None else f'{ind:.2%}'}")
     print(f"Needs Review Lines:     {metrics['needs_review_lines']}")
     print(f"Warning Lines (MATCH):  {metrics['warning_lines']}")
+    ar = metrics["after_review"]
+    print(f"After human review:     reviewed {ar['reviewed_lines']}, open (NEEDS_REVIEW+DIFF) {ar['open_review_lines']}, "
+          f"DB_WRONG {ar['final_status_counts'].get('DB_WRONG', 0)}, HUMAN_FIXED {ar['final_status_counts'].get('HUMAN_FIXED', 0)}")
     print("Status counts:")
     for st, cnt in metrics["status_counts"].items():
         if cnt > 0:

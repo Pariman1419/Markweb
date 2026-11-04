@@ -237,3 +237,23 @@
 ### Prevention / Rules Learned
 - A revision can be spread over several Oracle fields; build it once in one function and test each letter, including the ones that collide with the ENG prefix.
 
+---
+
+## [2026-11-04] Old review verdicts as final status; revision alerts with cause
+
+### Context & Symptom
+- **Component / Path**: [`mark_engine/regression/review_overlay.py`](file:///D:/CIM%20Project/mark-web/mark_engine/regression/review_overlay.py), [`mark_engine/documents/resolve.py`](file:///D:/CIM%20Project/mark-web/mark_engine/documents/resolve.py)
+- **Question / Issue**: user: lines already reviewed should follow the old review; revision configuration problems must be real alerts so the user can fix them (D-25, D-26).
+
+### Root Cause
+- R1 had no place for human verdicts, so reviewed lines reappeared as DIFF / NEEDS_REVIEW.
+- RULE_CONFLICT only carried a flag name; the user could not see what to fix.
+
+### Resolution & Code Fix
+- `final_status` per line after compare: reviewed answer = expected ≠ Oracle → DB_WRONG; = Oracle ≠ expected → HUMAN_FIXED; = both → MATCH; anything else (stale verdict) or a held line → system status kept.
+- `DocumentResolution.review_detail`: "REVISION_MISMATCH: Oracle ABS065744 rev B but folder has only ABS065744C (rev C)" and "PRODUCT_NO_ABS_MISMATCH: …" (new check, 4 ELR in Jan–Jun).
+- First version applied verdicts to HOLD lines (ADI2603041, ADI2603055/056); restricted to compared lines, with a test.
+
+### Prevention / Rules Learned
+- Keep the system result and the human result in separate fields; metrics stay honest and the backlog still shrinks.
+

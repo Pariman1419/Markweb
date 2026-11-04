@@ -59,13 +59,15 @@ def main() -> None:
             f"{k}={v}" for k, v in [
                 ("rules", r["compare_rules"]), ("flags", r["flags"]), ("detail", r["detail"]),
                 ("warning", r.get("warning", "")), ("hold_detail", r.get("hold_detail", "")),
+                ("review_detail", r.get("review_detail", "")), ("review_verdict", r.get("review_verdict", "")),
+                ("system_status", r["status"] if r.get("final_status", r["status"]) != r["status"] else ""),
                 ("layout_source", r["layout_source"]),
                 ("parity_vs_r0", par.get((r["elr_no"], r["side"], r["line_no"]), "")),
             ] if v
         )
         rows.append((r["elr_no"], _abs_number(jobs[r["elr_no"]]["abs_no"]), r["side"], int(r["line_no"]),
                      MONTH.get(r["elr_no"][5:7]), r["expected_mark"] or None, r["oracle_mark"] or None,
-                     r["status"], cause, detail))
+                     r.get("final_status") or r["status"], cause, detail))
     keys = [x[:4] for x in rows]
     assert len(keys) == len(set(keys)), "duplicate primary key"
 
@@ -88,6 +90,10 @@ def main() -> None:
         (NEEDS_REVIEW_MEANING,),
     )
     # a rolled-back dry run still consumes a sequence value
+    cur.execute(
+        """insert into mark_logic.status_dictionary(status, meaning, counts_as_match, in_denominator, action, ui_color)
+           values ('HUMAN_FIXED', 'Reviewed: the system read the line wrong (OCR / legend on the drawing); a person supplied the mark', false, true, 'Corrected by reviewer', 'review')
+           on conflict (status) do nothing""")
     cur.execute("select setval('mark_logic.run_run_id_seq', (select max(run_id) from mark_logic.run))")
     cur.execute(
         """insert into mark_logic.run(period, git_commit, ocr_model, symbol_model, elr_total, elr_measurable,
@@ -97,7 +103,7 @@ def main() -> None:
          "R0 cached inference: PP-OCRv5 det + EXP09 PP-OCRv5_server_rec ep40",
          "R0 cached inference: YOLOv8n symdet_v2",
          m["total_jobs"], m["coverage_elr_num"], len(rows), m["oracle_agreement_denom"], m["oracle_agreement_num"],
-         round(100 * m["oracle_agreement"], 2), 0, m["DIFF"], None, note),
+         round(100 * m["oracle_agreement"], 2), sum(1 for x in rows if x[7] == "DB_WRONG"), m["DIFF"], None, note),
     )
     run_id = cur.fetchone()[0]
     execute_values(

@@ -61,6 +61,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-04 (D-25 alerts, D-26 old review verdicts)
+- D-25: resolver writes `review_detail` for `REVISION_MISMATCH` (Oracle rev vs only ABS in folder) and new `PRODUCT_NO_ABS_MISMATCH` (also sets RULE_CONFLICT) — real alerts for the user.
+- D-26: `mark_engine/regression/review_overlay.py` applies R0 review verdicts after compare → `lines.csv` `final_status` (DB_WRONG 5, HUMAN_FIXED 6, MATCH 4); system `status` unchanged. Loader writes `final_status` as `status`, system value in `cause_detail system_status=`; new status `HUMAN_FIXED`.
+- R1 system: agreement 85.85% (1,323/1,541), NEEDS_REVIEW 166, DIFF 52, BUG 0. After review: open NEEDS_REVIEW+DIFF **203**. 212 unit + 3 regression. DB run 10.
+
 ### 2026-11-04 (OCRFIX-6, D-24 split Oracle revision)
 - `R07-OCRFIX-6` keeps `LOT NUMBER`, drops only `U\d` (found from R0 human review notes) — 5 DIFF → MATCH_LOT.
 - D-24: Oracle revision = `CUST_BOM_NO` letter + `CUST_BOM_REVISION` (`ABS034529D` + `ENG-1` = `D-ENG-1`) — 11 ELR RULE_CONFLICT cleared.

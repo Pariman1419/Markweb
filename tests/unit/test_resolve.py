@@ -457,3 +457,27 @@ def test_oracle_revision_letter_e_with_eng():
     assert _oracle_revision("ABS065954E", "E-ENG-1") == "E-ENG-1"
     assert _oracle_revision("ABS065744", "B") == "B"
     assert _oracle_revision("ABS034529D", "ENG-1") == "D-ENG-1"
+
+
+def test_revision_mismatch_gives_user_reason(month_tree: Path, tmp_path: Path):
+    """D-25: Oracle rev B but only rev C in the folder (ABS065744) -> review with the cause."""
+    f = month_tree / "3_MAR" / "ADI2603024"
+    f.mkdir(parents=True)
+    make_pdf(f / "ABS065744C.pdf", ["ABS065744 Rev C", "Brand/Marking diagram"])
+    make_pdf(f / "SLR240005.pdf", ["SPECIAL INSTRUCTIONS\nLine 1: TEST"])
+    meta = ElrMeta(elr_no="ADI2603024", cust_bom_no="ABS065744", cust_bom_revision="B")
+    res = resolve_documents(meta, month_tree, ["3_MAR"], tmp_path / "work")
+    assert res.decision == "RESOLVED"
+    assert res.review_detail == "REVISION_MISMATCH: Oracle ABS065744 rev B but folder has only ABS065744C (rev C)"
+
+
+def test_product_no_other_abs_gives_user_reason(month_tree: Path, tmp_path: Path):
+    f = month_tree / "6_JUN" / "ADI2606076"
+    f.mkdir(parents=True)
+    make_pdf(f / "ABS068387B.pdf", ["ABS068387 Rev B", "Brand/Marking diagram"])
+    make_pdf(f / "SLR240006.pdf", ["SPECIAL INSTRUCTIONS\nLine 1: TEST"])
+    meta = ElrMeta(elr_no="ADI2606076", cust_bom_no="ABS068387", cust_bom_revision="B",
+                   product_no="ADMFS7201-ABS071101-ENG-2-A")
+    res = resolve_documents(meta, month_tree, ["6_JUN"], tmp_path / "work")
+    assert "PRODUCT_NO_ABS_MISMATCH" in res.steps
+    assert res.review_detail.startswith("PRODUCT_NO_ABS_MISMATCH: PRODUCT_NO ADMFS7201-ABS071101-ENG-2-A names ABS071101")

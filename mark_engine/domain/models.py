@@ -111,6 +111,7 @@ class DocumentResolution:
     rejected: tuple[tuple[DocumentRef, str], ...] = ()
     steps: tuple[str, ...] = ()
     hold_detail: str | None = None  # human-readable cause shown with hold_reason
+    review_detail: str | None = None  # why a RESOLVED job still needs a person (shown to the user)
 
 
 @dataclass(frozen=True, slots=True)

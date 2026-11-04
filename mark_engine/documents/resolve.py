@@ -235,6 +235,18 @@ def resolve_documents(
             steps=tuple(steps),
         )
 
+    review_notes: list[str] = []
+
+    # 4b. PRODUCT_NO_ABS_MISMATCH (D-25): PRODUCT_NO names another ABS number than CUST_BOM_NO
+    pn_abs = re.search(r"ABS(\d{6})", (meta.product_no or "").upper())
+    bom6 = re.search(r"\d{6}", bom_clean)
+    if pn_abs and bom6 and pn_abs.group(1) != bom6.group(0):
+        steps.append("PRODUCT_NO_ABS_MISMATCH")
+        review_notes.append(
+            f"PRODUCT_NO_ABS_MISMATCH: PRODUCT_NO {meta.product_no.strip()} names ABS{pn_abs.group(1)} "
+            f"but CUST_BOM_NO is {bom_clean.upper()}"
+        )
+
     # 5. Revision Resolution for ABS
     oracle_rev = _oracle_revision(meta.cust_bom_no, meta.cust_bom_revision)
 
@@ -292,6 +304,11 @@ def resolve_documents(
         if len(matching_abs) == 1:
             chosen_abs = matching_abs[0]
             steps.append("REVISION_NAME_MISMATCH")
+            # Real alert for the user (D-25): say which revision Oracle asks for and what the folder has
+            review_notes.append(
+                f"REVISION_MISMATCH: Oracle {bom_clean.upper()} rev {oracle_rev or '-'} "
+                f"but folder has only {Path(chosen_abs.path).stem} (rev {chosen_abs.revision or '-'})"
+            )
         else:
             # > 1 ABS found for BOM, none matches cust_bom_revision
             return DocumentResolution(
@@ -374,4 +391,5 @@ def resolve_documents(
         slr=slr_tuple,
         rejected=rejected_tuple,
         steps=tuple(steps),
+        review_detail=" | ".join(review_notes) or None,
     )
