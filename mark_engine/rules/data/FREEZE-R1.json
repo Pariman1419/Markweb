@@ -1,8 +1,8 @@
 {
   "freeze_id": "FREEZE-R1",
-  "created_at": "2026-11-04T17:41:45.779923+00:00",
+  "created_at": "2026-11-04T17:49:39.096319+00:00",
   "rule_version": "RV-2026-11-04-R0",
   "engine_version": "0.1.0",
-  "git_commit": "5821b2ffe6bb561980e5e5229d458e96c2b4d0ba",
-  "code_sha256": "6f6a024cbf4eb9e78f02c8521626dbd8c3622d15a9f991ee2ce5430c3c8fb441"
+  "git_commit": "a4c589778156758b2836800536feecf3ec971a11",
+  "code_sha256": "e18697d6f0e9182151e49706cc9185f1198a07da996027623c71a4f1d04a87f4"
 }

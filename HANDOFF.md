@@ -73,6 +73,7 @@
 - Service boundaries are under `services/`; wheel packaging now includes rules and encoder data. Official freeze, blind AI inference, blind run, review exports and final DB load remain incomplete. Do not treat this entry as Phase 1 completion.
 - Freeze prepared after commit `5821b2f`, with the inference-validation manifest and model registry included in the code hash. Blind inference and reporting are still pending.
 - The initial blind batch was stopped before completion after the review-page check found that matching text with `NEEDS_REVIEW` was misclassified as TRUE. The local freeze must be regenerated after the review fix; no blind result was produced. Added explicit warnings for shifted layout lines and pinned the validated client inference-library versions.
+- Replacement freeze was generated from code commit `a4c5897`; restart the blind batch using that freeze. No prior partial inference output is an official result.
 
 ### 2026-11-04 (plan: Phase 1 close-out)
 - Plan [`docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md`](docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md): 11 tasks — `.env` + read-only ACTL client, migration 0004, ACTIVEL `MARK_ID_LAYOUT` positions (warning only, compare stage), FREEZE-R1, Oracle snapshot Jul–Nov, inference cache + Brand extraction, AI-server batch (determinism check vs R0), blind runner, DB load + Marking / rule-approval lists. Run order puts every `mark_engine/` change before the freeze.
