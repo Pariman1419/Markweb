@@ -110,6 +110,7 @@ class DocumentResolution:
     slr: tuple[DocumentRef, ...] = ()
     rejected: tuple[tuple[DocumentRef, str], ...] = ()
     steps: tuple[str, ...] = ()
+    hold_detail: str | None = None  # human-readable cause shown with hold_reason
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +187,7 @@ class LineComparison:
     status: LineStatus
     compare_rules: tuple[str, ...] = ()
     detail: str = ""
+    warning: str = ""  # counted as MATCH but shown to the user (e.g. COO_ABBREVIATED)
 
 
 @dataclass(frozen=True, slots=True)

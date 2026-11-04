@@ -179,3 +179,24 @@
 - A review flag must be scoped to what it is about (part-level declaration → part-level check) and must use the same symbol set as the encoder.
 - Lowering a review flag can reveal hidden BUG rows — always re-run parity after it.
 
+---
+
+## [2026-11-04] Mark Eng answers: COO warning and REVISION_CONFLICT
+
+### Context & Symptom
+- **Component / Path**: [`mark_engine/compare/engine.py`](file:///D:/CIM%20Project/mark-web/mark_engine/compare/engine.py), [`mark_engine/documents/resolve.py`](file:///D:/CIM%20Project/mark-web/mark_engine/documents/resolve.py)
+- **Question / Issue**: two open items from `09-mark-eng-confirmation.md` (THAIL abbreviation; ADI2606077/078 rev B vs C).
+
+### Root Cause
+- COO: MATCH was silent, so a user could not tell the Oracle text differs from the full name. Only prefixes of 4+ letters were accepted.
+- Revision: the resolver trusted `CUST_BOM_REVISION` even when Oracle's own `PRODUCT_NO` named another revision.
+
+### Resolution & Code Fix
+- `LineComparison.warning` (new): COO short form `TH`…`THAILAN` stays MATCH and carries `COO_ABBREVIATED: Oracle THAIL, expected THAILAND`. Runner writes `warning`; metrics `warning_lines`.
+- `HOLD:REVISION_CONFLICT` with `DocumentResolution.hold_detail` ("CUST_BOM_REVISION=B but PRODUCT_NO ADMFS7201-ABS068387C-A has rev C"); only for letter revisions, so `ENG-1` vs `B-ENG-1` is not a conflict.
+- R1: 13 warning lines, 2 new holds, DIFF 67 → 57, agreement 82.7%, BUG 0.
+
+### Prevention / Rules Learned
+- "Accept but show" is kept as a field next to MATCH, not a new status, so agreement numbers stay comparable.
+- When two Oracle fields disagree, hold with the cause instead of choosing one.
+

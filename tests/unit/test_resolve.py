@@ -383,3 +383,43 @@ def test_slr_merged_identical(month_tree: Path, tmp_path: Path):
     assert res.decision == "RESOLVED"
     assert len(res.slr) == 2
     assert "MERGED_IDENTICAL" in res.steps
+
+
+def _rev_conflict_folder(month_tree: Path, elr: str) -> None:
+    f = month_tree / "6_JUN" / elr
+    f.mkdir(parents=True)
+    make_pdf(f / "ABS068387B.pdf", ["ABS068387 Rev B", "Brand/Marking diagram"])
+    make_pdf(f / "ABS068387C.pdf", ["ABS068387 Rev C", "Brand/Marking diagram"])
+    make_pdf(f / "SLR240001.pdf", ["SPECIAL INSTRUCTIONS\nLine 1: TEST"])
+
+
+def test_product_no_revision_conflict_holds(month_tree: Path, tmp_path: Path):
+    """Mark Eng 2026-11-04 (09 Q2, ADI2606077/078): CUST_BOM_REVISION B but PRODUCT_NO says rev C
+    -> do not guess, HOLD for review and say why."""
+    _rev_conflict_folder(month_tree, "ADI2606077")
+    meta = ElrMeta(elr_no="ADI2606077", cust_bom_no="ABS068387", cust_bom_revision="B",
+                   product_no="ADMFS7201-ABS068387C-A")
+    res = resolve_documents(meta, month_tree, ["6_JUN"], tmp_path / "work")
+    assert res.decision == "HOLD"
+    assert res.hold_reason == "REVISION_CONFLICT"
+    assert res.hold_detail == "CUST_BOM_REVISION=B but PRODUCT_NO ADMFS7201-ABS068387C-A has rev C"
+
+
+def test_product_no_same_revision_resolves(month_tree: Path, tmp_path: Path):
+    _rev_conflict_folder(month_tree, "ADI2606035")
+    meta = ElrMeta(elr_no="ADI2606035", cust_bom_no="ABS068387", cust_bom_revision="B",
+                   product_no="ADMFS7201-ABS068387B-A")
+    res = resolve_documents(meta, month_tree, ["6_JUN"], tmp_path / "work")
+    assert res.decision == "RESOLVED" and res.abs.revision == "B"
+
+
+def test_product_no_eng_revision_is_not_a_conflict(month_tree: Path, tmp_path: Path):
+    """ADI2601052: CUST_BOM_REVISION 'ENG-1' vs PRODUCT_NO '...ABS065954B-ENG-1-A' is a format difference."""
+    f = month_tree / "1_JAN" / "ADI2601052"
+    f.mkdir(parents=True)
+    make_pdf(f / "ABS065954-ENG-1.pdf", ["ABS065954 Rev ENG-1", "Brand/Marking diagram"])
+    make_pdf(f / "SLR240002.pdf", ["SPECIAL INSTRUCTIONS\nLine 1: TEST"])
+    meta = ElrMeta(elr_no="ADI2601052", cust_bom_no="ABS065954", cust_bom_revision="ENG-1",
+                   product_no="ADUM7250-ABS065954B-ENG-1-A")
+    res = resolve_documents(meta, month_tree, ["1_JAN"], tmp_path / "work")
+    assert res.hold_reason != "REVISION_CONFLICT"

@@ -61,6 +61,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-04 (Mark Eng answers — D-22, D-23)
+- Q1 COO: Oracle short form of THAILAND (`TH`…`THAILAN`) = MATCH **with warning** (`lines.csv` column `warning`, metrics `warning_lines` = 13).
+- Q2 revision: `CUST_BOM_REVISION` vs `PRODUCT_NO` revision conflict → `HOLD:REVISION_CONFLICT`, cause in `hold_detail` (ADI2606077/078).
+- R1: agreement **82.7%** (1,273/1,540), DIFF 57, NEEDS_REVIEW 210, hold 103, parity BUG 0; 199 unit + 3 regression passed. DB run 7.
+
 ### 2026-11-04 (R1 — GRAPHIC_REMARK_CONFLICT and Pb-free code)
 - Merged `phase1/r1-fixes` into `phase1/mark-engine` (`8d930fd`, no conflicts — the other session only changed docs).
 - `GRAPHIC_REMARK_CONFLICT` now checked once per ELR on the finished expected text (`% { * ^`), not per side on YOLO `%`/`{` only → 303 → 4 lines. Pb-free `{e3}` follows MARK_REMARK (`e3 =` → `e3`, else `<`). Details `01` §7 rows 6–7.

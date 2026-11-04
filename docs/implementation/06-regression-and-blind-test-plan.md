@@ -126,7 +126,7 @@ Phase 0 **ไม่ได้แก้ไขอะไรใน dataset** — บ�
 | Coverage ELR | ELR ที่ processing DONE และไม่ HOLD / ELR ในกรอบ (ตัวหาร = Oracle ไม่ใช่โฟลเดอร์ NAS) | 529/598 (88.5%) | **54.5%** (364/668) · auto 55.6% (114/205), human 54.0% (250/463) | วัด |
 | Coverage line | บรรทัดที่เทียบได้ / บรรทัดที่ oracle หรือ expected มีค่า | 1,982/2,381 (83.2%) | **66.9%** (1,550/2,316) · auto 73.5% (522/710), human 64.0% (1,028/1,606) | วัด |
 | Hold Rate | HOLD + NOT_VERIFIABLE / ELR | 12.1% (ตัวหาร 602) | **15.1%** (101/668) · auto 9.8% (20/205), human 17.5% (81/463) | วัด |
-| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **82.1%** (1,273/1,550) · auto 89.7% (468/522), human 78.3% (805/1,028) [MATCH 1,148 (ในนี้ COO ย่อ 13), MATCH_SLR 87, MATCH_SHIFT 15, MATCH_LOT 23, DIFF 67, NEEDS_REVIEW 210] | วัด |
+| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **82.7%** (1,273/1,540) [MATCH 1,148 (ในนี้ COO ย่อ + warning 13), MATCH_SLR 87, MATCH_SHIFT 15, MATCH_LOT 23, DIFF 57, NEEDS_REVIEW 210]; hold 103 (รวม REVISION_CONFLICT 2) | วัด |
 | Independence | expected เท่าเดิมเมื่อลบ oracle_mark | ไม่ผ่าน (by design) | **100.0%** (668/668 — วัดจริง: รัน `process_elr` ซ้ำด้วย `OracleMark` ว่างแล้วเทียบ `ExpectedMark`) | ต้อง 100% |
 | Parity vs R0 BUG | divergence จาก R0 ที่ไม่มีคำอธิบายทางสถาปัตยกรรม | — | **0 — ผ่าน** (SAME 1,640, RESOLVER_CHANGED 362, REVIEW_FLAG 210, ORACLE_INFLUENCE_REMOVED 60, GATE_SPEC_V2 37, LOT_NOW_VERIFIED 5, OCR_SOURCE_CHANGED 3, GRAPHIC_NOW_COUNTED 1, BUG 0) | — |
 | Correctness | expected == engineer_verified | — | ตัวอย่าง | ตัวอย่าง |
@@ -144,7 +144,8 @@ independence เป็นค่า default (ไม่ได้ส่ง blank ru
 3. SLR coverage (`R04-SLR-LINE`) ไม่นับ `lot`/`attachment` ลอย ๆ — SLR_UNRESOLVED 803 → 86 บรรทัด
 4. `R07-ADI1039-LOT` รับรูป preview text "n DIGIT LOT NUMBER" (ADI1039 Table 2)
 5. `R07-OCRFIX-7` ไม่ลบทั้งช่อง COUNTRY OF ORIGIN เมื่อเจอ suffix `ENGn`
-6. `R07-ADI1039-COO` ฝั่ง compare: Oracle `THAI`…`THAILAN` = MATCH, `detail = COO_ABBREVIATED` (ADI1039 5.5.3)
+6. `R07-ADI1039-COO` ฝั่ง compare: Oracle `TH`…`THAILAN` = MATCH + warning, `detail = COO_ABBREVIATED` (ADI1039 5.5.3, D-22)
+7. `HOLD:REVISION_CONFLICT` เมื่อ `CUST_BOM_REVISION` ขัดกับ `PRODUCT_NO` (D-23)
 
 BUG 13 บรรทัดสุดท้าย — triage แล้ว (BUG = 0):
 - `ADI2602092` TOP 2–4 → **แก้ resolver** (`fingerprint.py`): โฟลเดอร์ `2_FEB/ADI2602092/` มีโฟลเดอร์ย่อย `ADI2602095/` (ABS062830A + SLR231729 ของ ELR อื่น) ซึ่งถูกสแกนรวม → SLR ของสินค้าอื่นเขียนทับบรรทัด 2–5; ตอนนี้ข้ามโฟลเดอร์ย่อยที่ตั้งชื่อเป็น ELR อื่น (ยังเก็บโฟลเดอร์ย่อยของ ELR เดียวกัน/อยู่ใน range) → ELR นี้เหลือแต่อีเมล (OTHER) จึงเป็น `HOLD:SLR_NOT_FOUND` (`GATE_SPEC_V2`, CUST_REQ_NO ว่าง)

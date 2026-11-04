@@ -58,6 +58,7 @@ def main() -> None:
         detail = "; ".join(
             f"{k}={v}" for k, v in [
                 ("rules", r["compare_rules"]), ("flags", r["flags"]), ("detail", r["detail"]),
+                ("warning", r.get("warning", "")), ("hold_detail", r.get("hold_detail", "")),
                 ("layout_source", r["layout_source"]),
                 ("parity_vs_r0", par.get((r["elr_no"], r["side"], r["line_no"]), "")),
             ] if v

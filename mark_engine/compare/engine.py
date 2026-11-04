@@ -27,19 +27,19 @@ def nospace(s: str | None) -> str:
 
 
 _COO_FULL = "THAILAND"
-_COO_MIN_ABBR = 4  # "THAI" (Symbol ADI {Country of Origin} -> THAI)
+_COO_MIN_ABBR = 2  # Mark Eng 2026-11-04 (09 Q1): TH, THA, THAI, THAIL... all read as THAILAND
 
 
-def _coo_abbreviation_match(exp_text: str, ora_text: str) -> bool:
-    """True when Oracle equals expected with THAILAND shortened to a prefix of >= 4 chars."""
+def _coo_abbreviation(exp_text: str, ora_text: str) -> str | None:
+    """Oracle's short form when it equals expected with THAILAND shortened to a prefix of >= 2 chars."""
     exp_ns = nospace(exp_text).upper()
     ora_ns = nospace(ora_text).upper()
     if _COO_FULL not in exp_ns:
-        return False
-    return any(
-        exp_ns.replace(_COO_FULL, _COO_FULL[:k]) == ora_ns
-        for k in range(_COO_MIN_ABBR, len(_COO_FULL))
-    )
+        return None
+    for k in range(_COO_MIN_ABBR, len(_COO_FULL)):
+        if exp_ns.replace(_COO_FULL, _COO_FULL[:k]) == ora_ns:
+            return _COO_FULL[:k]
+    return None
 
 
 def _serial_digits_match(exp_text: str | None, ora_text: str) -> bool:
@@ -64,7 +64,7 @@ def compare(
     1. Review Flags Gate: If expected line has flags other than SLR_OVERRIDE -> NEEDS_REVIEW
     2. Empty Oracle: If oracle text is "" -> DB_EMPTY
     3. Exact Match: If nospace(expected) == nospace(oracle) -> MATCH_SLR or MATCH
-    3b. COO abbreviation: Oracle has THAILAND shortened to THAI..THAILAN -> MATCH
+    3b. COO abbreviation: Oracle has THAILAND shortened to TH..THAILAN -> MATCH with warning
         (compare_rules R07-ADI1039-COO, detail COO_ABBREVIATED)
     4. Verified Lot Match: match_lot -> MATCH_LOT
     5. Line Shift: side-level match_shift -> MATCH_SHIFT
@@ -159,7 +159,9 @@ def compare(
 
             # 3b. COO abbreviation (R07-ADI1039-COO, ADI1039 5.5.3: full name only "when space
             # allows"). Expected always carries THAILAND; Oracle may hold the short form.
-            if exp_text is not None and _coo_abbreviation_match(exp_text, ora_text):
+            coo_abbr = _coo_abbreviation(exp_text, ora_text) if exp_text is not None else None
+            if coo_abbr is not None:
+                # MATCH, but Mark Eng wants the user to see that Oracle differs (09 Q1)
                 comparisons.append(
                     LineComparison(
                         side=side,
@@ -169,6 +171,7 @@ def compare(
                         status=LineStatus.MATCH,
                         compare_rules=("R07-ADI1039-COO",),
                         detail="COO_ABBREVIATED",
+                        warning=f"COO_ABBREVIATED: Oracle {coo_abbr}, expected {_COO_FULL}",
                     )
                 )
                 continue

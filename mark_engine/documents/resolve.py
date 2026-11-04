@@ -35,6 +35,18 @@ def _norm_rev(rev: str | None) -> str | None:
     return r if r else None
 
 
+_LETTER_REV_RE = re.compile(r"[A-Z]{1,2}")
+
+
+def _product_no_revision(product_no: str | None, bom: str) -> str | None:
+    """Letter revision written after the ABS number in PRODUCT_NO (…-ABS068387C-A -> C)."""
+    m6 = re.search(r"\d{6}", bom or "")
+    if not product_no or not m6:
+        return None
+    m = re.search(rf"ABS{m6.group(0)}([A-Z]{{1,2}})(?=-|$)", product_no.strip().upper())
+    return m.group(1) if m else None
+
+
 def _matches_bom(ref: DocumentRef, bom_str: str) -> bool:
     clean = bom_str.strip().upper()
     m = re.search(r"\d{6}", clean)
@@ -212,6 +224,29 @@ def resolve_documents(
 
     # 5. Revision Resolution for ABS
     oracle_rev = _norm_rev(meta.cust_bom_revision)
+
+    # 5a. REVISION_CONFLICT (Mark Eng 2026-11-04, 09 Q2): PRODUCT_NO carries the ABS revision
+    #     (ADMFS7201-ABS068387C-A). If it is a plain letter revision that differs from
+    #     CUST_BOM_REVISION, do not guess which one is right: hold for review with the cause.
+    pn_rev = _product_no_revision(meta.product_no, bom_clean)
+    if (
+        pn_rev is not None
+        and oracle_rev is not None
+        and _LETTER_REV_RE.fullmatch(oracle_rev)
+        and pn_rev != oracle_rev
+    ):
+        return DocumentResolution(
+            elr_no=meta.elr_no,
+            decision="HOLD",
+            hold_reason="REVISION_CONFLICT",
+            abs=None,
+            slr=(),
+            rejected=tuple(sorted(rejected, key=lambda item: (item[0].sha256, item[0].path, item[1]))),
+            steps=tuple(steps),
+            hold_detail=(
+                f"CUST_BOM_REVISION={oracle_rev} but PRODUCT_NO {meta.product_no.strip()} has rev {pn_rev}"
+            ),
+        )
 
     # Check for SAME_REV_DIFFERENT_CONTENT: multiple ABS with same revision but different sha256
     rev_groups: dict[str | None, list[DocumentRef]] = {}

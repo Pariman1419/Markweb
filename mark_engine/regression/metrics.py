@@ -141,6 +141,8 @@ def _compute_subset(
         "oracle_agreement_num": match_lines,
         "oracle_agreement_denom": compared_lines,
         "needs_review_lines": status_counts.get(LineStatus.NEEDS_REVIEW.value, 0),
+        # MATCH lines the user must still see (e.g. COO_ABBREVIATED, Mark Eng 09 Q1)
+        "warning_lines": sum(1 for j in jobs for c in j.comparisons if c.warning),
         "independence": ind,
         "status_counts": status_counts,
     }

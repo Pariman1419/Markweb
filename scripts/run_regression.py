@@ -203,6 +203,7 @@ def main() -> None:
         layout_source = job.layout_source
         abs_no = ""
         abs_other_revisions = ""
+        hold_detail = (job.resolution.hold_detail or "") if job.resolution else ""
         if job.resolution and job.resolution.abs:
             abs_no = Path(job.resolution.abs.path).stem
             abs_other_revisions = ";".join(
@@ -227,8 +228,10 @@ def main() -> None:
                 "flags": c_flags,
                 "compare_rules": c_rules,
                 "detail": c.detail,
+                "warning": c.warning,
                 "processing_status": job.processing_status.value,
                 "hold_reason": job.hold_reason or "",
+                "hold_detail": hold_detail,
                 "abs_no": abs_no,
                 "abs_other_revisions": abs_other_revisions,
                 "r0_reocr": "Y" if (job.elr_no, c.side.value, c.line_no) in r0_reocr else "",
@@ -268,8 +271,10 @@ def main() -> None:
         "flags",
         "compare_rules",
         "detail",
+        "warning",
         "processing_status",
         "hold_reason",
+        "hold_detail",
     ]
     with open(lines_csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=lines_fieldnames, extrasaction="ignore")
@@ -321,6 +326,7 @@ def main() -> None:
             "elr_no": job.elr_no,
             "processing_status": job.processing_status.value,
             "hold_reason": job.hold_reason or "",
+            "hold_detail": (job.resolution.hold_detail or "") if job.resolution else "",
             "verification_status": job.verification_status.value if job.verification_status else "",
             "approval_status": job.approval_status.value,
             "layout_source": layout_source,
@@ -336,6 +342,7 @@ def main() -> None:
         "elr_no",
         "processing_status",
         "hold_reason",
+        "hold_detail",
         "verification_status",
         "approval_status",
         "layout_source",
@@ -362,6 +369,7 @@ def main() -> None:
     ind = metrics["independence"]
     print(f"Independence:           {'NOT MEASURED' if ind is None else f'{ind:.2%}'}")
     print(f"Needs Review Lines:     {metrics['needs_review_lines']}")
+    print(f"Warning Lines (MATCH):  {metrics['warning_lines']}")
     print("Status counts:")
     for st, cnt in metrics["status_counts"].items():
         if cnt > 0:

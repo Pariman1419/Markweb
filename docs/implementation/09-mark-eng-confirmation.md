@@ -1,6 +1,6 @@
 # 09 — คำถามให้ Mark Engineer ยืนยัน (จาก R1 Jan–Jun)
 
-> สถานะ: **รอคำตอบ** · สร้าง 2026-11-04 จาก R1 `cb9b74e`, ตรวจซ้ำกับ `c3c46fb` (DB `mark_web.mark_logic` run 6) — ตัวเลขไม่เปลี่ยน · ผลรายบรรทัด: `artifacts/regression-r1/lines.csv`
+> สถานะ: **ตอบแล้ว 2026-11-04** (D-22, D-23 ใน `07`) · สร้าง 2026-11-04 จาก R1 `cb9b74e`, ตรวจซ้ำกับ `c3c46fb` (DB `mark_web.mark_logic` run 6) — ตัวเลขไม่เปลี่ยน · ผลรายบรรทัด: `artifacts/regression-r1/lines.csv`
 > คำตอบที่ได้ให้บันทึกใน `07-open-decisions.md` แล้วแก้โค้ด/กฎตามนั้น
 
 ---
@@ -69,5 +69,5 @@
 
 | Q | คำตอบ | ผู้ตอบ | วันที่ | Action |
 |---|---|---|---|---|
-| Q1 | | | | |
-| Q2 | | | | |
+| Q1 | THAIL ถูก แต่ต้อง warning ให้ user เห็นว่าต่าง; เลือก (a) + warning; ตัวย่ออื่นที่ยังหมายถึง THAILAND (`THA`, `TH`) ยอมรับ | Mark Eng | 2026-11-04 | D-22: MATCH + `warning`, prefix ≥ 2 ตัว |
+| Q2 | ไม่ใช้ rev C — ให้ user review และบอกสาเหตุ; เลือก (a); Oracle ผิด = error แจ้งสาเหตุ | Mark Eng | 2026-11-04 | D-23: `HOLD:REVISION_CONFLICT` + `hold_detail` |
