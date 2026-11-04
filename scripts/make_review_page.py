@@ -10,17 +10,48 @@ the drawings are customer documents and must not be published (D-14/D-20).
 from __future__ import annotations
 
 import argparse
+import sys
 import csv
 import json
 import re
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 R0 = Path("D:/CIM Project/mark")
 R0_OUT = R0 / "experiments/abs_vs_db/out"
 R1 = Path("artifacts/regression-r1")
 
-# Topics come from the run itself (D-25 alerts in review_detail, old verdicts in final_status)
-TOPIC_ORDER = ("RC2", "RC3", "OLD")
+# Tabs: every compared line split by how the system expected mark relates to Oracle (user 2026-11-04)
+#   TRUE  system logic = DB (space-insensitive; MATCH_LOT/SLR/SHIFT count as true)
+#   WARN  close: Oracle abbreviates the country name (same rule as compare engine R07-ADI1039-COO)
+#   ERR   not equal; cause = DB_WRONG (reviewed) / review flag / DIFF
+TOPIC_ORDER = ("TRUE", "WARN", "ERR")
+COMPARED = {"MATCH", "MATCH_SLR", "MATCH_SHIFT", "MATCH_LOT", "DIFF", "NEEDS_REVIEW"}
+NOT_COMPARED_LABEL = {"NOT_MEASURABLE": "HOLD (เอกสารไม่ครบ/ไม่ชัด)", "NOT_ELIGIBLE": "นอกขอบเขต",
+                      "DB_EMPTY": "Oracle ว่าง", "NOT_COMPARABLE": "เทียบไม่ได้"}
+MATCH_LABEL = {"MATCH": "ตรง", "MATCH_LOT": "ตรง (lot)", "MATCH_SLR": "ตรง (SLR)", "MATCH_SHIFT": "ตรง (เลื่อนบรรทัด)"}
+
+
+def classify(r: dict) -> tuple[str, str]:
+    from mark_engine.compare.engine import _coo_abbreviation
+
+    def ns(x):
+        return "".join((x or "").split())
+
+    st, fin = r["status"], r.get("final_status") or r["status"]
+    if r.get("warning") or _coo_abbreviation(r["expected_mark"], r["oracle_mark"]):
+        return "WARN", "ชื่อประเทศย่อ (COO)"
+    if st.startswith("MATCH") or ns(r["expected_mark"]) == ns(r["oracle_mark"]):
+        if st == "NEEDS_REVIEW":
+            return "TRUE", "ตรง · รอแก้ config ตามแจ้งเตือน"
+        return "TRUE", MATCH_LABEL.get(st, "ตรง")
+    if fin == "DB_WRONG":
+        return "ERR", "Oracle ผิด (รีวิวยืนยัน)"
+    if fin == "HUMAN_FIXED":
+        return "ERR", "ระบบอ่านผิด (รีวิวยืนยัน)"
+    if st == "NEEDS_REVIEW":
+        return "ERR", "ยังไม่รีวิว · " + (r["flags"].split(";")[0] or "NEEDS_REVIEW")
+    return "ERR", "ยังไม่รีวิว · DIFF"
 
 
 def rd(p: Path) -> list[dict]:
@@ -60,17 +91,18 @@ def main() -> None:
     imgs = image_index() if a.images else {}
 
     rows = []
+    summary: dict = {"cls": {}, "cause": {}, "not_compared": {}}
     for r in rd(R1 / "lines.csv"):
         lid = f"{r['elr_no']}_{r['side'][0]}{r['line_no']}"
         rd_ = r.get("review_detail", "")
-        if "PRODUCT_NO_ABS_MISMATCH" in rd_ and r["status"] == "NEEDS_REVIEW":
-            topic = "RC3"
-        elif "REVISION_MISMATCH" in rd_ and r["status"] == "NEEDS_REVIEW":
-            topic = "RC2"
-        elif r.get("final_status", r["status"]) != r["status"]:
-            topic = "OLD"
-        else:
+        if r["status"] not in COMPARED:
+            k = NOT_COMPARED_LABEL.get(r["status"], r["status"])
+            summary["not_compared"][k] = summary["not_compared"].get(k, 0) + 1
             continue
+        topic, cause = classify(r)
+        summary["cls"][topic] = summary["cls"].get(topic, 0) + 1
+        ck = f"{topic}|{cause.split(' · ')[0] if topic == 'ERR' else cause}"
+        summary["cause"][ck] = summary["cause"].get(ck, 0) + 1
         m = meta.get(r["elr_no"], {})
         o = old.get(lid, {})
         row = {
@@ -80,7 +112,8 @@ def main() -> None:
             "exp": r["expected_mark"], "ora": r["oracle_mark"], "status": r["status"],
             "flags": r["flags"], "detail": r["detail"],
             "remark": " | ".join(x for x in (m.get("MARK_REMARK"), m.get("MARK_REQUIRE")) if x),
-            "alert": rd_, "final": r.get("final_status", r["status"]),
+            "alert": rd_, "final": r.get("final_status", r["status"]), "cause": cause,
+            "warn": r.get("warning", ""),
             "ov": o.get("verdict", ""), "on": o.get("note", ""), "ofinal": o.get("final", ""),
         }
         if a.images and (r["elr_no"], r["side"], r["line_no"]) in imgs:
@@ -89,7 +122,9 @@ def main() -> None:
 
     tpl = Path(a.template).read_text(encoding="utf-8")
     assert "/*ROWS*/[]" in tpl
-    html = tpl.replace("/*ROWS*/[]", json.dumps(rows, ensure_ascii=False))
+    assert "/*SUM*/{}" in tpl
+    html = tpl.replace("/*ROWS*/[]", json.dumps(rows, ensure_ascii=False)).replace(
+        "/*SUM*/{}", json.dumps(summary, ensure_ascii=False))
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(html, encoding="utf-8")
     print(len(rows), "rows ->", a.out, {t: sum(x["topic"] == t for x in rows) for t in TOPIC_ORDER})

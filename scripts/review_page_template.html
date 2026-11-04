@@ -79,6 +79,21 @@ main{max-width:1100px;margin:0 auto;padding-top:18px;display:flex;flex-direction
 .empty{color:var(--muted);text-align:center;padding:30px}
 #zoom{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
 #zoom canvas{max-width:96vw;max-height:92vh;background:#fff}
+.sum{display:flex;flex-direction:column;gap:8px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--line);padding:10px 12px;border-radius:2px}
+.tile span{font-size:.8rem;color:var(--muted);font-weight:600}
+.tile b{font-size:1.6rem;font-variant-numeric:tabular-nums;line-height:1.15}
+.tile small{font-size:.74rem;color:var(--muted)}
+.tile.ok{border-top-color:var(--ok)}.tile.ok b{color:var(--ok)}
+.tile.warn{border-top-color:var(--warn)}.tile.warn b{color:var(--warn)}
+.tile.bad{border-top-color:var(--bad)}.tile.bad b{color:var(--bad)}
+.tile.cur{outline:2px solid var(--fg);outline-offset:-1px}
+.bar{display:flex;height:8px;gap:2px}.bar i{display:block;min-width:2px}
+.bar .ok{background:var(--ok)}.bar .warn{background:var(--warn)}.bar .bad{background:var(--bad)}
+.causes{display:flex;flex-wrap:wrap;gap:6px}
+.cls{font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:2px}
+.cls.TRUE{background:var(--ok-soft);color:var(--ok)}.cls.WARN{background:var(--warn-soft);color:var(--warn)}.cls.ERR{background:var(--bad-soft);color:var(--bad)}
 @media (max-width:700px){.row.has-img{grid-template-columns:minmax(0,1fr)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -105,19 +120,21 @@ main{max-width:1100px;margin:0 auto;padding-top:18px;display:flex;flex-direction
 
 <script>
 const ROWS=/*ROWS*/[];
+const SUM=/*SUM*/{};
 const TOPICS={
-  RC2:{name:"แจ้งเตือน · revision ไม่ตรง",q:"Oracle ระบุ revision หนึ่ง แต่ในโฟลเดอร์มี ABS revision อื่นฉบับเดียว ระบบสร้าง mark จากฉบับที่มีและแจ้งเตือนให้ผู้ใช้แก้",
-       hint:"สิ่งที่ผู้ใช้ต้องทำ: ยืนยันว่า ABS ฉบับนี้ถูก แล้วแก้ CUST_BOM_REVISION ใน Oracle หรือขอ ABS ฉบับที่ Oracle ระบุ",opts:["แก้ Oracle ให้ตรง ABS","ขอ ABS ฉบับที่ถูก"]},
-  RC3:{name:"แจ้งเตือน · PRODUCT_NO คนละ ABS",q:"PRODUCT_NO ใน Oracle ระบุเลข ABS คนละเลขกับ CUST_BOM_NO ระบบแจ้งเตือนให้ผู้ใช้ตรวจว่าเลขไหนถูก",
-       hint:"สิ่งที่ผู้ใช้ต้องทำ: ตรวจว่าใช้ ABS ไหน แล้วแก้ CUST_BOM_NO หรือ PRODUCT_NO ใน Oracle",opts:["CUST_BOM_NO ถูก","PRODUCT_NO ถูก"]},
-  OLD:{name:"แก้ตามรีวิวเก่าแล้ว",q:"บรรทัดที่ใช้คำตัดสินจากรีวิวเก่า (diff_review_2026-11-04) แล้ว — ตรวจว่าสถานะใหม่ถูกต้อง",
-       hint:"DB_WRONG = Oracle ผิด แจ้งทีม Marking · HUMAN_FIXED = ระบบอ่านผิด คนให้ค่าที่ถูก · MATCH = รีวิวยืนยันว่าถูก",opts:["ถูกต้องทั้งหมด","มีที่ผิด (ดูหมายเหตุ)"]},
+  TRUE:{name:"True · ตรงกับ DB",q:"ค่าที่ระบบสร้างจาก ABS/SLR ตรงกับ Oracle (ไม่นับช่องว่าง)",
+        hint:"รวม MATCH_LOT / MATCH_SLR / MATCH_SHIFT และบรรทัดที่ค่าตรงแต่ยังติดแจ้งเตือน config (revision / PRODUCT_NO) ที่ต้องไปแก้ Oracle",opts:["ยืนยัน True","มีที่ไม่ใช่ (ดูหมายเหตุ)"]},
+  WARN:{name:"Warning · ใกล้เคียง",q:"ค่าใกล้เคียงแต่ไม่เหมือนทุกตัว: ตอนนี้คือ Oracle ย่อชื่อประเทศ (THAILAND → THAIL / THA / TH)",
+        hint:"ระบบนับว่าใช้ได้ แต่แสดงให้ผู้ใช้เห็นว่า Oracle ต่าง (Mark Eng 09 Q1)",opts:["ยอมรับ","ให้แก้ Oracle เป็นชื่อเต็ม"]},
+  ERR:{name:"Error · ไม่ตรง",q:"ค่าที่ระบบสร้างไม่ตรงกับ Oracle",
+       hint:"Oracle ผิด (รีวิวยืนยัน) = แจ้งทีม Marking แก้ DB · ยังไม่รีวิว = ต้องดูว่าฝั่งไหนผิด",opts:["ตรวจครบแล้ว","ยังมีที่ต้องดู"]},
 };
 const VERDICTS=[["SYSTEM_OK","ระบบถูก"],["DB_WRONG","Oracle ผิด"],["OCR_WRONG","OCR ผิด"],["RULE_WRONG","กฎผิด"],["UNSURE","ต้องดูเพิ่ม"]];
 const ns=s=>(s||"").replace(/\s+/g,"");
 const esc=s=>(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
-let cur=Object.keys(TOPICS)[0], verd={}, topicDec={}, db=null, me="", LKEY="r1-review-v1";
+const PAGE=40;let shown=PAGE, fCause="";
+let cur="ERR", verd={}, topicDec={}, db=null, me="", LKEY="r1-review-v1";
 try{const s=JSON.parse(localStorage.getItem(LKEY)||"{}");verd=s.v||{};topicDec=s.t||{};}catch(e){}
 const saveLocal=()=>{try{localStorage.setItem(LKEY,JSON.stringify({v:verd,t:topicDec}))}catch(e){}};
 
@@ -141,19 +158,33 @@ function tabs(){
     const rs=ROWS.filter(r=>r.topic===k), d=rs.filter(r=>verd[r.id]?.verdict).length;
     const b=document.createElement("button");b.type="button";b.className="tab";b.setAttribute("role","tab");b.setAttribute("aria-selected",k===cur);
     b.innerHTML=`${esc(t.name)}<b>${rs.length}</b><small>${d}/${rs.length}</small>`;
-    b.onclick=()=>{cur=k;try{location.hash=k}catch(e){}paint()};el.append(b);
+    b.onclick=()=>{cur=k;fCause="";shown=PAGE;try{location.hash=k}catch(e){}paint()};el.append(b);
   }
+}
+function summary(){
+  const c=SUM.cls||{}, tot=(c.TRUE||0)+(c.WARN||0)+(c.ERR||0), nc=Object.values(SUM.not_compared||{}).reduce((a,b)=>a+b,0);
+  const pct=n=>tot?(100*n/tot).toFixed(1)+"%":"—";
+  const s=document.createElement("section");s.className="sum";
+  s.innerHTML=`<div class="tiles">
+    ${[["TRUE","True","ok"],["WARN","Warning","warn"],["ERR","Error","bad"]].map(([k,l,cl])=>`<button type="button" class="tile ${cl}${cur===k?" cur":""}" data-k="${k}"><span>${l}</span><b>${c[k]||0}</b><small>${pct(c[k]||0)} ของ ${tot} บรรทัดที่เทียบได้</small></button>`).join("")}
+    <div class="tile mute"><span>ไม่ได้เทียบ</span><b>${nc}</b><small>${Object.entries(SUM.not_compared||{}).map(([k,n])=>`${esc(k)} ${n}`).join(" · ")}</small></div></div>
+    <div class="bar" aria-hidden="true"><i class="ok" style="flex:${c.TRUE||0}"></i><i class="warn" style="flex:${c.WARN||0}"></i><i class="bad" style="flex:${c.ERR||0}"></i></div>`;
+  s.querySelectorAll(".tile[data-k]").forEach(b=>b.onclick=()=>{cur=b.dataset.k;fCause="";shown=PAGE;paint()});
+  return s;
 }
 function brief(){
   const t=TOPICS[cur], rs=ROWS.filter(r=>r.topic===cur), eq=rs.filter(r=>ns(r.exp)===ns(r.ora)).length, elrs=new Set(rs.map(r=>r.elr)).size;
   const d=topicDec[cur]||{};
   const s=document.createElement("section");s.className="brief";
-  s.innerHTML=`<h2>${esc(t.name)}</h2><p class="q">${esc(t.q)}</p><p class="rem">${esc(t.hint)}</p>
-   <p class="mono" style="font-size:.82rem">${rs.length} บรรทัด · ${elrs} ELR · expected = Oracle ${eq}/${rs.length}</p>
+  const causes=Object.entries(SUM.cause||{}).filter(([k])=>k.startsWith(cur+"|")).sort((a,b)=>b[1]-a[1]);
+  s.innerHTML=`<h2>${esc(t.name)}</h2>
+   ${causes.length?`<div class="causes">${causes.map(([k,n])=>`<button type="button" class="opt${fCause===k.split("|")[1]?" on":""}" data-c="${esc(k.split("|")[1])}">${esc(k.split("|")[1])} <b class="mono">${n}</b></button>`).join("")}</div>`:""}<p class="q">${esc(t.q)}</p><p class="rem">${esc(t.hint)}</p>
+   <p class="mono" style="font-size:.82rem">${rs.length} บรรทัด · ${elrs} ELR</p>
    <div class="gdec"><span>คำตัดสินทั้งกลุ่ม</span>${t.opts.map((o,i)=>`<button type="button" class="opt${d.choice===o?" on":""}" data-o="${esc(o)}">${esc(o)}</button>`).join("")}
    <input class="gnote" id="gnote-${cur}" placeholder="หมายเหตุของกลุ่ม" value="${esc(d.note||"")}"></div>
    ${d.at?`<span class="who">บันทึก ${esc(new Date(d.at).toLocaleString())}</span>`:""}`;
-  s.querySelectorAll(".opt").forEach(b=>b.onclick=()=>setTopic(cur,{choice:b.dataset.o===d.choice?"":b.dataset.o}));
+  s.querySelectorAll(".gdec .opt").forEach(b=>b.onclick=()=>setTopic(cur,{choice:b.dataset.o===d.choice?"":b.dataset.o}));
+  s.querySelectorAll(".causes .opt").forEach(b=>b.onclick=()=>{fCause=fCause===b.dataset.c?"":b.dataset.c;shown=PAGE;paint()});
   const gn=s.querySelector(".gnote");gn.onchange=()=>setTopic(cur,{note:gn.value});
   return s;
 }
@@ -163,7 +194,7 @@ function card(r){
   const eq=ns(r.exp)===ns(r.ora);
   d.innerHTML=`${r.img?`<div class="crop"><canvas></canvas><small>${r.bb&&r.bb.length?"crop บรรทัด (คลิกดูทั้งภาพ)":"ไม่มี crop (คลิกดูทั้งภาพ)"}</small></div>`:""}
   <div class="data">
-    <div class="hd"><span class="id">${esc(r.elr)} · ${r.side} ${r.line}</span><span class="st ${eq?"eq":r.status}">${esc(r.status)}</span>
+    <div class="hd"><span class="id">${esc(r.elr)} · ${r.side} ${r.line}</span><span class="cls ${r.topic}">${{TRUE:"True",WARN:"Warning",ERR:"Error"}[r.topic]}</span><span class="m">${esc(r.cause)}</span><span class="st ${eq?"eq":r.status}">${esc(r.status)}</span>
       <span class="m">${esc(r.src)} · ${esc(r.abs)} · Oracle BOM ${esc(r.bom)} rev <b>${esc(r.orev)||"—"}</b></span></div>
     <dl class="cmp">
       <dt>Expected R1</dt><dd class="mk">${diffMark(r.exp,r.ora)}</dd>
@@ -171,6 +202,7 @@ function card(r){
       ${r.pn?`<dt>PRODUCT_NO</dt><dd class="mono">${esc(r.pn)}</dd>`:""}
       ${r.flags||r.detail?`<dt>flags</dt><dd class="mono" style="font-size:.78rem">${esc([r.flags,r.detail].filter(Boolean).join(" · "))}</dd>`:""}
     </dl>
+    ${r.warn?`<div class="old">${esc(r.warn)}</div>`:""}
     ${r.alert?`<div class="old" style="background:var(--bad-soft);color:var(--fg)"><b style="color:var(--bad)">แจ้งเตือน</b> ${esc(r.alert)}</div>`:""}
     ${r.final&&r.final!==r.status?`<div class="old" style="background:var(--ok-soft)">สถานะหลังรีวิว: <b>${esc(r.final)}</b> (ระบบ: ${esc(r.status)})</div>`:""}
     ${r.ov||r.on?`<div class="old">รีวิวเก่า: <b>${esc(r.ov||"—")}</b>${r.ofinal?` · คำตอบเก่า <span class="mono">${esc(r.ofinal)}</span>`:""}${r.on?` · ${esc(r.on)}`:""}</div>`:""}
@@ -188,12 +220,14 @@ function card(r){
 function paint(){
   tabs();
   const m=document.getElementById("main"), f=document.getElementById("fV").value, q=document.getElementById("fQ").value.trim().toUpperCase();
-  m.innerHTML="";m.append(brief());
-  const rs=ROWS.filter(r=>r.topic===cur).filter(r=>{
+  m.innerHTML="";m.append(summary());m.append(brief());
+  const rs=ROWS.filter(r=>r.topic===cur).filter(r=>!fCause||r.cause.startsWith(fCause)).filter(r=>{
     const v=verd[r.id]?.verdict;
     if(f==="todo"&&v)return false; if(f==="done"&&!v)return false; if(f==="neq"&&ns(r.exp)===ns(r.ora))return false;
     return !q||r.elr.includes(q)||r.abs.toUpperCase().includes(q);});
-  rs.forEach(r=>m.append(card(r)));
+  rs.slice(0,shown).forEach(r=>m.append(card(r)));
+  if(rs.length>shown){const b=document.createElement("button");b.type="button";b.className="btn";b.style.alignSelf="center";
+    b.textContent=`แสดงเพิ่ม (${rs.length-shown} บรรทัด)`;b.onclick=()=>{shown+=PAGE;paint()};m.append(b);}
   if(!rs.length){const e=document.createElement("p");e.className="empty";e.textContent="ไม่มีบรรทัดที่ตรงกับตัวกรอง";m.append(e);}
   document.getElementById("cnt").textContent=`${rs.length} บรรทัด`;
 }
@@ -207,12 +241,12 @@ async function setTopic(k,patch){
 }
 function setSave(ok,t){const s=document.getElementById("saveState");s.textContent=t;s.className="save"+(ok?" on":"");}
 
-document.getElementById("fV").onchange=paint;document.getElementById("fQ").oninput=paint;
+document.getElementById("fV").onchange=()=>{shown=PAGE;paint()};document.getElementById("fQ").oninput=()=>{shown=PAGE;paint()};
 document.getElementById("zoom").onclick=e=>{e.currentTarget.style.display="none"};
 document.getElementById("copyCsv").onclick=function(){
   const q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
-  const lines=[["id","topic","elr","side","line","expected","oracle","status","verdict","note"].join(",")]
-    .concat(ROWS.map(r=>[r.id,r.topic,r.elr,r.side,r.line,r.exp,r.ora,r.status,verd[r.id]?.verdict||"",verd[r.id]?.note||""].map(q).join(",")))
+  const lines=[["id","class","cause","elr","side","line","expected","oracle","status","final_status","verdict","note"].join(",")]
+    .concat(ROWS.filter(r=>r.topic!=="TRUE"||verd[r.id]?.verdict).map(r=>[r.id,r.topic,r.cause,r.elr,r.side,r.line,r.exp,r.ora,r.status,r.final,verd[r.id]?.verdict||"",verd[r.id]?.note||""].map(q).join(",")))
     .concat(Object.entries(topicDec).map(([k,d])=>[q("TOPIC_"+k),q(k),"","","","","","",q(d.choice||""),q(d.note||"")].join(",")));
   const txt=lines.join("\n"), b=this;
   navigator.clipboard.writeText(txt).then(()=>{b.textContent="คัดลอกแล้ว";setTimeout(()=>b.textContent="คัดลอก CSV",1500)},()=>{b.textContent="คัดลอกไม่ได้";});
