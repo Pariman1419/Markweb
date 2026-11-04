@@ -126,7 +126,7 @@ Phase 0 **ไม่ได้แก้ไขอะไรใน dataset** — บ�
 | Coverage ELR | ELR ที่ processing DONE และไม่ HOLD / ELR ในกรอบ (ตัวหาร = Oracle ไม่ใช่โฟลเดอร์ NAS) | 529/598 (88.5%) | **54.5%** (364/668) · auto 55.6% (114/205), human 54.0% (250/463) | วัด |
 | Coverage line | บรรทัดที่เทียบได้ / บรรทัดที่ oracle หรือ expected มีค่า | 1,982/2,381 (83.2%) | **66.9%** (1,550/2,316) · auto 73.5% (522/710), human 64.0% (1,028/1,606) | วัด |
 | Hold Rate | HOLD + NOT_VERIFIABLE / ELR | 12.1% (ตัวหาร 602) | **15.1%** (101/668) · auto 9.8% (20/205), human 17.5% (81/463) | วัด |
-| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **65.4%** (1,014/1,550) · auto 78.7% (411/522), human 58.7% (603/1,028) [MATCH 931 (ในนี้ COO ย่อ 22), MATCH_SLR 68, MATCH_SHIFT 15, MATCH_LOT 0, DIFF 61, NEEDS_REVIEW 475] | วัด |
+| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **65.4%** (1,014/1,550) · auto 78.7% (411/522), human 58.7% (603/1,028) [MATCH 931 (ในนี้ COO ย่อ 13), MATCH_SLR 68, MATCH_SHIFT 15, MATCH_LOT 0, DIFF 61, NEEDS_REVIEW 475] | วัด |
 | Independence | expected เท่าเดิมเมื่อลบ oracle_mark | ไม่ผ่าน (by design) | **100.0%** (668/668 — วัดจริง: รัน `process_elr` ซ้ำด้วย `OracleMark` ว่างแล้วเทียบ `ExpectedMark`) | ต้อง 100% |
 | Parity vs R0 BUG | divergence จาก R0 ที่ไม่มีคำอธิบายทางสถาปัตยกรรม | — | **0 — ผ่าน** (SAME 1,400, REVIEW_FLAG 475, RESOLVER_CHANGED 362, ORACLE_INFLUENCE_REMOVED 41, GATE_SPEC_V2 37, OCR_SOURCE_CHANGED 3, BUG 0) | — |
 | Correctness | expected == engineer_verified | — | ตัวอย่าง | ตัวอย่าง |

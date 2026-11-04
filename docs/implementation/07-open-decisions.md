@@ -55,3 +55,7 @@
 | D-19 | ✔ (ผู้พัฒนาตัดสินตาม delegation) `mark_engine` ใช้ spec v2: ขาด SLR → `HOLD:SLR_NOT_FOUND` แม้ `CUST_REQ_NO` ว่าง; PIN-NOTE คง REJECTED (D-06). ส่วนต่างจาก run 3 ติด reason code `GATE_SPEC_V2` ใน parity report |
 | D-20 | ✔ repo `mark-web` ใช้ remote `git@github.com:Pariman1419/Markweb.git` (branch `phase0/readiness` push แล้ว); repo `mark` branch `phase0/regression-r0` **ไม่ push** (มีภาพแบบลูกค้า) |
 | D-21 | ✔ `Symbol ADI.xlsx` sha256 `7858dc405a90b6600389accf32fa257ad23580cd532cda078da2f02cfe74ccb6` — ใช้เป็นค่าตรวจใน plan Task 7 |
+
+## Open — R1 Jan–Jun (2026-11-04)
+
+- COO abbreviation (`THAIL` = MATCH, 13 lines) และ ABS068387 rev B/C ของ ADI2606077/078 (Oracle `CUST_BOM_REVISION` ขัดกับ `PRODUCT_NO`) — รอ Mark Eng: [09-mark-eng-confirmation.md](09-mark-eng-confirmation.md)

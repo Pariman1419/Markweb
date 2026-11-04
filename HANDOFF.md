@@ -11,6 +11,8 @@
 - **Plan File**: [`docs/superpowers/plans/2026-11-04-phase1-mark-engine-offline.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/plans/2026-11-04-phase1-mark-engine-offline.md)
 - **Design Spec**: [`docs/superpowers/specs/2026-11-04-mark-automation-design.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/specs/2026-11-04-mark-automation-design.md)
 - **QA & Knowledge Base Log**: [`docs/qa/QA_LOG.md`](file:///D:/CIM%20Project/mark-web/docs/qa/QA_LOG.md)
+- **Database Tables (`mark_web.mark_logic`)**: [`docs/implementation/08-database-tables.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/08-database-tables.md) — 15 ตาราง, run 1–3 = R0 (run 3 freeze), run 5 = R1 ปัจจุบัน
+- **Mark Eng confirmation (open)**: [`docs/implementation/09-mark-eng-confirmation.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/09-mark-eng-confirmation.md)
 - **Git State**:
   - Remote: `git@github.com:Pariman1419/Markweb.git`
   - Base Branch: `phase0/readiness`
@@ -53,11 +55,24 @@
 | **9** | **Expected Mark Generator** | `mark_engine/generate/generator.py` (AST scan & signature inspection to prove no Oracle leak) | [x] Completed | [x] Green (14 passed) | `e9a64ad` |
 | **10** | **Comparison Engine** | `mark_engine/compare/engine.py`, `lot.py`, `shift.py` (verified MATCH_LOT & MATCH_SHIFT) | [x] Completed | [x] Green (14 passed) | `f471d6d` |
 | **11** | **Pipeline `process_elr` & 3 Status Axes** | `mark_engine/pipeline.py` (end-to-end integration + eligibility gate + status synthesis) | [x] Completed | [x] Green (14 passed) | `9ff67ec` |
-| **12** | **Regression Runner R1 & Parity vs R0** | `scripts/run_regression.py`, `parity.py`, `metrics.py`, R1 baseline Jan–Jun | [x] Completed | [x] Green (162 unit + 3 regression) | `d4fd534` |
+| **12** | **Regression Runner R1 & Parity vs R0** | `scripts/run_regression.py`, `parity.py`, `metrics.py`, R1 baseline Jan–Jun; R1 triage fixes (branch `phase1/r1-fixes`) | [x] Completed | [x] Green (189 unit + 3 regression, BUG 0) | `d4fd534` → `cb9b74e` (merge `8d930fd`) |
 
 ---
 
 ## 4. Live Changelog & Session Updates
+
+### 2026-11-04 (Task 12 R1 triage — supersedes the d4fd534 numbers below)
+- **The `d4fd534` R1 figures were not valid**: `independence` defaulted to 1.0 (no blank-Oracle run was made), and parity compared `abs_no` in two formats (`ABS066973-ENG-1` vs `ABS066973`), so 327 MATCH/MATCH rows and 101 real BUG rows were counted as `RESOLVER_CHANGED`. Oracle agreement was 25.8% and was not used in the verdict.
+- **Fixed on `phase1/r1-fixes`** (`9dce03e`, `cb9b74e`; merged `8d930fd`) — rule details in [`01` §7](file:///D:/CIM%20Project/mark-web/docs/implementation/01-rule-provenance-audit.md):
+  - Independence measured: `process_elr` re-run with blank `OracleMark` for every ELR → 668/668 identical; `compute_independence` returns `None` when not measured.
+  - Parity: `abs_no` normalised; `DB_LINE_EMPTY` → `ORACLE_INFLUENCE_REMOVED`; `OCR_SOURCE_CHANGED` read from `ocr_reocr.csv` (no hard-coded ELR); `RESOLVER_CHANGED` when other ABS revisions were rejected.
+  - SLR coverage detector: bare `lot`/`attachment` no longer counts as marking → `SLR_UNRESOLVED` 803 → 86 lines.
+  - `R07-ADI1039-LOT` accepts "n DIGIT LOT NUMBER"; `R07-OCRFIX-7` keeps COUNTRY OF ORIGIN; `R07-ADI1039-COO` compare accepts `THAI`…`THAILAN` (`COO_ABBREVIATED`, needs Mark Eng).
+  - Resolver: nested folder named after another ELR is skipped (`2_FEB/ADI2602092/ADI2602095/`).
+- **R1 now**: agreement **65.4%** (1,014/1,550; auto 78.7%, human_crop 58.7%), coverage ELR 54.5%, hold 15.1%, NEEDS_REVIEW 475, independence 100% (measured), parity SAME 1,400 · REVIEW_FLAG 475 · RESOLVER_CHANGED 362 · ORACLE_INFLUENCE_REMOVED 41 · GATE_SPEC_V2 37 · OCR_SOURCE_CHANGED 3 · **BUG 0**. 189 unit + 3 regression passed.
+- **Database**: R1 stored in `mark_web.mark_logic` as run 4 (`9dce03e`, superseded) and **run 5** (`cb9b74e`) + status `NEEDS_REVIEW`; runs 1–3 and `logic_rule` untouched. See [`08-database-tables.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/08-database-tables.md), loader `scripts/load_r1_to_pg.py`.
+- **Open**: `GRAPHIC_REMARK_CONFLICT` review load (303 lines); Mark Eng confirmation of COO abbreviation and ABS068387 rev B/C ([`09`](file:///D:/CIM%20Project/mark-web/docs/implementation/09-mark-eng-confirmation.md)); rotate `postgres` password.
+
 
 ### 2026-11-04 (Task 12 Completed & Approved — Phase 1 Finished!)
 - **Implemented**: `mark_engine/regression/metrics.py`, `mark_engine/regression/parity.py`, `scripts/run_regression.py`, `tests/unit/test_metrics.py`, `tests/unit/test_parity.py`, `tests/regression/test_r1.py`.
