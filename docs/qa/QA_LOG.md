@@ -314,3 +314,22 @@
 ### Prevention / Rules Learned
 - An ELR-level flag hides line-level checks; when a flag comes from one sentence, check whether that sentence changes the mark at all.
 
+---
+
+## [2026-11-04] R1 review round 1, True/Warning/Error page, review export (backfill)
+
+### Context & Symptom
+- **Component / Path**: [`mark_engine/regression/review_overlay.py`](file:///D:/CIM%20Project/mark-web/mark_engine/regression/review_overlay.py), [`scripts/make_review_page.py`](file:///D:/CIM%20Project/mark-web/scripts/make_review_page.py), [`scripts/export_review_csv.py`](file:///D:/CIM%20Project/mark-web/scripts/export_review_csv.py)
+- **Question / Issue**: (a) user pasted page verdicts (ADI2602089 T5 = DB_WRONG); (b) page should split lines into True (= DB) / Warning (close, e.g. country name) / Error (not equal) with a summary; (c) save page results as CSV and update all logic docs before the next phase.
+
+### Root Cause
+- (a) R0 review folder is read-only, so R1 verdicts had nowhere to live. (b) Topic tabs only listed alerts, not the overall result. (c) Verdicts lived only in the artifact database.
+
+### Resolution & Code Fix
+- `reviews/r1_review_2026-11-04.csv` + `load_r1_verdicts` (read after R0 verdicts, later wins; DB_WRONG/SYSTEM_OK = system expected right). After review DB_WRONG 17, HUMAN_FIXED 0 (DB run 13). Commit `a024da1`.
+- Page `classify`: True / Warning (COO abbreviation, same rule as D-22) / Error + cause; summary tiles; paging 40 cards. Commit `2823d23`.
+- `export_review_csv.py` → `reviews/r1_run14_review_export.csv` (2,318 lines, 13 page verdicts/notes); doc `10-r1-logic-review-and-next-phase.md`; 00/01/03/04/06/08 to run 14. Commit `ea5d2f5`.
+
+### Prevention / Rules Learned
+- Every change updates HANDOFF.md and this log in the same commit (user rule 2026-11-04). These three commits had only HANDOFF; this entry backfills them.
+

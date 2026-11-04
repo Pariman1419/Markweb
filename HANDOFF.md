@@ -63,6 +63,9 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-04 (process rule)
+- User rule: **every change updates HANDOFF.md §4 and `docs/qa/QA_LOG.md` in the same commit.** QA_LOG backfilled for `a024da1`, `2823d23`, `ea5d2f5`.
+
 ### 2026-11-04 (wrap-up before next phase)
 - Review page state exported: `reviews/r1_run14_review_export.csv` (2,318 lines: True 1,508 · Warning 25 · Error 77 · not compared 708; 13 page verdicts/notes) via `scripts/export_review_csv.py`.
 - All R1 logic collected in `docs/implementation/10-r1-logic-review-and-next-phase.md`; 00/01/03/04/06/08 updated to run 14.
