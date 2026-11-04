@@ -10,6 +10,7 @@
 - **Phase**: **Phase 1 — `mark_engine` (offline) [COMPLETED 12/12 TASKS]**
 - **Plan File**: [`docs/superpowers/plans/2026-11-04-phase1-mark-engine-offline.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/plans/2026-11-04-phase1-mark-engine-offline.md)
 - **Design Spec**: [`docs/superpowers/specs/2026-11-04-mark-automation-design.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/specs/2026-11-04-mark-automation-design.md)
+- **QA & Knowledge Base Log**: [`docs/qa/QA_LOG.md`](file:///D:/CIM%20Project/mark-web/docs/qa/QA_LOG.md)
 - **Git State**:
   - Remote: `git@github.com:Pariman1419/Markweb.git`
   - Base Branch: `phase0/readiness`
