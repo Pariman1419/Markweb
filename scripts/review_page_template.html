@@ -1,0 +1,240 @@
+<title>R1 Line Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky topic bar; each topic opens with its question + group decision, then one review card per line (crop | data | verdict) */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --fg:#17212b; --muted:#5a6878; --line:#d6dde4;
+  --accent:#0b5f8a; --accent-soft:#e3eff6; --ok:#1f7a4a; --ok-soft:#e3f3ea; --bad:#a8321f; --bad-soft:#fbe9e5; --warn:#9a6400; --warn-soft:#fbf0d9;
+  --f-body:"IBM Plex Sans Thai",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#10161c; --surface:#18212a; --fg:#e4eaf0; --muted:#94a3b3; --line:#2c3844; --accent:#5fb3e0; --accent-soft:#16303f;
+  --ok:#6fd19c; --ok-soft:#173326; --bad:#f08a74; --bad-soft:#3a1f1a; --warn:#f0c060; --warn-soft:#3a2e14; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10161c; --surface:#18212a; --fg:#e4eaf0; --muted:#94a3b3; --line:#2c3844; --accent:#5fb3e0; --accent-soft:#16303f;
+  --ok:#6fd19c; --ok-soft:#173326; --bad:#f08a74; --bad-soft:#3a1f1a; --warn:#f0c060; --warn-soft:#3a2e14; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.55;padding-block:0 48px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{margin:0;line-height:1.3;text-wrap:balance}
+h1{font-size:1.15rem;font-weight:700}
+h2{font-size:1.1rem;font-weight:600}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.9em}
+code{background:var(--accent-soft);padding:0 4px;border-radius:3px}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.topin{max-width:1100px;margin:0 auto;padding-block:10px;display:flex;flex-direction:column;gap:8px}
+.r1{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between}
+.save{font-size:.8rem;color:var(--muted)}
+.save.on{color:var(--ok)}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.tab{flex:none;border:1px solid var(--line);background:var(--bg);padding:4px 10px;border-radius:2px;font-size:.82rem;white-space:nowrap}
+.tab b{font-family:var(--f-mono);font-weight:600;margin-left:4px}
+.tab small{color:var(--muted);margin-left:4px;font-variant-numeric:tabular-nums}
+.tab[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.tab[aria-selected="true"] small{color:var(--bg);opacity:.75}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.85rem}
+.filters select,.filters input{border:1px solid var(--line);background:var(--bg);padding:3px 8px;border-radius:2px}
+.filters input{min-width:0;flex:1;max-width:220px}
+.btn{border:1px solid var(--accent);color:var(--accent);background:transparent;padding:3px 12px;border-radius:2px;font-size:.82rem}
+.btn:hover{background:var(--accent-soft)}
+
+main{max-width:1100px;margin:0 auto;padding-top:18px;display:flex;flex-direction:column;gap:12px}
+.brief{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--accent);padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.brief .q{font-weight:600}
+.gdec{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.gdec span{font-size:.8rem;color:var(--muted)}
+.opt{border:1px solid var(--line);background:var(--bg);padding:4px 10px;border-radius:2px;font-size:.84rem;text-align:left}
+.opt.on{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.gnote{flex:1;min-width:180px;border:1px solid var(--line);background:var(--bg);padding:4px 8px;border-radius:2px}
+
+.row{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--line);padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.row.has-img{grid-template-columns:minmax(200px,320px) minmax(0,1fr)}
+.row.done{border-left-color:var(--ok)}
+.crop canvas{max-width:100%;border:1px solid var(--line);background:#fff;cursor:zoom-in;display:block}
+.crop small{color:var(--muted);font-size:.75rem}
+.data{min-width:0;display:flex;flex-direction:column;gap:8px}
+.hd{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.hd .id{font-family:var(--f-mono);font-weight:600}
+.hd .m{font-size:.8rem;color:var(--muted)}
+.cmp{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;font-size:.88rem}
+.cmp dt{color:var(--muted);font-size:.78rem;padding-top:2px;white-space:nowrap}
+.cmp dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.mk{font-family:var(--f-mono);font-size:.95rem;font-weight:500;white-space:pre-wrap}
+.mk i{font-style:normal;background:var(--bad-soft);color:var(--bad);border-radius:2px}
+.st{font-family:var(--f-mono);font-size:.72rem;font-weight:600;padding:1px 6px;border-radius:2px;background:var(--accent-soft);color:var(--accent)}
+.st.MATCH,.st.eq{background:var(--ok-soft);color:var(--ok)}
+.st.DIFF{background:var(--bad-soft);color:var(--bad)}
+.old{font-size:.82rem;background:var(--warn-soft);border-radius:2px;padding:4px 8px}
+.rem{font-size:.78rem;color:var(--muted)}
+.dec{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.dec .opt{font-size:.8rem;padding:3px 9px}
+.dec input{flex:1;min-width:160px;border:1px solid var(--line);background:var(--bg);padding:3px 8px;border-radius:2px}
+.who{font-size:.72rem;color:var(--muted)}
+.empty{color:var(--muted);text-align:center;padding:30px}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
+#zoom canvas{max-width:96vw;max-height:92vh;background:#fff}
+@media (max-width:700px){.row.has-img{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="top gut">
+  <div class="topin">
+    <div class="r1">
+      <h1>R1 Line Review · run 7</h1>
+      <span class="save" id="saveState">กำลังเชื่อมต่อที่เก็บคำตัดสิน…</span>
+    </div>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="filters">
+      <label for="fV">แสดง</label>
+      <select id="fV"><option value="all">ทุกบรรทัด</option><option value="todo">ยังไม่ตัดสิน</option><option value="done">ตัดสินแล้ว</option><option value="neq">expected ≠ Oracle</option></select>
+      <input id="fQ" placeholder="ค้นหา ELR / ABS" aria-label="ค้นหา ELR หรือ ABS">
+      <span id="cnt" class="mono" style="color:var(--muted)"></span>
+      <button class="btn" id="copyCsv" type="button">คัดลอก CSV</button>
+    </div>
+  </div>
+</div>
+
+<main class="gut" id="main"></main>
+<div id="zoom" role="dialog" aria-label="ภาพเต็ม"></div>
+
+<script>
+const ROWS=/*ROWS*/[];
+const TOPICS={
+  RC1:{name:"RULE_CONFLICT · ชื่อ ENG-n",q:"Oracle เก็บ revision เป็น ENG-1 แต่ชื่อไฟล์ ABS เป็นตัวอักษร+ENG-1 (เช่น ABS065954B-ENG-1) นับว่าเป็น revision เดียวกันได้หรือไม่",
+       hint:"ข้อเสนอ: นับว่าตรงกันเมื่อส่วน ENG-n ตรงกัน แล้วเอา flag ออก",opts:["เห็นด้วย นับว่าตรงกัน","ไม่เห็นด้วย ให้คนตรวจต่อ"]},
+  RC2:{name:"RULE_CONFLICT · Oracle rev B แต่มีแค่ rev C",q:"ABS065744: Oracle CUST_BOM_REVISION = B แต่ในโฟลเดอร์มีแค่ ABS065744C และ mark ตรงกับ Oracle ทุกบรรทัด ให้ระบบทำอย่างไร",
+       hint:"(a) ให้คนตรวจต่อพร้อมสาเหตุ (เหมือน D-23)  ·  (b) MATCH + warning (เหมือน D-22)",opts:["(a) ให้คนตรวจพร้อมสาเหตุ","(b) MATCH + warning"]},
+  RC3:{name:"RULE_CONFLICT · PRODUCT_NO คนละ ABS",q:"PRODUCT_NO ใน Oracle ชี้ ABS คนละเลขกับฉบับที่ระบบเลือก ควรใช้ ABS ไหน",
+       hint:"ข้อเสนอ: ให้คนตรวจต่อ และแสดงสาเหตุ \"PRODUCT_NO ชี้ ABS คนละเลข\"",opts:["เห็นด้วย ให้คนตรวจพร้อมสาเหตุ","ระบบเลือก ABS ผิด"]},
+  DBW:{name:"รีวิวเก่า · Oracle ผิด",q:"รีวิวเก่าตัดสินว่า Oracle ผิด และ expected ของ R1 ตรงกับคำตอบที่ถูก ให้ติดสถานะ DB_WRONG แทน DIFF/NEEDS_REVIEW หรือไม่",
+       hint:"DB_WRONG ไม่นับใน agreement และไม่ต้องให้คนตรวจซ้ำ",opts:["ติด DB_WRONG","คงเดิม"]},
+  LEG:{name:"รีวิวเก่า · legend บนภาพ",q:"คำตอบอยู่ใน legend LINE n: บนภาพ ABS (\"มีบอกในภาพ\") ควรให้ระบบอ่าน legend มาใช้แทนข้อความตัวอย่างหรือไม่",
+       hint:"กฎ R06-LEGEND ของ R0 ยังเป็นสถานะทดลอง",opts:["ทำกฎอ่าน legend","ให้คนตรวจต่อ"]},
+  OCR:{name:"รีวิวเก่า · OCR อ่านผิด",q:"รีวิวเก่าบอกว่า OCR อ่านผิด บรรทัดเหล่านี้ยังเป็น DIFF ถูกต้องหรือไม่",
+       hint:"ไม่มีกฎแก้ เป็นข้อจำกัดของ OCR",opts:["ถูก คง DIFF","มีวิธีแก้"]},
+};
+const VERDICTS=[["SYSTEM_OK","ระบบถูก"],["DB_WRONG","Oracle ผิด"],["OCR_WRONG","OCR ผิด"],["RULE_WRONG","กฎผิด"],["UNSURE","ต้องดูเพิ่ม"]];
+const ns=s=>(s||"").replace(/\s+/g,"");
+const esc=s=>(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+let cur=Object.keys(TOPICS)[0], verd={}, topicDec={}, db=null, me="", LKEY="r1-review-v1";
+try{const s=JSON.parse(localStorage.getItem(LKEY)||"{}");verd=s.v||{};topicDec=s.t||{};}catch(e){}
+const saveLocal=()=>{try{localStorage.setItem(LKEY,JSON.stringify({v:verd,t:topicDec}))}catch(e){}};
+
+function diffMark(a,b){ // highlight chars of a not matching b (space-insensitive, position-aligned)
+  const A=[...(a||"")],B=[...ns(b)];let j=0,out="";
+  for(const ch of A){ if(/\s/.test(ch)){out+=ch;continue;} out+= (B[j]===ch)?esc(ch):"<i>"+esc(ch)+"</i>"; j++; }
+  return out||'<span style="color:var(--muted)">(ว่าง)</span>';
+}
+const imgs={};function loadImg(src){return imgs[src]||(imgs[src]=new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=src}))}
+function drawCrop(cv,i,bb,full){
+  if(!i){cv.width=280;cv.height=28;const g=cv.getContext("2d");g.fillStyle="#666";g.font="12px sans-serif";g.fillText("ไม่พบภาพ",8,18);return}
+  if(full||!bb||bb.length<4){cv.width=i.width;cv.height=i.height;const g=cv.getContext("2d");g.drawImage(i,0,0);
+    if(bb&&bb.length>=4){g.strokeStyle="#e0301e";g.lineWidth=3;g.strokeRect(bb[0],bb[1],bb[2]-bb[0],bb[3]-bb[1]);}return}
+  const p=14,x=Math.max(0,bb[0]-p),y=Math.max(0,bb[1]-p),w=Math.min(i.width,bb[2]+p)-x,h=Math.min(i.height,bb[3]+p)-y,s=Math.min(3,320/w);
+  cv.width=w*s;cv.height=h*s;cv.getContext("2d").drawImage(i,x,y,w,h,0,0,w*s,h*s);
+}
+
+function tabs(){
+  const el=document.getElementById("tabs");el.innerHTML="";
+  for(const [k,t] of Object.entries(TOPICS)){
+    const rs=ROWS.filter(r=>r.topic===k), d=rs.filter(r=>verd[r.id]?.verdict).length;
+    const b=document.createElement("button");b.type="button";b.className="tab";b.setAttribute("role","tab");b.setAttribute("aria-selected",k===cur);
+    b.innerHTML=`${esc(t.name)}<b>${rs.length}</b><small>${d}/${rs.length}</small>`;
+    b.onclick=()=>{cur=k;try{location.hash=k}catch(e){}paint()};el.append(b);
+  }
+}
+function brief(){
+  const t=TOPICS[cur], rs=ROWS.filter(r=>r.topic===cur), eq=rs.filter(r=>ns(r.exp)===ns(r.ora)).length, elrs=new Set(rs.map(r=>r.elr)).size;
+  const d=topicDec[cur]||{};
+  const s=document.createElement("section");s.className="brief";
+  s.innerHTML=`<h2>${esc(t.name)}</h2><p class="q">${esc(t.q)}</p><p class="rem">${esc(t.hint)}</p>
+   <p class="mono" style="font-size:.82rem">${rs.length} บรรทัด · ${elrs} ELR · expected = Oracle ${eq}/${rs.length}</p>
+   <div class="gdec"><span>คำตัดสินทั้งกลุ่ม</span>${t.opts.map((o,i)=>`<button type="button" class="opt${d.choice===o?" on":""}" data-o="${esc(o)}">${esc(o)}</button>`).join("")}
+   <input class="gnote" id="gnote-${cur}" placeholder="หมายเหตุของกลุ่ม" value="${esc(d.note||"")}"></div>
+   ${d.at?`<span class="who">บันทึก ${esc(new Date(d.at).toLocaleString())}</span>`:""}`;
+  s.querySelectorAll(".opt").forEach(b=>b.onclick=()=>setTopic(cur,{choice:b.dataset.o===d.choice?"":b.dataset.o}));
+  const gn=s.querySelector(".gnote");gn.onchange=()=>setTopic(cur,{note:gn.value});
+  return s;
+}
+function card(r){
+  const v=verd[r.id]||{}, d=document.createElement("article");
+  d.className="row"+(r.img?" has-img":"")+(v.verdict?" done":"");
+  const eq=ns(r.exp)===ns(r.ora);
+  d.innerHTML=`${r.img?`<div class="crop"><canvas></canvas><small>${r.bb&&r.bb.length?"crop บรรทัด (คลิกดูทั้งภาพ)":"ไม่มี crop (คลิกดูทั้งภาพ)"}</small></div>`:""}
+  <div class="data">
+    <div class="hd"><span class="id">${esc(r.elr)} · ${r.side} ${r.line}</span><span class="st ${eq?"eq":r.status}">${esc(r.status)}</span>
+      <span class="m">${esc(r.src)} · ${esc(r.abs)} · Oracle BOM ${esc(r.bom)} rev <b>${esc(r.orev)||"—"}</b></span></div>
+    <dl class="cmp">
+      <dt>Expected R1</dt><dd class="mk">${diffMark(r.exp,r.ora)}</dd>
+      <dt>Oracle</dt><dd class="mk">${diffMark(r.ora,r.exp)}</dd>
+      ${r.pn?`<dt>PRODUCT_NO</dt><dd class="mono">${esc(r.pn)}</dd>`:""}
+      ${r.flags||r.detail?`<dt>flags</dt><dd class="mono" style="font-size:.78rem">${esc([r.flags,r.detail].filter(Boolean).join(" · "))}</dd>`:""}
+    </dl>
+    ${r.ov||r.on?`<div class="old">รีวิวเก่า: <b>${esc(r.ov||"—")}</b>${r.ofinal?` · คำตอบเก่า <span class="mono">${esc(r.ofinal)}</span>`:""}${r.on?` · ${esc(r.on)}`:""}</div>`:""}
+    ${r.remark?`<div class="rem">MARK_REMARK: ${esc(r.remark)}</div>`:""}
+    <div class="dec">${VERDICTS.map(([k,l])=>`<button type="button" class="opt${v.verdict===k?" on":""}" data-v="${k}">${l}</button>`).join("")}
+      <input placeholder="หมายเหตุ" value="${esc(v.note||"")}" aria-label="หมายเหตุ ${esc(r.id)}"></div>
+    ${v.at?`<span class="who">บันทึก ${esc(new Date(v.at).toLocaleString())}</span>`:""}
+  </div>`;
+  d.querySelectorAll(".dec .opt").forEach(b=>b.onclick=()=>setVerdict(r.id,{verdict:b.dataset.v===v.verdict?"":b.dataset.v}));
+  const inp=d.querySelector(".dec input");inp.onchange=()=>setVerdict(r.id,{note:inp.value});
+  if(r.img){const cv=d.querySelector("canvas");loadImg(r.img).then(i=>drawCrop(cv,i,r.bb,false));
+    cv.onclick=()=>loadImg(r.img).then(i=>{const z=document.getElementById("zoom"),c=document.createElement("canvas");drawCrop(c,i,r.bb,true);z.innerHTML="";z.append(c);z.style.display="flex"});}
+  return d;
+}
+function paint(){
+  tabs();
+  const m=document.getElementById("main"), f=document.getElementById("fV").value, q=document.getElementById("fQ").value.trim().toUpperCase();
+  m.innerHTML="";m.append(brief());
+  const rs=ROWS.filter(r=>r.topic===cur).filter(r=>{
+    const v=verd[r.id]?.verdict;
+    if(f==="todo"&&v)return false; if(f==="done"&&!v)return false; if(f==="neq"&&ns(r.exp)===ns(r.ora))return false;
+    return !q||r.elr.includes(q)||r.abs.toUpperCase().includes(q);});
+  rs.forEach(r=>m.append(card(r)));
+  if(!rs.length){const e=document.createElement("p");e.className="empty";e.textContent="ไม่มีบรรทัดที่ตรงกับตัวกรอง";m.append(e);}
+  document.getElementById("cnt").textContent=`${rs.length} บรรทัด`;
+}
+async function setVerdict(id,patch){
+  verd[id]={...(verd[id]||{}),...patch,at:new Date().toISOString(),by:me};saveLocal();paint();
+  if(db){try{await db.collection("verdicts").doc(id).set(verd[id]);}catch(e){setSave(false,"บันทึกไม่สำเร็จ: "+(e.code||e.message)+" (เก็บไว้ในเครื่องนี้)")}}
+}
+async function setTopic(k,patch){
+  topicDec[k]={...(topicDec[k]||{}),...patch,at:new Date().toISOString(),by:me};saveLocal();paint();
+  if(db){try{await db.collection("topics").doc(k).set(topicDec[k]);}catch(e){setSave(false,"บันทึกไม่สำเร็จ: "+(e.code||e.message))}}
+}
+function setSave(ok,t){const s=document.getElementById("saveState");s.textContent=t;s.className="save"+(ok?" on":"");}
+
+document.getElementById("fV").onchange=paint;document.getElementById("fQ").oninput=paint;
+document.getElementById("zoom").onclick=e=>{e.currentTarget.style.display="none"};
+document.getElementById("copyCsv").onclick=function(){
+  const q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
+  const lines=[["id","topic","elr","side","line","expected","oracle","status","verdict","note"].join(",")]
+    .concat(ROWS.map(r=>[r.id,r.topic,r.elr,r.side,r.line,r.exp,r.ora,r.status,verd[r.id]?.verdict||"",verd[r.id]?.note||""].map(q).join(",")))
+    .concat(Object.entries(topicDec).map(([k,d])=>[q("TOPIC_"+k),q(k),"","","","","","",q(d.choice||""),q(d.note||"")].join(",")));
+  const txt=lines.join("\n"), b=this;
+  navigator.clipboard.writeText(txt).then(()=>{b.textContent="คัดลอกแล้ว";setTimeout(()=>b.textContent="คัดลอก CSV",1500)},()=>{b.textContent="คัดลอกไม่ได้";});
+};
+try{const h=location.hash.slice(1);if(TOPICS[h])cur=h;}catch(e){}
+paint();
+
+(async()=>{
+  const c=window.claude;
+  if(!c||!c.use){setSave(false,"เปิดนอก claude.ai: คำตัดสินเก็บในเครื่องนี้เท่านั้น");return}
+  const timer=setTimeout(()=>setSave(false,"ที่เก็บไม่ตอบ: คำตัดสินเก็บในเครื่องนี้"),10000);
+  try{
+    const [d,u]=await Promise.all([c.use("db"),c.use("user")]);
+    if(!d){clearTimeout(timer);setSave(false,"ไม่มีสิทธิ์บันทึกร่วม: คำตัดสินเก็บในเครื่องนี้");return}
+    db=d; if(u){try{me=await u.id()}catch(e){}}
+    db.collection("verdicts").onSnapshot(s=>{clearTimeout(timer);s.docs.forEach(x=>{verd[x.id]=x.data()});saveLocal();setSave(true,"บันทึกร่วมแล้ว · Claude อ่านคำตัดสินได้");paint()},
+      e=>{clearTimeout(timer);setSave(false,"อ่านคำตัดสินไม่ได้: "+e.code)});
+    db.collection("topics").onSnapshot(s=>{s.docs.forEach(x=>{topicDec[x.id]=x.data()});paint()},()=>{});
+  }catch(e){clearTimeout(timer);setSave(false,"เชื่อมต่อไม่ได้: คำตัดสินเก็บในเครื่องนี้")}
+})();
+</script>
