@@ -1,4 +1,9 @@
-﻿artifacts/
+artifacts/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
 
 # model weights (README/manifest/REGISTRY stay tracked)
 models/**/*.pdiparams
