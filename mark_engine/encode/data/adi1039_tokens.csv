@@ -1,0 +1,43 @@
+section,table_no,dropdown,preview_text,abbreviation,n_digits,example,db_placeholder,lot_slice,note,implemented
+5.1.6,,Blank Space,_ or ␣,_,1,_,{SPACE},,Space only when written as underscore or open-box; otherwise no space,Y
+5.1.7,,,{...},{ },,{YYWW},,,Only the content inside the brackets is marked,Y
+5.2,Figure 1,ADI Partial Logo (2),Partial LOGO,,,,%|^|*|{,,DB code per ELR MARK_REMARK; YOLO class adi_partial_logo; left justified (5.2.2),Y
+5.2,Figure 2,ADI Full Logo (8),Full LOGO,,,,,,YOLO class adi_full_logo (no training data); centre justified except LFCSP (5.2.1),N
+5.3,Table 1,Date Code (4),YYWW,{DC-4},4,0214,YYWW,,Seal year + seal week (EIA-476-A calendar),Y
+5.3,Table 1,Date Code (3),YWW,{DC-3},3,214,YWW,,First digit of year removed,Y
+5.3,Table 1,Date Code (2),YW/XX,{DC-2},2,,YW,,Table 9 until 2017-12-30; Table 10 from 2017-12-31,Y
+5.3,Table 1,Date Code (1),1 DIGIT DATE CODE,{DC-1},1,,Y,,SOT66 third character of top brand (Table 11),N
+5.4,Table 2,Lot Number Full (9),Assembly Lot Number,{Lot-Full},9,1234567.9,XXXXXXXXX,1-9,,Y
+5.4,Table 2,Lot Number (8),8 Digit Lot Number,{Lot-8},8,12345678,XXXXXXXX,last-8,Legacy allows decimal point + 8 numbers; new markings 8 digits,Y
+5.4,Table 2,Lot Number (7),7 Digit Lot Number,{Lot-7},7,1234567,XXXXXXX,last-7,,Y
+5.4,Table 2,Lot Number (6),6 Digit Lot Number,{Lot-6},6,234567,XXXXXX,last-6,,Y
+5.4,Table 2,Lot Number (5),5 Digit Lot Number,{Lot-5},5,34567,XXXXX,last-5,,Y
+5.4,Table 2,3-7 of Lot Number (5),3-7 Lot Number,{Lot-3-7},5,34567,XXXXX,3-7,,N
+5.4,Table 2,Lot Number Full (Last Half) (5),Last Half of Lot Number,{Lot-Full-LastHalf},5,45678,XXXXX,last-half,,N
+5.4,Table 2,Lot Number (4),4 Digit Lot Number,{Lot-4},4,4567,XXXX,last-4,,Y
+5.4,Table 2,Lot Number Full (First Half) (4),First Half of Lot Number,{Lot-Full-FirstHalf},4,1234,XXXX,first-half,,N
+5.4,Table 2,Lot Number (3),3 Digit Lot Number,{Lot-3},3,567,XXX,last-3,,Y
+5.4,Table 2,Last 2 Digits of Lot Number (2),Last 2 Digits Lot Number,{Lot-Last-2},2,67,XX,last-2,,N
+5.4,Table 2,Last 1 Digits of Lot Number (1),Last 1 Digits Lot Number,{Lot-Last-1},1,7,X,last-1,Approved for WLCSP only,N
+5.5,,County of Origin (5),COUNTRY OF ORIGIN,,,THAILAND,THAILAND,,Full name when space allows (5.5.3); bottom mark unless ejector pin/ABS says otherwise; WLCSP = bumping site,Y
+5.6,Table 3,Wafer ID (1),WFID,{WaferId-1},1,,,,,N
+5.6,Table 3,Wafer ID (2),WFID,{WaferID-2},1-2,,,,Required for WLBGA,N
+5.10,Table 12,12 Digit Serial Number,123456789012,,12,000000000001,XXXXXXXXXXXX,,Starts at 1 per lot; zero padded,Y
+5.10,Table 12,10 Digit Serial Number,1234567890,,10,0000000001,XXXXXXXXXX,,Starts at 1 per lot; zero padded,Y
+5.10,Table 12,6 Digit Serial Number,123456,,6,000001,XXXXXX,,Starts at 1 per lot; zero padded,Y
+5.10,Table 12,5 Digit Serial Number,12345,,5,00001,XXXXX,,Starts at 1 per lot; zero padded,Y
+5.10,Table 12,4 Digit Serial Number,1234,,4,0001,XXXX,,Starts at 1 per lot; zero padded,Y
+5.3.2b,Table 9,Date Code (2) before 2017-12-31,YW/XX,{DC-2},2,0C (2000 week 5),YW,,Deprecated: year code 1999=9 2000=0 2001=A..2017=Q; week pair 01&02=A..51&52=Z; see adi1039_code,N
+5.8.2,Table 10,Date Code (2) from 2017-12-31,YW/XX,{DC-2},2,QA (2026 week 1),YW,,Year letter pair (2018 A/B .. 2026 Q/R .. 2030 Y/Z 2031 1/2 .. 2035 9/0); 2nd char weeks 1-26 = A-Z and 27-52 = A-Z; week 53 = F1 (2020) R1 (2026) 41 (2032); LT products from 2020-11-01; (Y)(XX)(W) split form allowed (5.8.3),N
+5.9,Table 11,Date Code (1) SOT66,1 DIGIT DATE CODE,{DC-1},1,A (Jan 2010 / Jan 2016),Y,,3rd character of SOT66 top brand; 72-month cycle from Jan 2010 repeats every 6 years; Jan 2013-Dec 2015 incorporate underscore,N
+5.6.4,Table 4a,Wafer ID (1),WFID,{WaferId-1},1,A (wafer 1),,,Wafer 1-25 -> A-Y,N
+5.6.5,Table 4b,Wafer ID (2),WFID,{WaferID-2},2,01 (wafer 1),,,Wafer 1-25 -> 01-25,N
+5.12,Table 14,Die Position X - Column (3),CCC,{DiePositionX},3,074,,,Origin (001;001) upper-left of wafer map; V-notch down unless stated,N
+5.12,Table 14,Die Position Y - Row (3),RRR,{DiePositionY},3,017,,,Same convention as X,N
+5.12.5,Table 15,2 Character Die Row/Column,,,2,AA (1) BA (27) PJ (400),,,n -> letters A-Z base 26 starting AA=1,N
+5.11,Table 13,2D Code,,,,1234567.9 123456,,,Data Matrix ECC200; 0.125 mm dot; 16x16 recommended (16 alnum / 24 numeric); keep-out symbol + 1.5 mm,N
+5.13.1.3,,OCR serial checksum,1234X,,5,25681,,,X = MOD10(sum of 4 serial digits); OCR-A font; SOIC wide body top / PDIP bottom,N
+Fig 4b,Other,Pb-Free (1),,{Pb-Free},1,#,#,,Drop-down list 'Other' (Figure 4b); Symbol ADI # ,Y
+Fig 4b,Other,Factory Code (1),,{FACTORYCODE},1,B,B,,Drop-down list 'Other' (Figure 4b); Symbol ADI {1 Character Factory Code} -> B,Y
+Fig 4b,Other,Mold Cavity ID (3),,,3,,,,Drop-down list 'Other' (Figure 4b); no rule yet,N
+Fig 4b,Other,Blank Line (0),,,0,,,,Drop-down list 'Other' (Figure 4b): empty brand line,Y
