@@ -64,6 +64,7 @@
 | ID | คำตัดสิน |
 |---|---|
 | D-22 | ✔ ชื่อประเทศแบบย่อใน Oracle ที่ยังอ่านเป็น THAILAND (`TH`, `THA`, `THAI`, `THAIL`, …) = **MATCH แต่มี warning** ให้ผู้ใช้เห็นว่าต่างจากชื่อเต็ม (`LineComparison.warning = "COO_ABBREVIATED: Oracle THAIL, expected THAILAND"`, metrics `warning_lines`) — R1: 13 บรรทัด |
+| D-29 | ✔ (ผู้ใช้ 2026-11-04, ADI2601023) ประโยค SLR "Same date code with/as SLR######…" ผูกค่าวันที่กับ SLR อื่น ไม่เปลี่ยนรูปแบบ mark → ไม่นับเป็น SLR_UNRESOLVED (เดิมทำให้ทุกบรรทัด NEEDS_REVIEW และบรรทัด `{Lot-4}` ไม่ได้ตรวจ lot) |
 | D-28 | ✔ (ผู้ใช้ 2026-11-04, concept ตรวจจับ+แจ้ง user) (1) ABS ที่ text layer อ่านไม่ได้ (font เข้ารหัส/ภาพ) → ใช้เลข ABS จากชื่อไฟล์ เฉพาะเมื่อไม่มี ABS เลขเดียวกันที่อ่านจากเนื้อหาได้ (step `ABS_BY_FILENAME`); (2) CUST_BOM_NO ไม่มีในโฟลเดอร์ แต่มี ABS ที่ PRODUCT_NO ระบุ → สร้างจากฉบับนั้น + แจ้ง `PRODUCT_NO_ABS_MISMATCH` (NEEDS_REVIEW); (3) BOM_NOT_FOUND บอกว่าในโฟลเดอร์มี ABS อะไร |
 | D-27 | ✔ (ผู้ใช้ 2026-11-04) HUMAN_FIXED ที่เป็น OCR อ่านผิด → แก้ที่ OCR: ใช้ re-OCR ครอปแคบ (legend value / ตัดโลโก้) แบบไม่ใช้ GT; ADI2602089 TOP 5 (`0.0` vs Oracle `O.0`) แก้ด้วย OCR ไม่ได้ — ในภาพเป็นตัวเดียวกัน |
 | D-25 | ✔ (ผู้ใช้ 2026-11-04) concept งาน = ตรวจจับแล้วแจ้งให้ user แก้: revision ไม่ตรง (`REVISION_MISMATCH`) และ PRODUCT_NO ชี้ ABS คนละเลข (`PRODUCT_NO_ABS_MISMATCH`) → NEEDS_REVIEW พร้อมสาเหตุใน `review_detail` (ไม่นับเป็น MATCH) |

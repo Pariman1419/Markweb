@@ -61,6 +61,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-04 (D-29 SLR same-date-code note)
+- ADI2601023 BOTTOM 2 `{Lot‐4}` (lot 7230523 → 0523) was NEEDS_REVIEW: the SLR sentence "Same date code with SLR230744, …" was counted unresolved and flagged every line before the lot check. `slr/parse.py` `SAME_DATE_CODE_NOTE_RE` now skips it.
+- 12 ELR / 48 lines NEEDS_REVIEW → MATCH (12 MATCH_LOT, 27 MATCH_SLR, 9 MATCH). Agreement **85.34%** (1,374/1,610), BUG 0. 219 unit + 3 regression. DB run 14.
+- Open question: Oracle template 41477448 (`@EAQ`, `@FBQ`, 8 lines) has `Q` where ABS/SLR give a 1-digit date code ({1-DC}/{DC-1} → `Y`).
+
 ### 2026-11-04 (R1 review round 1)
 - User review from the R1 review page saved to `reviews/r1_review_2026-11-04.csv` (R0 folder is read-only); `review_overlay.load_r1_verdicts` reads it after the R0 verdicts (later wins). DB_WRONG / SYSTEM_OK = system expected is right.
 - ADI2602089 TOP 5 `0.0 #YWW` vs Oracle `O.0#YWW`: user verdict DB_WRONG (was HUMAN_FIXED). After review: DB_WRONG 17, HUMAN_FIXED 0. Agreement 82.36%, BUG 0. 218 unit + 3 regression. DB run 13.

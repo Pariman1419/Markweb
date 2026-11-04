@@ -121,7 +121,8 @@ def test_logistics_lot_sentences_not_unresolved(sentence: str) -> None:
 @pytest.mark.parametrize(
     "sentence",
     [
-        "Same date code with: SLR230991, SLR230992, SLR230993",
+        # "Same date code with: SLR..." moved out (user 2026-11-04, ADI2601023): it ties the date VALUE,
+        # not the mark format -> see test_same_date_code_note_is_not_unresolved
         'Second line of brand content / marking: "LS1234v00" BEF Promis notes: 7.1 is costing off.',
         "See attachment for further instructions.",
         "Laser mark lot number on top side.",
@@ -129,3 +130,21 @@ def test_logistics_lot_sentences_not_unresolved(sentence: str) -> None:
 )
 def test_marking_sentences_still_unresolved(sentence: str) -> None:
     assert parse_slr(sentence).unresolved != ()
+
+
+def test_same_date_code_note_is_not_unresolved():
+    """ADI2601023: 'Same date code with SLR...' must not block the {Lot-4} line (lot check)."""
+    text = ("SPECIAL INSTRUCTIONS\nFor markings: \nTOP\nLine 1 Y\nLine 2 Q1\nBOTTOM\nLine 1 {Pb\u2010Free}{DC\u20103}\n"
+            "Line 2 {Lot\u20104}\nFor any concern, please contact X.\nSame date code with SLR230744, SLR230747, SLR230766\n"
+            "ANALOG\nDEVICES\nSHIPPING INSTRUCTIONS\nScheduled Lot ID\n7230523.1\n")
+    f = parse_slr(text)
+    assert f.unresolved == ()
+    assert f.scheduled_lots == ("7230523",)
+    assert any(i.value == "{Lot-4}" for i in f.instructions)
+    assert parse_slr(text.replace("Same date code with SLR230744, SLR230747, SLR230766",
+                                  "Same date code with: SLR230991, SLR230988, SLR230992")).unresolved == ()
+
+
+def test_other_date_code_sentence_still_unresolved():
+    f = parse_slr("SPECIAL INSTRUCTIONS\nBranding: F for Fast, {DC-1} for 1-digit date code.\n")
+    assert f.unresolved

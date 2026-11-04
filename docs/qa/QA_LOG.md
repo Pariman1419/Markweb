@@ -296,3 +296,21 @@
 ### Prevention / Rules Learned
 - Check why a layout case is missing before adding layout logic: here the documents gate held it.
 
+---
+
+## [2026-11-04] SLR {Lot-4} not checked: "Same date code with SLR…" flagged the whole ELR
+
+### Context & Symptom
+- **Component / Path**: [`mark_engine/slr/parse.py`](file:///D:/CIM%20Project/mark-web/mark_engine/slr/parse.py)
+- **Question / Issue**: user: ADI2601023 BOTTOM 2 is `XXXX`; the SLR says `Line 2 {Lot‐4}` and gives the lot — why not read?
+
+### Root Cause
+- The SLR was parsed correctly (lot 7230523, `{Lot-4}`). The note "Same date code with SLR230744, SLR230747, SLR230766" matched the marking keyword "date code", so `unresolved` was non-empty → SLR_UNRESOLVED on every line → compare stopped at the review gate before the lot check.
+- An earlier unit test had listed this sentence as "still unresolved" without a reason.
+
+### Resolution & Code Fix
+- `SAME_DATE_CODE_NOTE_RE` skips the note (it fixes the date value, not the mark format). Test moved, new tests added. 12 ELR: BOTTOM 2 → MATCH_LOT, other lines → MATCH / MATCH_SLR.
+
+### Prevention / Rules Learned
+- An ELR-level flag hides line-level checks; when a flag comes from one sentence, check whether that sentence changes the mark at all.
+

@@ -27,6 +27,13 @@ MARKING_KEYWORDS_RE = re.compile(
 )
 
 
+# Cross-lot notes that tie the date VALUE to other SLRs ("Same date code with: SLR230991, SLR230988").
+# They do not change the mark format (the date stays a placeholder), so they are not an unread
+# instruction. Before this, the words "date code" flagged every line SLR_UNRESOLVED and blocked the
+# lot check (ADI2601023 BOTTOM 2 {Lot-4} = 0523).
+SAME_DATE_CODE_NOTE_RE = re.compile(r"^\s*same\s+date\s*code\s+(?:as|with)\b[\s:]*(?:SLR\d{6}[\s,;&]*(?:and\s+)?)+\.?\s*$", re.I)
+
+
 def parse_slr(text: str) -> SlrFacts:
     """Parse SLR text for special instructions, line markings, scheduled lots, qual lot, and coverage."""
     norm_text = re.sub(r"[\u2010-\u2015\u2212]", "-", text)
@@ -116,6 +123,8 @@ def parse_slr(text: str) -> SlrFacts:
             i += 1
 
         if not produced_instruction:
+            if SAME_DATE_CODE_NOTE_RE.match(sentence):
+                continue
             if MARKING_KEYWORDS_RE.search(sentence):
                 # Sentence is marking-related; check if it is only a qual-lot announcement
                 without_qual = re.sub(
