@@ -123,14 +123,19 @@ Phase 0 **ไม่ได้แก้ไขอะไรใน dataset** — บ�
 
 | ตัวชี้วัด | นิยาม | R0 (legacy) | R1 Jan–Jun | Blind Jul–Nov |
 |---|---|---|---|---|
-| Coverage ELR | ELR ที่ processing DONE และไม่ HOLD / ELR ในกรอบ (ตัวหาร = Oracle ไม่ใช่โฟลเดอร์ NAS) | 529/598 (88.5%) | **54.5%** (364/668) · auto 55.6% (114/205), human 54.0% (250/463) | วัด |
-| Coverage line | บรรทัดที่เทียบได้ / บรรทัดที่ oracle หรือ expected มีค่า | 1,982/2,381 (83.2%) | **66.9%** (1,550/2,316) · auto 73.5% (522/710), human 64.0% (1,028/1,606) | วัด |
-| Hold Rate | HOLD + NOT_VERIFIABLE / ELR | 12.1% (ตัวหาร 602) | **15.1%** (101/668) · auto 9.8% (20/205), human 17.5% (81/463) | วัด |
-| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **82.7%** (1,273/1,540) [MATCH 1,148 (ในนี้ COO ย่อ + warning 13), MATCH_SLR 87, MATCH_SHIFT 15, MATCH_LOT 23, DIFF 57, NEEDS_REVIEW 210]; hold 103 (รวม REVISION_CONFLICT 2) | วัด |
+| Coverage ELR | ELR ที่ processing DONE และไม่ HOLD / ELR ในกรอบ (ตัวหาร = Oracle ไม่ใช่โฟลเดอร์ NAS) | 529/598 (88.5%) | **57.0%** (381/668) · auto 54.6% (112/205), human 58.1% (269/463) — run 14 | วัด |
+| Coverage line | บรรทัดที่เทียบได้ / บรรทัดที่ oracle หรือ expected มีค่า | 1,982/2,381 (83.2%) | **69.5%** (1,610/2,316) · auto 72.1% (512/710), human 68.4% (1,098/1,606) | วัด |
+| Hold Rate | HOLD + NOT_VERIFIABLE / ELR | 12.1% (ตัวหาร 602) | **12.7%** (85/668) · auto 10.7% (22/205), human 13.6% (63/463) | วัด |
+| Oracle agreement | MATCH* / comparable — **แสดงแยก MATCH, MATCH_SLR, MATCH_SHIFT, MATCH_LOT** | 98.7% (conditioned) | **85.3%** (1,374/1,610) [MATCH 1,205 (ในนี้ COO ย่อ + warning 13), MATCH_SLR 114, MATCH_SHIFT 15, MATCH_LOT 40, DIFF 49, NEEDS_REVIEW 187]; auto 93.2%, human 81.7%; หลังรีวิว DB_WRONG 17 — run 14 | วัด |
 | Independence | expected เท่าเดิมเมื่อลบ oracle_mark | ไม่ผ่าน (by design) | **100.0%** (668/668 — วัดจริง: รัน `process_elr` ซ้ำด้วย `OracleMark` ว่างแล้วเทียบ `ExpectedMark`) | ต้อง 100% |
-| Parity vs R0 BUG | divergence จาก R0 ที่ไม่มีคำอธิบายทางสถาปัตยกรรม | — | **0 — ผ่าน** (SAME 1,640, RESOLVER_CHANGED 362, REVIEW_FLAG 210, ORACLE_INFLUENCE_REMOVED 60, GATE_SPEC_V2 37, LOT_NOW_VERIFIED 5, OCR_SOURCE_CHANGED 3, GRAPHIC_NOW_COUNTED 1, BUG 0) | — |
+| Parity vs R0 BUG | divergence จาก R0 ที่ไม่มีคำอธิบายทางสถาปัตยกรรม | — | **0 — ผ่าน** (run 14: SAME 1,732, RESOLVER_CHANGED 253, REVIEW_FLAG 187, GATE_SPEC_V2 77, ORACLE_INFLUENCE_REMOVED 68, GRAPHIC_NOW_COUNTED 1, BUG 0) | — |
 | Correctness | expected == engineer_verified | — | ตัวอย่าง | ตัวอย่าง |
 | False PASS | MATCH* และ engineer_verified ≠ expected | — | **ต้อง 0** | **ต้อง 0** |
+
+| True / Warning / Error (หน้ารีวิว) | บรรทัดที่เทียบได้: = Oracle / COO ย่อ / ไม่ตรง (`10` §3) | — | 1,508 / 25 / 77 (93.7% / 1.6% / 4.8%) | วัด |
+
+### 5.0 ประวัติ run R1 ใน DB (ล่าสุด run 14 — ดู `08`)
+run 8 OCRFIX-6 · 9 D-24 · 10 D-25/26 · 11 D-27 · 12 D-28 · 13 รีวิวรอบ 1 · 14 D-29 — ตัวเลขข้างล่าง §5.1 เป็นของ run 7 (เก็บไว้เป็นประวัติ)
 
 ### 5.1 รายละเอียดผลลัพธ์ R1 Jan–Jun (branch `phase1/r1-fixes`, 2026-11-04)
 

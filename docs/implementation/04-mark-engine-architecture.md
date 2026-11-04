@@ -117,6 +117,13 @@ Invariant ที่ต้องมี test:
 | MATCH_LOT | ตัวเลขใน oracle อยู่ตำแหน่ง X/YYWW **และ** lot ตรง `lot_slice` ของ Scheduled Lot ID (ADI1039 Table 2); date code ต้องเป็น YYWW ที่ถูกต้องตามรูปแบบ | เดิมยอมรับตัวเลขใดก็ได้ |
 | DIFF / NEEDS_REVIEW / NOT_COMPARABLE / NOT_MARKED / DB_EMPTY | ตาม spec §10 | Skip Mark ไม่ขึ้นกับ oracle ว่าง |
 
+### 5.1 ชั้นรีวิวและการแสดงผล (R1, 2026-11-04) **[ยืนยัน]**
+
+- `LineComparison.warning` — MATCH ที่ต้องให้ผู้ใช้เห็นความต่าง (`COO_ABBREVIATED`, D-22)
+- `DocumentResolution.review_detail` → แจ้งเตือนพร้อมสาเหตุ (D-25/D-28); บรรทัดเป็น NEEDS_REVIEW (`RULE_CONFLICT`)
+- `final_status` (D-26) — คำตัดสินของคนทับบน `status`: `DB_WRONG` (ระบบถูก Oracle ผิด), `HUMAN_FIXED` (ระบบผิด คนให้ค่า), `MATCH`; `status` ยังเป็นผลของระบบล้วน (ใช้วัด agreement/independence/parity)
+- หน้ารีวิว: True (= Oracle) / Warning (ใกล้เคียง: COO ย่อ) / Error (ไม่ตรง + cause) — `scripts/make_review_page.py` `classify`, รายละเอียด `10` §3
+
 ## 6. API Contracts [เสนอ]
 
 ### 6.1 Library API (Phase 1 — ใช้ใน worker และ regression)

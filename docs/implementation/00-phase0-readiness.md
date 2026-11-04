@@ -99,4 +99,7 @@
 | `04-mark-engine-architecture.md` | แพ็กเกจ, 4 ค่า, compare, API, test |
 | `05-database-migration-plan.md` | M0–M7, freeze, roles |
 | `06-regression-and-blind-test-plan.md` | manifest R0, ชุด blind, ตัวชี้วัด |
-| `07-open-decisions.md` | D-01 – D-18 |
+| `07-open-decisions.md` | D-01 – D-29 |
+| `08-database-tables.md` | ตาราง `mark_web.mark_logic`, ประวัติ run 1–14 |
+| `09-mark-eng-confirmation.md` | คำถาม/คำตอบ Mark Eng (Q1 COO, Q2 revision) |
+| `10-r1-logic-review-and-next-phase.md` | **logic R1 ปัจจุบันทั้งหมด, True/Warning/Error, งาน debug ค้าง, เตรียม phase ถัดไป** |

@@ -11,7 +11,9 @@
 - **Plan File**: [`docs/superpowers/plans/2026-11-04-phase1-mark-engine-offline.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/plans/2026-11-04-phase1-mark-engine-offline.md)
 - **Design Spec**: [`docs/superpowers/specs/2026-11-04-mark-automation-design.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/specs/2026-11-04-mark-automation-design.md)
 - **QA & Knowledge Base Log**: [`docs/qa/QA_LOG.md`](file:///D:/CIM%20Project/mark-web/docs/qa/QA_LOG.md)
-- **Database Tables (`mark_web.mark_logic`)**: [`docs/implementation/08-database-tables.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/08-database-tables.md) — 15 ตาราง, run 1–3 = R0 (run 3 freeze), run 6 = R1 ปัจจุบัน
+- **Database Tables (`mark_web.mark_logic`)**: [`docs/implementation/08-database-tables.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/08-database-tables.md) — 15 ตาราง, run 1–3 = R0 (run 3 freeze), **run 14 = R1 ปัจจุบัน**
+- **R1 logic / review / next phase (อ่านก่อน)**: [`docs/implementation/10-r1-logic-review-and-next-phase.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/10-r1-logic-review-and-next-phase.md) — D-22–D-29, True/Warning/Error, debug ค้าง G1–G9, งาน N1–N7
+- **Review results**: `reviews/r1_review_2026-11-04.csv` (runner อ่าน), `reviews/r1_run14_review_export.csv` (export ทุกบรรทัด + class)
 - **Mark Eng confirmation (open)**: [`docs/implementation/09-mark-eng-confirmation.md`](file:///D:/CIM%20Project/mark-web/docs/implementation/09-mark-eng-confirmation.md)
 - **Git State**:
   - Remote: `git@github.com:Pariman1419/Markweb.git`
@@ -60,6 +62,11 @@
 ---
 
 ## 4. Live Changelog & Session Updates
+
+### 2026-11-04 (wrap-up before next phase)
+- Review page state exported: `reviews/r1_run14_review_export.csv` (2,318 lines: True 1,508 · Warning 25 · Error 77 · not compared 708; 13 page verdicts/notes) via `scripts/export_review_csv.py`.
+- All R1 logic collected in `docs/implementation/10-r1-logic-review-and-next-phase.md`; 00/01/03/04/06/08 updated to run 14.
+- Open for the debug round: G1 `Q` = 1-digit date code?, G2 note on ADI2601052 T1 ("rev ENG-1 ไม่นับเอาแค่ Digi BOM 10"), G3–G9 (doc 10 §6).
 
 ### 2026-11-04 (D-29 SLR same-date-code note)
 - ADI2601023 BOTTOM 2 `{Lot‐4}` (lot 7230523 → 0523) was NEEDS_REVIEW: the SLR sentence "Same date code with SLR230744, …" was counted unresolved and flagged every line before the lot check. `slr/parse.py` `SAME_DATE_CODE_NOTE_RE` now skips it.

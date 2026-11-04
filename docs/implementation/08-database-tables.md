@@ -8,14 +8,14 @@
   (`experiments/abs_vs_db/export_logic_pg.py`, `export_adi1039_pg.py`, `rule_scope_pg.py`, `mapping_gap_analysis.py`)
 - **ยังไม่ได้ apply** `migrations/0001_roles.sql`, `0002_regression_frozen.sql` (`mark_regression.r0_*`), `0003_rule_governance.sql` (`mark_rules.*`) — ดูแผนใน [05](05-database-migration-plan.md)
 - `mark_engine` Phase 1 **ไม่อ่าน DB ตอนรัน** — ใช้ snapshot ที่ commit ไว้ในแพ็กเกจ (ดูคอลัมน์ "ใน mark_engine")
-- Run ที่มีอยู่: 1–3 = R0 (legacy, Oracle-conditioned; **run 3 = baseline ที่ freeze**), 4–7 = R1 (`mark_engine`; **run 7 = ปัจจุบัน**, run 4–6 ถูกแทนที่)
+- Run ที่มีอยู่: 1–3 = R0 (legacy, Oracle-conditioned; **run 3 = baseline ที่ freeze**), 4–14 = R1 (`mark_engine`; **run 14 = ปัจจุบัน**, run 4–13 ถูกแทนที่)
 
 ## 2. สรุปตาราง
 
 | กลุ่ม | ตาราง | แถว | PK | หน้าที่ | ใน mark_engine |
 |---|---|---:|---|---|---|
-| ผลการรัน | [`run`](#run) | 7 | `run_id` | หัวของแต่ละ regression run + ตัวเลขสรุป | R1 เขียนเป็น run ใหม่ (`scripts/load_r1_to_pg.py`) |
-| ผลการรัน | [`line_result`](#line_result) | 16,416 | `(run_id, elr_no, abs_no, side, line_no)` | ผลรายบรรทัด expected vs Oracle ของทุก run | R1 เขียน 2,318 แถวต่อ run (run 7) |
+| ผลการรัน | [`run`](#run) | 14 | `run_id` | หัวของแต่ละ regression run + ตัวเลขสรุป | R1 เขียนเป็น run ใหม่ (`scripts/load_r1_to_pg.py`) |
+| ผลการรัน | [`line_result`](#line_result) | 16,416 | `(run_id, elr_no, abs_no, side, line_no)` | ผลรายบรรทัด expected vs Oracle ของทุก run | R1 เขียน 2,318 แถวต่อ run (run 14) |
 | ผลการรัน | [`stage_accuracy`](#stage_accuracy) | 90 | `(run_id, stage_order, stage_no, period)` | ความแม่นยำสะสมทีละขั้น pipeline ของ R0 | ไม่ใช้ (R1 ไม่ได้เขียน) |
 | ผลการรัน | [`elr_document`](#elr_document) | 602 | `elr_no` | ELR มี ABS / SLR / วัดได้หรือไม่ (R0) | ไม่ใช้ — R1 ใช้ `resolve_documents` |
 | ผลการรัน | [`review_verdict`](#review_verdict) | 146 | `(review_file, line_id)` | คำตัดสินของคนจากไฟล์ diff review | ไม่ใช้ |
@@ -58,20 +58,29 @@
 | 4 | R1 `9dce03e` — ถูกแทน | 1,015/1,554 = 65.32% |
 | 5 | R1 `cb9b74e` — ถูกแทน, parity BUG 0 | 1,014/1,550 = 65.42% |
 | 6 | R1 `c3c46fb` — ถูกแทน, GRAPHIC_REMARK_CONFLICT ต่อ ELR, NEEDS_REVIEW 210 | 1,273/1,550 = 82.13% |
-| 7 | R1 `6162cfb` — **ปัจจุบัน**, D-22 COO warning (13), D-23 REVISION_CONFLICT (2 ELR), parity BUG 0 | 1,273/1,540 = 82.66% |
+| 7 | R1 `6162cfb` — ถูกแทน, D-22 COO warning (13), D-23 REVISION_CONFLICT (2 ELR), parity BUG 0 | 1,273/1,540 = 82.66% |
+| 8 | R1 `7ee69a9` — ถูกแทน, R07-OCRFIX-6 เก็บ `LOT NUMBER` | 1,278/1,540 = 82.99% |
+| 9 | R1 `92198ed` — ถูกแทน, D-24 revision = ตัวอักษร BOM + CUST_BOM_REVISION | 1,323/1,540 = 85.91% |
+| 10 | R1 `97f3cf7` — ถูกแทน, D-25 alert `review_detail`, D-26 `status` = final_status (DB_WRONG 5) | 1,323/1,541 = 85.85% |
+| 11 | R1 `838d024` — ถูกแทน, D-27 re-OCR (legend, ตัดโลโก้) | 1,326/1,541 = 86.05% |
+| 12 | R1 `9452d23` — ถูกแทน, D-28 ABS จากชื่อไฟล์ + PRODUCT_NO ABS; hold 85 | 1,326/1,610 = 82.36% |
+| 13 | R1 `a024da1` — ถูกแทน, รีวิวรอบ 1 (`reviews/r1_review_2026-11-04.csv`), DB_WRONG 17 | 1,326/1,610 = 82.36% |
+| 14 | R1 `4cf36da` — **ปัจจุบัน**, D-29 "Same date code with SLR…" ไม่ใช่ unresolved | 1,374/1,610 = 85.34% |
+
+`match_pct` คิดจาก **status ของระบบ** (ไม่รวมคำตัดสินของคน); `lines_db_wrong` = จำนวน `final_status = DB_WRONG`
 
 ### line_result
 ผลรายบรรทัด — ลบอัตโนมัติเมื่อลบ `run` (FK `ON DELETE CASCADE`)
 
-| คอลัมน์ | R0 (run 1–3) | R1 (run 4–7) |
+| คอลัมน์ | R0 (run 1–3) | R1 (run 4–14) |
 |---|---|---|
 | `elr_no`, `abs_no`, `side`, `line_no`, `month` | ตามชื่อ | `abs_no` = `ABS\d{6}` (ว่างถ้า HOLD); `month` จาก `ADI26MM` |
 | `ocr_text`, `encoded`, `encoded_after_rules`, `yolo` | ผลแต่ละขั้น (OCR → Symbol ADI → กฎ → กราฟิก YOLO) | ว่าง |
 | `final_mark` | ค่าที่ระบบสร้าง (**ถูกปรับตาม Oracle**) | `ExpectedMark` (ไม่เห็น Oracle) |
 | `db_mark` | Oracle TOP/BACK_MARK | Oracle TOP/BACK_MARK |
-| `status` | ดู `status_dictionary` | + `NEEDS_REVIEW` |
+| `status` | ดู `status_dictionary` | + `NEEDS_REVIEW`; ตั้งแต่ run 10 = **final_status** (หลังคำตัดสินของคน: `DB_WRONG`, `HUMAN_FIXED`) — ค่าของระบบอยู่ใน `cause_detail` `system_status=` |
 | `cause` | สาเหตุหลัก เช่น `OK`, `MAPPING_RULE`, `GRAPHIC_SYMBOL` | `hold_reason` / `detail` / compare rule (เช่น `COO_ABBREVIATED`, `SLR_UNRESOLVED`, `EXACT`) |
-| `cause_detail` | ข้อความอธิบาย | `rules=…; flags=…; detail=…; layout_source=…; parity_vs_r0=…` |
+| `cause_detail` | ข้อความอธิบาย | `rules=…; flags=…; detail=…; warning=…; hold_detail=…; review_detail=…; review_verdict=…; system_status=…; layout_source=…; parity_vs_r0=…` |
 | `graphic_check`, `slr_line`, `db_mark_remark` | ผลตรวจกราฟิก / ค่าจาก SLR / MARK_REMARK | ว่าง |
 | `review_verdict`, `review_note` | คำตัดสินของคน | ว่าง (สำหรับ Mark Eng ในอนาคต) |
 
@@ -91,6 +100,7 @@
 | DB_WRONG | | ✓ | ตรวจแล้ว DB ผิด |
 | DIFF | | ✓ | ไม่ตรง ยังไม่มีคำตัดสิน |
 | **NEEDS_REVIEW** (เพิ่มโดย R1) | | ✓ | expected มี review flag หรือ Oracle digits ยืนยันไม่ได้ → Mark Eng ตรวจ |
+| **HUMAN_FIXED** (เพิ่มโดย R1 run 10) | | ✓ | ระบบอ่านผิด คนให้ค่าที่ถูก (ไม่นับว่าระบบถูก) |
 | DB_EMPTY, NOT_COMPARABLE, NOT_MARKED, NOT_MEASURABLE, NOT_ELIGIBLE | | | ไม่นับคะแนน |
 
 ### logic_rule
