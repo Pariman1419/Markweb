@@ -1,6 +1,6 @@
 # 09 — คำถามให้ Mark Engineer ยืนยัน (จาก R1 Jan–Jun)
 
-> สถานะ: **รอคำตอบ** · สร้าง 2026-11-04 จาก R1 `cb9b74e` (DB `mark_web.mark_logic` run 5) · ผลรายบรรทัด: `artifacts/regression-r1/lines.csv`
+> สถานะ: **รอคำตอบ** · สร้าง 2026-11-04 จาก R1 `cb9b74e`, ตรวจซ้ำกับ `c3c46fb` (DB `mark_web.mark_logic` run 6) — ตัวเลขไม่เปลี่ยน · ผลรายบรรทัด: `artifacts/regression-r1/lines.csv`
 > คำตอบที่ได้ให้บันทึกใน `07-open-decisions.md` แล้วแก้โค้ด/กฎตามนั้น
 
 ---
