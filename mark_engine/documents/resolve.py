@@ -92,6 +92,8 @@ def resolve_documents(
     root: Path,
     months: Sequence[str],
     work_dir: Path,
+    *,
+    folder_index: dict[str, tuple[Path, ...]] | None = None,
 ) -> DocumentResolution:
     """Resolve ABS and SLR documents for a given ELR metadata from NAS storage.
 
@@ -101,7 +103,7 @@ def resolve_documents(
     rejected: list[tuple[DocumentRef, str]] = []
 
     # 1. Locate folder
-    folders = find_elr_folders(root, meta.elr_no, months)
+    folders = find_elr_folders(root, meta.elr_no, months, index=folder_index)
     if not folders:
         return DocumentResolution(
             elr_no=meta.elr_no,

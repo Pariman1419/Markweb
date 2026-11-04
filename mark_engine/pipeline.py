@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import inspect
+from dataclasses import replace
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable, Mapping, Sequence
 import pymupdf
 
 from mark_engine.compare.engine import compare
@@ -10,6 +11,8 @@ from mark_engine.documents.resolve import resolve_documents
 from mark_engine.domain.models import (
     ApprovalStatus,
     ElrMeta,
+    ExpectedLine,
+    ExpectedToken,
     InferenceResult,
     JobResult,
     LineComparison,
@@ -17,12 +20,19 @@ from mark_engine.domain.models import (
     OracleMark,
     ProcessingStatus,
     SlrFacts,
+    Side,
     VerificationStatus,
 )
 from mark_engine.encode.remark import is_skip_mark
 from mark_engine.generate.generator import generate_expected
+from mark_engine.generate.mark_layout import LayoutError, MarkLayout, fill_line_with_conflicts
 from mark_engine.rules.ruleset import RuleSet
 from mark_engine.slr.parse import parse_slr
+
+
+def position_differs(expected: str, raw_oracle: str) -> bool:
+    grid = raw_oracle[3:21].ljust(18)
+    return tuple(not char.isspace() for char in expected.ljust(18)) != tuple(not char.isspace() for char in grid)
 
 
 def _call_inference_loader(
@@ -62,6 +72,9 @@ def process_elr(
         Callable[[str, str], InferenceResult]
         | Callable[[Path, str, str], InferenceResult]
     ),
+    *,
+    layouts: Mapping[int, MarkLayout] | None = None,
+    folder_index: dict[str, tuple[Path, ...]] | None = None,
 ) -> JobResult:
     """Run full mark verification pipeline for a single ELR.
 
@@ -105,7 +118,8 @@ def process_elr(
         )
 
     # 2. Document Resolution Gate
-    resolution = resolve_documents(meta, root, months, work_dir)
+    resolution = (resolve_documents(meta, root, months, work_dir, folder_index=folder_index)
+                  if folder_index is not None else resolve_documents(meta, root, months, work_dir))
     if resolution.decision == "HOLD":
         comparisons = tuple(
             LineComparison(
@@ -155,6 +169,11 @@ def process_elr(
             comparisons=comparisons,
             layout_source="none",
         )
+    if layouts is not None and meta.top_mark_id not in layouts:
+        return JobResult(elr_no=meta.elr_no, processing_status=ProcessingStatus.FAILED,
+                         hold_reason=f'LAYOUT_ERROR: MARK_ID {meta.top_mark_id}: layout missing',
+                         resolution=resolution, verification_status=VerificationStatus.NOT_VERIFIABLE)
+
     # 4. SLR Extraction
     slr_texts: list[str] = []
     for ref in resolution.slr:
@@ -213,8 +232,60 @@ def process_elr(
     # CRITICAL INVARIANT: must run before touching oracle
     expected = generate_expected(meta, resolution, slr_facts, inference, rules)
 
+    layout_conflicts = {}
+    if layouts is not None:
+        try:
+            layout = layouts.get(meta.top_mark_id)
+            if layout is None:
+                raise LayoutError(f'MARK_ID {meta.top_mark_id}: layout missing')
+            top_lines = {line.line_no: line for line in expected.lines if line.side == Side.TOP}
+            formatted = []
+            for number in range(1, 6):
+                line = top_lines.get(number)
+                generated = line.text or '' if line else ''
+                if line:
+                    prefix = ''.join(token.text for token in line.tokens if token.source == 'REMARK')
+                    if prefix and generated.startswith(prefix + ' '):
+                        generated = prefix + generated[len(prefix) + 1:]
+                text, conflicts = fill_line_with_conflicts(layout, number, generated)
+                if conflicts:
+                    layout_conflicts[number] = conflicts
+                fixed_tokens = tuple(ExpectedToken(text=value, rule_id=f'LAYOUT:{layout.mark_id}:{number}:{col}',
+                                                   source='LAYOUT')
+                                     for (row, col), value in sorted(layout.cells.items())
+                                     if row == number and value != ' ')
+                if line is not None:
+                    formatted.append(replace(line, text=text, tokens=line.tokens + fixed_tokens))
+                elif text.strip():
+                    formatted.append(ExpectedLine(side=Side.TOP, line_no=number, text=text, tokens=fixed_tokens))
+            formatted.extend(line for line in expected.lines if line.side != Side.TOP)
+            expected = replace(expected, lines=tuple(formatted))
+        except LayoutError as exc:
+            return JobResult(
+                elr_no=meta.elr_no, processing_status=ProcessingStatus.FAILED,
+                hold_reason=f'LAYOUT_ERROR: {exc}', resolution=resolution,
+                verification_status=VerificationStatus.NOT_VERIFIABLE,
+                layout_source=inference.layout_source,
+            )
+
     # 7. Compare with Oracle
     comparisons = compare(expected, oracle, slr_facts, meta, rules)
+    if layouts is not None:
+        comparisons = tuple(
+            replace(item, warning='; '.join(filter(None, [item.warning, 'LAYOUT_POSITION'])))
+            if item.side == Side.TOP and item.status in (LineStatus.MATCH, LineStatus.MATCH_SLR, LineStatus.MATCH_LOT)
+            and item.expected is not None and oracle.get_raw(Side.TOP, item.line_no) is not None
+            and position_differs(item.expected, oracle.get_raw(Side.TOP, item.line_no))
+            else item for item in comparisons
+        )
+    if layout_conflicts:
+        comparisons = tuple(
+            replace(item, warning='; '.join(filter(None, [item.warning,
+                'LAYOUT_FIXED_CONFLICT: ' + ', '.join(
+                    f'col {col}: {old} -> {new}' for col, old, new in layout_conflicts[item.line_no])])) )
+            if item.side == Side.TOP and item.line_no in layout_conflicts else item
+            for item in comparisons
+        )
 
     # 8. Status Synthesis
     processing_status = ProcessingStatus.DONE

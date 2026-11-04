@@ -26,7 +26,7 @@
 
 ## 2. Hard Governance & Invariants
 
-1. **Oracle Independence**: `generate_expected()` must NEVER import, accept, inspect, or condition on Oracle `TOP_MARK1..5`, `BACK_MARK1..5`, `OracleMark`, or Oracle template layouts.
+1. **Oracle Independence (revised 2026-11-04)**: expected generation may use `MARK_ID_LAYOUT` as a template, but must not use Oracle `TOP_MARK1..5`, `BACK_MARK1..5`, or `OracleMark`. See the closeout revision plan.
 2. **Immutability**: All core domain structures (`ExpectedMark`, `ExpectedLine`, `ExpectedToken`, `JobResult`, etc.) must be `@dataclass(frozen=True, slots=True)` with immutable collections (`tuple`, `frozenset`).
 3. **No "PASS" Status**: The system strictly uses multi-axis statuses (`processing_status`, `verification_status`, `approval_status`, `eligibility_status`). No status enum or report column may contain the word "PASS".
 4. **SLR Gate Strictness (Spec V2)**: If an ELR lacks an SLR document, it must always enter `HOLD:SLR_NOT_FOUND`, even if Oracle `CUST_REQ_NO` is empty or N/A. Any divergence from Run 3 will be tagged with parity code `GATE_SPEC_V2`.
@@ -62,6 +62,15 @@
 ---
 
 ## 4. Live Changelog & Session Updates
+
+### 2026-11-05 — Phase 1 closeout in progress
+
+- Revised D-10: `MARK_ID_LAYOUT` is allowed in expected generation; Oracle TOP/BACK mark values remain excluded. Missing layout and overflow return `FAILED` for the ELR. FIX takes precedence and graphic conflicts are reported.
+- Applied migration 0004 UP on `mark_web`: six line review columns and `mark_logic.job_result`. Rollback-only loader smoke inserted 2,318 lines and rolled back; runs 1–14 remained intact. The sequence advanced during the dry run.
+- Fetched 402 July–November Oracle ELRs and 6,207 layout rows to ignored `artifacts/blind-2026h2/oracle/`. Extracted 287 ELR image mappings / 118 unique images; 115 document-resolution holds; zero extraction errors. All five NAS months are accessible.
+- Baseline regression without layout was byte-identical to run 14. After fixing fixed-cell alignment and preserving generated spaces, historical layout evaluation found 274/274 evaluable jobs independent and 107 layout-overflow jobs requiring reporting. Historical R0 parity includes spacing-related classifications and is not an unchanged-status gate for the new layout behavior.
+- AI validation: 95 historical images matched for OCR text/count/boxes and YOLO class/count/boxes within one pixel; six re-OCR candidates matched. A one-image historical deployment smoke passed on the AI server. OCR and symbol weight hashes matched the local registry.
+- Service boundaries are under `services/`; wheel packaging now includes rules and encoder data. Official freeze, blind AI inference, blind run, review exports and final DB load remain incomplete. Do not treat this entry as Phase 1 completion.
 
 ### 2026-11-04 (plan: Phase 1 close-out)
 - Plan [`docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md`](docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md): 11 tasks — `.env` + read-only ACTL client, migration 0004, ACTIVEL `MARK_ID_LAYOUT` positions (warning only, compare stage), FREEZE-R1, Oracle snapshot Jul–Nov, inference cache + Brand extraction, AI-server batch (determinism check vs R0), blind runner, DB load + Marking / rule-approval lists. Run order puts every `mark_engine/` change before the freeze.

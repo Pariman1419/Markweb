@@ -50,7 +50,9 @@ def get_layout_source(job: JobResult) -> str:
         return job.layout_source
     if any(job.elr_no.startswith(p) for p in AUTO_PREFIXES):
         return "auto"
-    return "human_crop"
+    if any(job.elr_no.startswith(p) for p in HUMAN_CROP_PREFIXES):
+        return "human_crop"
+    return "none"
 
 
 def compute_independence(
@@ -179,20 +181,39 @@ def compute(
     # Split by layout_source
     auto_jobs: list[JobResult] = []
     human_crop_jobs: list[JobResult] = []
+    none_jobs: list[JobResult] = []
 
     for j in jobs:
         source = get_layout_source(j)
         if source == "auto":
             auto_jobs.append(j)
-        else:
+        elif source == "human_crop":
             human_crop_jobs.append(j)
+        else:
+            none_jobs.append(j)
 
-    auto_in_scope = {e for e in in_scope_elrs if any(e.startswith(p) for p in AUTO_PREFIXES)}
-    human_in_scope = {e for e in in_scope_elrs if not any(e.startswith(p) for p in AUTO_PREFIXES)}
+    auto_in_scope = {j.elr_no for j in auto_jobs if j.elr_no in in_scope_elrs}
+    human_in_scope = {j.elr_no for j in human_crop_jobs if j.elr_no in in_scope_elrs}
 
     overall["by_layout_source"] = {
         "auto": _compute_subset(auto_jobs, auto_in_scope),
         "human_crop": _compute_subset(human_crop_jobs, human_in_scope),
+        "none": _compute_subset(none_jobs, {j.elr_no for j in none_jobs if j.elr_no in in_scope_elrs}),
     }
+
+    if oracle_snapshot is not None:
+        def include_failed_oracle_lines(result, group):
+            missing = sum(
+                sum(bool(str(text).strip()) for _, _, text in oracle_snapshot[job.elr_no][1].lines)
+                for job in group
+                if job.elr_no in in_scope_elrs and job.elr_no in oracle_snapshot
+                and job.processing_status == ProcessingStatus.FAILED and not job.comparisons
+            )
+            result['coverage_line_denom'] += missing
+            denominator = result['coverage_line_denom']
+            result['coverage_line'] = result['coverage_line_num'] / denominator if denominator else 0.0
+        include_failed_oracle_lines(overall, jobs)
+        for label, group in [('auto', auto_jobs), ('human_crop', human_crop_jobs), ('none', none_jobs)]:
+            include_failed_oracle_lines(overall['by_layout_source'][label], group)
 
     return overall

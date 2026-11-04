@@ -120,6 +120,8 @@ def main() -> None:
         default=8,
         help="Number of worker threads",
     )
+    parser.add_argument('--layouts', type=Path, default=None,
+                        help='Optional MARK_ID layout snapshot for closeout regression')
 
     args = parser.parse_args()
 
@@ -138,6 +140,13 @@ def main() -> None:
     meta_json_path = root / "experiments" / "abs_vs_db" / "out" / "elr_meta_2026.json"
     print(f"[*] Loading ELR snapshot: {meta_json_path}")
     snapshot = load_elr_snapshot(meta_json_path)
+    layouts = None
+    if args.layouts is not None:
+        from mark_engine.generate.mark_layout import parse_layout
+        data = json.loads(args.layouts.read_text(encoding='utf-8'))
+        layouts = {int(mark_id): parse_layout(int(mark_id),
+                   [dict(zip(('MARK_ROW', 'MARK_COLUMN', 'MARK_DATA'), row)) for row in cells])
+                   for mark_id, cells in data.items()}
 
     r0_line_result_path = WORKSPACE_ROOT / "artifacts" / "regression-r0" / "mark_logic" / "line_result.csv"
     r0legacy_path = WORKSPACE_ROOT / "artifacts" / "regression-r0" / "line_result_run2_529elr.csv"
@@ -166,11 +175,11 @@ def main() -> None:
     def run_one(item: tuple) -> tuple[JobResult, JobResult]:
         meta, oracle = item
         job_work = work_dir / meta.elr_no
-        job = process_elr(meta, oracle, root, args.months, job_work, rules, load_inference)
+        job = process_elr(meta, oracle, root, args.months, job_work, rules, load_inference, layouts=layouts)
         # Independence check (D-03): same ELR again with a blank OracleMark. The ExpectedMark
         # must be identical, otherwise generate depends on Oracle TOP/BACK_MARK.
         blank = process_elr(
-            meta, OracleMark(meta.elr_no, ()), root, args.months, job_work, rules, load_inference
+            meta, OracleMark(meta.elr_no, ()), root, args.months, job_work, rules, load_inference, layouts=layouts
         )
         return job, blank
 
@@ -190,6 +199,14 @@ def main() -> None:
     # 1. Compute Metrics
     print("[*] Computing regression metrics...")
     metrics = compute(jobs, snapshot, prefixes, blank_jobs=blank_jobs)
+    if layouts is not None:
+        eligible_pairs = [(job, blank) for job, blank in pairs if job.expected is not None]
+        equal = sum(job.expected == blank.expected for job, blank in eligible_pairs)
+        metrics['independence_num'] = equal
+        metrics['independence_denom'] = len(eligible_pairs)
+        metrics['independence_excluded'] = len(pairs) - len(eligible_pairs)
+        metrics['independence'] = equal / len(eligible_pairs) if eligible_pairs else None
+        metrics['layout_failed_jobs'] = sum(job.processing_status == ProcessingStatus.FAILED for job in jobs)
 
     # 2. Write metrics.json
     metrics_path = out_dir / "metrics.json"

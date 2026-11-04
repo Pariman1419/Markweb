@@ -15,7 +15,7 @@ FIXTURE_PATH = Path(__file__).resolve().parent.parent / "fixtures" / "elr_meta_s
 def test_elr_meta_has_no_mark_fields():
     field_names = [f.name.lower() for f in dataclasses.fields(ElrMeta)]
     assert not any("mark1" in name for name in field_names)
-    assert not any("top_mark" in name for name in field_names)
+    assert not any("top_mark" in name for name in field_names if name != "top_mark_id")
     assert not any("back_mark" in name for name in field_names)
 
 

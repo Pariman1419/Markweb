@@ -7,8 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from mark_engine.abs.layout import layout_lines
-from mark_engine.abs.symbols_to_lines import assign_graphics
+from mark_engine.abs.auto_inference import build_auto_inference
 from mark_engine.domain.models import ElrMeta, InferenceResult, LayoutLine, OracleMark, Side
 
 
@@ -65,12 +64,15 @@ def load_elr_snapshot(path: Path) -> dict[str, tuple[ElrMeta, OracleMark]]:
             mark_require=_clean_str(upper_row.get("MARK_REQUIRE")),
             top_type_code=_clean_str(upper_row.get("TOP_TYPE_CODE")),
             top_layout_code=_clean_str(upper_row.get("TOP_LAYOUT_CODE")),
+            top_mark_id=int(upper_row["TOP_MARK_ID"]) if upper_row.get("TOP_MARK_ID") is not None else None,
         )
 
         lines: list[tuple[Side, int, str]] = []
+        raw_lines: list[tuple[Side, int, str]] = []
         for i in range(1, 6):
             val = upper_row.get(f"TOP_MARK{i}")
             if val is not None:
+                raw_lines.append((Side.TOP, i, str(val)))
                 cleaned = str(val).strip()
                 if cleaned:
                     lines.append((Side.TOP, i, cleaned))
@@ -78,11 +80,12 @@ def load_elr_snapshot(path: Path) -> dict[str, tuple[ElrMeta, OracleMark]]:
         for i in range(1, 6):
             val = upper_row.get(f"BACK_MARK{i}")
             if val is not None:
+                raw_lines.append((Side.BOTTOM, i, str(val)))
                 cleaned = str(val).strip()
                 if cleaned:
                     lines.append((Side.BOTTOM, i, cleaned))
 
-        oracle_mark = OracleMark(elr_no=elr_no, lines=tuple(lines))
+        oracle_mark = OracleMark(elr_no=elr_no, lines=tuple(lines), raw_lines=tuple(raw_lines))
         result[elr_no] = (meta, oracle_mark)
 
     return result
@@ -202,28 +205,8 @@ def load_inference(root: Path, elr_no: str, abs_file_stem: str) -> InferenceResu
                 det_data = _load_json_cached(str(detections_path))
                 detections = det_data.get(img_stem) or det_data.get(matched_image) or []
 
-            lines = layout_lines(items)
-            gfx = assign_graphics(lines, detections)
-
             reocr = _load_reocr(str(root / "experiments" / "abs_vs_db" / "out" / "ocr_reocr.csv"))
-            lines_by_key = {
-                (s, n): (_reread(reocr, f"{img_stem}|{s.value}|{n}", txt), sc) for s, n, txt, sc, bb in lines
-            }
-            all_keys = sorted(
-                set(lines_by_key.keys()) | set(gfx.keys()),
-                key=lambda k: (0 if k[0] == Side.TOP else 1, k[1]),
-            )
-            layout_lines_result = tuple(
-                LayoutLine(
-                    side=s,
-                    line_no=n,
-                    text=lines_by_key.get((s, n), ("", None))[0],
-                    graphics=gfx.get((s, n), ""),
-                    score=lines_by_key.get((s, n), ("", None))[1],
-                )
-                for s, n in all_keys
-            )
-            return InferenceResult(elr_no=clean_elr, lines=layout_lines_result, layout_source="auto")
+            return build_auto_inference(clean_elr, img_stem, items, detections, reocr)
 
     # 2. Jan-Apr check
     manifest_map = _load_manifest_mapping(str(root))

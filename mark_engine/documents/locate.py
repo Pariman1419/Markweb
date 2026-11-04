@@ -5,7 +5,19 @@ from typing import Iterable
 RANGE_PATTERN = re.compile(r"^ADI(\d{4})(\d{3})-(\d{1,3})$")
 
 
-def find_elr_folders(root: Path, elr_no: str, months: Iterable[str]) -> list[tuple[Path, str]]:
+def build_folder_index(root: Path, months: Iterable[str]) -> dict[str, tuple[Path, ...]]:
+    """Snapshot month directory entries once for a batch; fail on missing months."""
+    result = {}
+    for month in months:
+        directory = root / month
+        if not directory.is_dir():
+            raise FileNotFoundError(f'NAS month unavailable: {directory}')
+        result[month] = tuple(sorted((p for p in directory.iterdir() if p.is_dir()), key=lambda p: p.name))
+    return result
+
+
+def find_elr_folders(root: Path, elr_no: str, months: Iterable[str], *,
+                     index: dict[str, tuple[Path, ...]] | None = None) -> list[tuple[Path, str]]:
     """Scan <root>/<month> for directories matching the given ELR number.
 
     Returns a list of tuples (folder_path, kind) where kind is one of:
@@ -17,11 +29,14 @@ def find_elr_folders(root: Path, elr_no: str, months: Iterable[str]) -> list[tup
 
     for month in months:
         month_dir = root / month
-        if not month_dir.is_dir():
-            continue
-
-        # Sort subdirectories for deterministic discovery
-        subdirs = sorted([p for p in month_dir.iterdir() if p.is_dir()], key=lambda p: p.name)
+        if index is not None:
+            if month not in index:
+                raise ValueError(f'month absent from folder index: {month}')
+            subdirs = index[month]
+        else:
+            if not month_dir.is_dir():
+                continue
+            subdirs = sorted([p for p in month_dir.iterdir() if p.is_dir()], key=lambda p: p.name)
         for folder in subdirs:
             name = folder.name
 

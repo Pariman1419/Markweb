@@ -1,0 +1,12 @@
+{
+  "historical_images": 95,
+  "ocr_image_id": "sha256:e437bcc7b08c8deb5905e3fe7dd9301e7aaeeaf2c3194e184e46d2b784e6efd5",
+  "ocr_rec_sha256": "eb1105c4c3cd2bfdd794303474b4b60e053706e4030184f2b2df9346c8a16bbe",
+  "symbol_sha256": "a8f4e910f8213e3e73eddfc1f94c889f40aabc1947699cc06064cfc436391562",
+  "detector_sha256": "183146fe9d9910352f68482f623bcbbb9fa7b9e8fa1463b9ad288cef00524d2d",
+  "detector_config_sha256": "af5876933d8806a1b50d895867e0781e135cd92ff37381992828fc8d1b842d28",
+  "detector_settings_sha256": "28fb721efc3634fc8aa677e474b9602cb815a91cf569ef357a7a553d7b3ce685",
+  "ultralytics_version": "8.3.40",
+  "torch_version": "2.4.0+cu121",
+  "reocr_url": "http://10.151.28.9:8095"
+}

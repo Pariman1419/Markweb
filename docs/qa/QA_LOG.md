@@ -371,3 +371,38 @@
 ### Prevention / Rules Learned
 - Check `git check-ignore` before writing any secret file. Freeze hashes all of `mark_engine/`, so new engine files must land before the freeze.
 
+---
+
+## [2026-11-04] Closeout layout revision in progress
+
+### Context & Symptom
+- The user clarified that ACTIVEL layout is an input to expected generation and fixed cells override generated values.
+
+### Root Cause
+- The previous plan treated layout only as a comparison warning and prohibited it from expected generation.
+
+### Resolution & Code Fix
+- Added the revised plan, Oracle read-only client, layout parser, top mark ID metadata, and migration/loader preparation. Layout alignment and pipeline integration remain incomplete.
+- The full suite passed 232 tests. Oracle read-only query returned 70 layout records for 20168; AI-server SSH authentication succeeded. Migration 0004 was not applied; PostgreSQL password is absent.
+
+### Prevention / Rules Learned
+- Validate alignment and fixed-symbol handling against representative layouts before freezing. Never report an unfinished blind run as complete.
+
+---
+
+## [2026-11-05] Closeout deployment and historical validation
+
+### Context & Symptom
+- The user needs separate deployment units and a completed Phase 1 blind evaluation. The configured NAS path had one leading backslash, the wheel omitted required rule data, and failures before comparison had no persistent job row.
+
+### Root Cause
+- The NAS path was not a valid UNC path; setuptools package data was unspecified; the old database loader stored line rows only. The historic auto/human metric split inferred cohort from month prefixes, misclassifying new months.
+
+### Resolution & Code Fix
+- Corrected the NAS configuration example and local ignored `.env`. Added engine, inference and DBA boundaries under `services/`, included rule data in the wheel, added layout-aware generation and per-ELR errors, and preserved job outcomes in migration 0004.
+- Applied migration 0004, verified its columns and table, and performed a rollback-only database load without changing existing runs. Retrieved the July–November snapshot and extracted images. Historical OCR/YOLO/re-OCR checks and one-image deployment smoke passed. After fixed-cell alignment and whitespace corrections, layout regression found 107 overflow jobs and 274/274 evaluable independence checks.
+- Official blind inference, freeze, blind report, team exports and database load remain open; no completion claim is made.
+
+### Prevention / Rules Learned
+- Check wheel contents, preserve job-level failures and verify model provenance, snapshots, image hashes and inference completeness before an official run. Report independence with the number checked and excluded.
+

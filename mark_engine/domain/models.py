@@ -77,18 +77,26 @@ class ElrMeta:
     mark_require: str | None = None
     top_type_code: str | None = None
     top_layout_code: str | None = None
+    top_mark_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class OracleMark:
     elr_no: str
     lines: tuple[tuple[Side, int, str], ...] = ()
+    raw_lines: tuple[tuple[Side, int, str], ...] = ()
 
     def get(self, side: Side, n: int) -> str:
         for s, line_no, text in self.lines:
             if s == side and line_no == n:
                 return text
         return ""
+
+    def get_raw(self, side: Side, n: int) -> str | None:
+        for s, line_no, text in self.raw_lines:
+            if s == side and line_no == n:
+                return text
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,7 +160,7 @@ class SlrFacts:
 class ExpectedToken:
     text: str
     rule_id: str
-    source: Literal["ABS", "SLR", "REMARK", "ADI1039", "SYMBOL_ADI", "OCR_FIX", "YOLO"]
+    source: Literal["ABS", "SLR", "REMARK", "ADI1039", "SYMBOL_ADI", "OCR_FIX", "YOLO", "LAYOUT"]
     lot_slice: str | None = None
 
 

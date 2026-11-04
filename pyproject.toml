@@ -23,6 +23,10 @@ dev = [
 where = ["."]
 include = ["mark_engine*"]
 
+[tool.setuptools.package-data]
+"mark_engine.rules" = ["data/*.json"]
+"mark_engine.encode" = ["data/*.json", "data/*.csv"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]

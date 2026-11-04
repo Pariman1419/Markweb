@@ -1,0 +1,34 @@
+{
+ "layout": "models/<name>/<version>/ (spec sec.7)",
+ "models": [
+  {
+   "name": "ocr-rec-exp09",
+   "version": "ep40",
+   "status": "production",
+   "path": "ocr-rec-exp09/ep40/",
+   "weights_sha256": "eb1105c4c3cd2bfdd794303474b4b60e053706e4030184f2b2df9346c8a16bbe"
+  },
+  {
+   "name": "symdet",
+   "version": "v2",
+   "status": "production",
+   "path": "symdet/v2/",
+   "weights_sha256": "a8f4e910f8213e3e73eddfc1f94c889f40aabc1947699cc06064cfc436391562"
+  },
+  {
+   "name": "trocr-exp08a",
+   "version": "ep12",
+   "status": "archived (not production)",
+   "path": "trocr-exp08a/ep12/",
+   "weights_sha256": "e4b067770ea531546eb377402704dd0702e82b7896193f9deebd90b4db50c28d"
+  },
+  {
+   "name": "ocr-det-ppocrv5-server",
+   "version": "pretrained",
+   "status": "production (external)",
+   "path": null,
+   "weights_sha256": null,
+   "notes": "PP-OCRv5_server_det, not fine-tuned; downloaded by PaddleX on first use; CPU needs enable_mkldnn=False"
+  }
+ ]
+}

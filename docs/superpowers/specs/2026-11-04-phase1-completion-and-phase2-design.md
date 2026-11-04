@@ -49,7 +49,7 @@ Phase 1 (engine offline) ผ่านเกณฑ์แล้ว (parity BUG 0, 
 | # | งาน | ทำไม | เสร็จเมื่อ |
 |---|---|---|---|
 | A1 | **Rule freeze** — ติด tag rule version (กฎ D-01…D-29 + `logic_rule` ปัจจุบัน) | blind test ห้ามแก้กฎระหว่างวัด (spec หลัก §17) | git tag + `rule_version` hash ใน DB run |
-| A2 | **Layout จาก `MARK_ID_LAYOUT`** — อ่าน template ของ TOP_MARK_ID, วาง expected ลงช่องที่ต้องกรอก, ยืนยันข้อ 2.1 | preview ต้องบอกได้ว่าใส่ช่องไหนเว้นช่องไหนแบบ ACTIVEL **[ผู้ใช้]** และตอนนี้ระบบเทียบแบบไม่สนช่องว่าง | snapshot layout ใน DB, รายงานจำนวนบรรทัดที่ตำแหน่งต่าง (เป็น **Warning** ไม่เปลี่ยนสถานะเดิม **[Claude]**) |
+| A2 | **ACTIVEL layout in expected generation** | Read the TOP MARK_ID layout; listed cells reserve their position, blank MARK_DATA stays blank and nonblank MARK_DATA is fixed. Fill unlisted cells from generator output; FIX wins over generator conflicts. Missing layout or overflow is a per-ELR error. | Preserve raw Oracle positions for warnings; expected must remain independent of TOP/BACK mark values. |
 | A3 | **Blind test ก.ค.–พ.ย. 2026** — ดึง ELR จาก Oracle + เอกสารจาก NAS, รัน OCR/YOLO (โมเดลเวอร์ชันเดียวกับ R1), รัน engine ด้วยกฎที่ freeze | วัดความแม่นบนข้อมูลที่ไม่เคยใช้ปรับกฎ | DB run ใหม่ (run_id ใหม่, ไม่ทับ run 1–14) + metrics ตาม spec หลัก §18 แยก Coverage / Hold / Agreement |
 | A4 | **Migrations 0001–0003** + คอลัมน์จริง `final_status`, `review_detail`, `warning`, `system_status` แทนการยัดใน `cause_detail` | ให้ Phase 2 อ่านได้ตรง ๆ | migration รันบน DB dev, run 14 โหลดซ้ำได้ผลเดิม |
 | A5 | **ส่งกฎ D-22…D-29 ให้ Mark Eng อนุมัติ** → `logic_rule` (`approval_status`) | กฎ oracle_derived ห้าม MATCH_ALL ถ้ายังไม่อนุมัติ (spec หลัก §18) | รายการกฎ + ผลอนุมัติใน DB |
