@@ -63,6 +63,12 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-04 (plan: Phase 1 close-out)
+- Plan [`docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md`](docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md): 11 tasks — `.env` + read-only ACTL client, migration 0004, ACTIVEL `MARK_ID_LAYOUT` positions (warning only, compare stage), FREEZE-R1, Oracle snapshot Jul–Nov, inference cache + Brand extraction, AI-server batch (determinism check vs R0), blind runner, DB load + Marking / rule-approval lists. Run order puts every `mark_engine/` change before the freeze.
+- User answers recorded in spec §9: no email/Teams (UI only); debug G1–G9 after blind test; credentials in git-ignored `.env` (`.env.example` committed).
+- `.gitignore`: `.superpowers/`, `.env`, `.env.*` (keeps `.env.example`).
+- Not started: waiting for the user to review the plan and choose how to execute it.
+
 ### 2026-11-04 (next-phase design)
 - New design: [`docs/superpowers/specs/2026-11-04-phase1-completion-and-phase2-design.md`](docs/superpowers/specs/2026-11-04-phase1-completion-and-phase2-design.md) — part A closes Phase 1 (A1 rule freeze … A8 merge), part B = Phase 2 on the user's microservices architecture (B1–B7); web scope TOP only; Dashboard + ELR Preview + edit/approve (mockups v5–v6 in `.superpowers/brainstorm/`, not committed).
 - Access now works: Oracle ACTL direct (thick mode) reads `MARK_ID_LAYOUT` / `MARK_ID_INSTRUC` / `MARK_ID_SYMBOL` / `PROD_MARKLAYOUT`; NAS `ELR Online 2026` 1_JAN…11_NOV readable with the account the user gave. Credentials only via env vars, never in files.

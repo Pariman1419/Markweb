@@ -26,8 +26,8 @@ Phase 1 (engine offline) ผ่านเกณฑ์แล้ว (parity BUG 0, 
 | Oracle `ACTL` (10.151.26.3:1521, user ACTLUSR) | อ่าน `MARK_ID_LAYOUT` / `INSTRUC` / `SYMBOL` / `PROD_MARKLAYOUT` ผ่าน `@actl` ไม่ได้ (ORA-00942) | ต่อตรงด้วย python-oracledb **thick mode** (Oracle 10g, Instant Client `Search_data/.tools/instantclient_21_13`) อ่านได้ทั้ง 4 ตาราง |
 | NAS `\\th1srnas03\ELR\ADI\ELR Online 2026` | Access denied | เปิดได้ด้วยบัญชีที่ผู้ใช้ให้ มีโฟลเดอร์ 1_JAN … 11_NOV |
 
-รหัสผ่านทั้งสองใช้ผ่าน environment variable เท่านั้น (`ACTL_USER`, `ACTL_PASSWORD`, `NAS_USER`, `NAS_PASSWORD`)
-ไม่อยู่ใน repo / memory / log **[Claude]** · รหัสถูกส่งผ่านแชท → ควรเปลี่ยนก่อนขึ้นระบบจริง (spec หลัก §16)
+รหัสผ่านอยู่ใน `.env` (ignored) และอ่านผ่าน env เท่านั้น (`ACTL_*`, `NAS_*`, `MARK_PG_PASSWORD`)
+ไม่อยู่ใน git / memory / log **[ผู้ใช้ 9.3]** · รหัสถูกส่งผ่านแชท → ควรเปลี่ยนก่อนขึ้นระบบจริง (spec หลัก §16)
 
 ### 2.1 `MARK_ID_LAYOUT` คืออะไร
 
@@ -53,11 +53,11 @@ Phase 1 (engine offline) ผ่านเกณฑ์แล้ว (parity BUG 0, 
 | A3 | **Blind test ก.ค.–พ.ย. 2026** — ดึง ELR จาก Oracle + เอกสารจาก NAS, รัน OCR/YOLO (โมเดลเวอร์ชันเดียวกับ R1), รัน engine ด้วยกฎที่ freeze | วัดความแม่นบนข้อมูลที่ไม่เคยใช้ปรับกฎ | DB run ใหม่ (run_id ใหม่, ไม่ทับ run 1–14) + metrics ตาม spec หลัก §18 แยก Coverage / Hold / Agreement |
 | A4 | **Migrations 0001–0003** + คอลัมน์จริง `final_status`, `review_detail`, `warning`, `system_status` แทนการยัดใน `cause_detail` | ให้ Phase 2 อ่านได้ตรง ๆ | migration รันบน DB dev, run 14 โหลดซ้ำได้ผลเดิม |
 | A5 | **ส่งกฎ D-22…D-29 ให้ Mark Eng อนุมัติ** → `logic_rule` (`approval_status`) | กฎ oracle_derived ห้าม MATCH_ALL ถ้ายังไม่อนุมัติ (spec หลัก §18) | รายการกฎ + ผลอนุมัติใน DB |
-| A6 | **Debug G1–G9** (doc 10 §6) | ผู้ใช้ให้เก็บไว้ทำทีหลัง | ดูคำถามข้อ 9.2 ว่าทำก่อนหรือหลัง freeze |
+| A6 | **Debug G1–G9** (doc 10 §6) | ผู้ใช้ให้เก็บไว้ทำทีหลัง | หลัง blind test (ข้อ 9.2) — แก้แล้วได้ rule version ใหม่ ไม่ทับผล blind test |
 | A7 | **รายการส่งทีม Marking**: DB_WRONG 17 + config alert 183 บรรทัด (G7–G8) | ข้อมูล Oracle ผิดต้องให้ทีม Marking แก้เอง (ระบบไม่เขียน Oracle) | CSV ส่งได้ |
 | A8 | **Merge / push branch `phase1/mark-engine`** | รอผู้ใช้สั่ง | ผู้ใช้สั่ง |
 
-ลำดับ **[Claude]**: A4 → A2 → (A6 ตามคำตอบ 9.2) → A1 → A3 → A7; A5 เดินคู่กันได้ตลอด
+ลำดับ **[ผู้ใช้ 9.2]**: A4 → A2 → A1 → A3 → A7 → A6 (debug ทีหลัง); A5 เดินคู่กันได้ตลอด
 
 ---
 
@@ -158,7 +158,8 @@ Airflow เรียก API ไม่เขียนตารางเอง · 
 ชื่อไฟล์ / โครงแพ็กเกจของ service, ไลบรารีกราฟใน React, รูปแบบ API (REST), รายละเอียด migration, วิธี batch OCR สำหรับ A3
 (ต้องใช้โมเดลเวอร์ชันเดียวกับ R1 และบันทึกเวอร์ชัน)
 
-## 9. คำถามที่ผู้ใช้ต้องตอบ
+## 9. คำตอบผู้ใช้ (2026-11-04)
 
-1. **Notification:** แผนภาพเขียน Notification Service = Email / Teams แต่ spec หลัก §11 ผู้ใช้เคยตัดสินว่า "ไม่ส่ง Teams/อีเมล แจ้งในหน้า UI เท่านั้น" — ใช้แบบไหน
-2. **Debug G1–G9 ก่อนหรือหลัง rule freeze:** ถ้าแก้ก่อน blind test จะได้กฎดีขึ้นแต่ต้องแก้บนข้อมูล ม.ค.–มิ.ย. เท่านั้น; ถ้าแก้หลัง ผล blind test สะท้อนกฎ run 14 ตรง ๆ
+1. **Notification [ผู้ใช้]:** ยังไม่ส่ง Email / Teams — แจ้งผ่านหน้าจอ UI เท่านั้น (badge / รายการ HOLD) ตาม spec หลัก §11 · Notification Service ใน B6 ทำแค่ตาราง `notification` สำหรับหน้าจอ
+2. **Debug G1–G9 [ผู้ใช้]:** ทำทีหลัง — blind test (A3) รันด้วยกฎ run 14 ที่ freeze (A1) ตรง ๆ · ลำดับส่วน A จึงเป็น A4 → A2 → A1 → A3 → A7 แล้วค่อย A6
+3. **Credentials [ผู้ใช้]:** เก็บใน `.env` ที่ root ของ repo (อยู่ใน `.gitignore`) · `.env.example` มีแต่ชื่อตัวแปร · โค้ดอ่านผ่าน env เท่านั้น

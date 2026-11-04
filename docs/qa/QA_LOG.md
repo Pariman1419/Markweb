@@ -352,3 +352,22 @@
 ### Prevention / Rules Learned
 - Credentials pasted in chat are used only as env vars in the command; never written to repo, memory or logs. Recommend rotating them before go-live.
 
+---
+
+## [2026-11-04] Plan for Phase 1 close-out; credentials moved to .env
+
+### Context & Symptom
+- **Component / Path**: [`docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md`](file:///D:/CIM%20Project/mark-web/docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md), `.gitignore`, `.env.example`
+- **Question / Issue**: user answered the open design questions and asked for the plan; asked to keep the Oracle / NAS credentials in `.env` so they are not asked again.
+
+### Root Cause
+- `.env` was not in `.gitignore`; writing secrets there would have made them committable.
+
+### Resolution & Code Fix
+- `.gitignore` gets `.env`, `.env.*`, `!.env.example`; `git check-ignore .env` confirmed before writing the file. `.env.example` holds names only.
+- Plan written: 11 tasks; blind test needs batch OCR/YOLO on the AI server (no paddle / GPU on the dev PC) with a determinism check against R0 May–Jun outputs first.
+- ACTIVEL positions go in compare stage, not generate, to keep D-10 (generator never reads `MARK_ID_LAYOUT`).
+
+### Prevention / Rules Learned
+- Check `git check-ignore` before writing any secret file. Freeze hashes all of `mark_engine/`, so new engine files must land before the freeze.
+

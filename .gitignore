@@ -10,3 +10,7 @@ models/**/*.pdiparams
 models/**/*.pt
 models/**/*.safetensors
 models/**/inference.json
+.superpowers/
+.env
+.env.*
+!.env.example
