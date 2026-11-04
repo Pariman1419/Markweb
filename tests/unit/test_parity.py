@@ -129,3 +129,18 @@ from mark_engine.regression.parity import classify
 )
 def test_parity_classify_codes(r1_row, r0_row, r0legacy_row, expected_reason):
     assert classify(r1_row, r0_row, r0legacy_row) == expected_reason
+
+
+def test_parity_abs_no_normalised():
+    """R1 abs_no is a file stem (ABS066973-ENG-1); R0 is ABS066973 -> same ABS, not RESOLVER_CHANGED."""
+    r1 = {"status": "MATCH", "expected_mark": "ADW", "abs_no": "ABS066973-ENG-1",
+          "elr_no": "ADI2601023", "side": "TOP", "line_no": 1}
+    r0 = {"status": "MATCH", "final_mark": "ADW", "abs_no": "ABS066973", "cause": "OK"}
+    assert classify(r1, r0, None) == "SAME"
+
+
+def test_parity_r0_db_line_empty_is_oracle_influence():
+    """R0 cause DB_LINE_EMPTY matched only because Oracle was empty (R0 rule needs db_mark == '')."""
+    r1 = {"status": "DB_EMPTY", "expected_mark": "@ EB{1-DC}", "elr_no": "ADI2602124", "side": "TOP", "line_no": 1}
+    r0 = {"status": "MATCH", "final_mark": "@ MYW", "cause": "DB_LINE_EMPTY"}
+    assert classify(r1, r0, None) == "ORACLE_INFLUENCE_REMOVED"

@@ -93,6 +93,15 @@ def apply_adi1039(text: str, doc_type: DocType) -> tuple[str, tuple[ExpectedToke
         return repl
 
     current = re.sub(r"\{Lot-(\d)\}", _repl_lot_n, current, flags=re.IGNORECASE)
+    # Same token in its Table 2 preview-text form, as printed in ABS legends:
+    # "7 Digit Lot Number", "LAST 2 DIGIT LOT NUMBER". No trailing \b: OCR often glues the
+    # next field ("3 DIGIT LOT NUMBERYWW"), and no leading \b: "YW6 DIGIT LOT NUMBER".
+    current = re.sub(
+        r"(?:\bLAST\s+)?(?<!\d)(\d)\s*DIGIT\s+LOT\s+NUMBER",
+        _repl_lot_n,
+        current,
+        flags=re.IGNORECASE,
+    )
 
     # 4. Date codes and other CSV tokens: {DC-4}, {DC-3}, {DC-2}, {DC-1}, {Pb-Free}, {FACTORYCODE}
     def _repl_token(repl: str, rule_id: str = "R07-ADI1039"):

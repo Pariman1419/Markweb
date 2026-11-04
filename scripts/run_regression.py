@@ -7,6 +7,7 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 # Ensure workspace root is in sys.path
 WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +20,7 @@ from mark_engine.adapters.snapshot import (
     r0_root,
     verify_r0_root,
 )
-from mark_engine.domain.models import JobResult, LineStatus, ProcessingStatus
+from mark_engine.domain.models import JobResult, LineStatus, OracleMark, ProcessingStatus
 from mark_engine.pipeline import process_elr
 from mark_engine.regression.metrics import COMPARED_STATUSES, MATCH_ALL_STATUSES, compute
 from mark_engine.regression.parity import classify
@@ -113,14 +114,25 @@ def main() -> None:
     ]
     print(f"[*] Total in-scope ELRs to process: {len(in_scope_items)}")
 
-    def run_one(item: tuple) -> JobResult:
+    def run_one(item: tuple) -> tuple[JobResult, JobResult]:
         meta, oracle = item
         job_work = work_dir / meta.elr_no
-        return process_elr(meta, oracle, root, args.months, job_work, rules, load_inference)
+        job = process_elr(meta, oracle, root, args.months, job_work, rules, load_inference)
+        # Independence check (D-03): same ELR again with a blank OracleMark. The ExpectedMark
+        # must be identical, otherwise generate depends on Oracle TOP/BACK_MARK.
+        blank = process_elr(
+            meta, OracleMark(meta.elr_no, ()), root, args.months, job_work, rules, load_inference
+        )
+        return job, blank
 
-    print(f"[*] Running pipeline with {args.workers} workers...")
+    print(f"[*] Running pipeline (+ blank-Oracle re-run) with {args.workers} workers...")
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
-        jobs = list(executor.map(run_one, in_scope_items))
+        pairs = list(executor.map(run_one, in_scope_items))
+    jobs = [p[0] for p in pairs]
+    blank_jobs = [p[1] for p in pairs]
+    leaks = sorted(j.elr_no for j, b in pairs if j.expected != b.expected)
+    if leaks:
+        print(f"[!] Independence leak in {len(leaks)} ELR(s): {', '.join(leaks[:20])}")
 
     # Sort jobs by elr_no
     jobs.sort(key=lambda j: j.elr_no)
@@ -128,7 +140,7 @@ def main() -> None:
 
     # 1. Compute Metrics
     print("[*] Computing regression metrics...")
-    metrics = compute(jobs, snapshot, prefixes)
+    metrics = compute(jobs, snapshot, prefixes, blank_jobs=blank_jobs)
 
     # 2. Write metrics.json
     metrics_path = out_dir / "metrics.json"
@@ -298,7 +310,8 @@ def main() -> None:
     print(f"Coverage Line:          {metrics['coverage_line']:.2%} ({metrics['coverage_line_num']}/{metrics['coverage_line_denom']})")
     print(f"Hold Rate:              {metrics['hold_rate']:.2%} ({metrics['hold_count']}/{metrics['total_jobs']})")
     print(f"Oracle Agreement:       {metrics['oracle_agreement']:.2%} ({metrics['oracle_agreement_num']}/{metrics['oracle_agreement_denom']})")
-    print(f"Independence:           {metrics['independence']:.2%}")
+    ind = metrics["independence"]
+    print(f"Independence:           {'NOT MEASURED' if ind is None else f'{ind:.2%}'}")
     print(f"Needs Review Lines:     {metrics['needs_review_lines']}")
     print("Status counts:")
     for st, cnt in metrics["status_counts"].items():

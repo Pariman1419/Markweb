@@ -12,8 +12,17 @@ LINE_HEADER_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Coverage detector: a sentence is "about the mark" only when it names the mark itself.
+# Bare "lot" / "attachment" / "top" are NOT enough: in Jan-Jun SLRs they appear almost only in
+# wafer / fab-lot / logistics notes ("SPECIAL LOT REQUEST" header, "Fab Lot ID", "IB Lot"), which
+# flagged 191 ELRs as SLR_UNRESOLVED although 86 % of those lines already matched Oracle.
 MARKING_KEYWORDS_RE = re.compile(
-    r"\b(line|brand|mark|top|bottom|logo|lot|date\s+code|symbol|laser|attachment)\b",
+    r"\b(?:"
+    r"brand\w*|mark(?:ing|ings|s|ed)?|logo|symbol|laser|date\s*code"
+    r"|line\s*\d+|(?:first|second|third|fourth|fifth)\s+line"
+    r"|(?:top|bottom)\s*side"
+    r"|attach\w*\s+for\s+(?:further\s+|more\s+)?instructions?"
+    r")\b",
     re.IGNORECASE,
 )
 

@@ -56,18 +56,22 @@ def get_layout_source(job: JobResult) -> str:
 def compute_independence(
     jobs: Sequence[JobResult],
     blank_jobs: Sequence[JobResult] | None = None,
-) -> float:
-    """Computes fraction of jobs whose ExpectedMark is identical without OracleMark."""
+) -> float | None:
+    """Fraction of jobs whose ExpectedMark is identical when re-run with a blank OracleMark.
+
+    Returns None when no blank re-run was supplied (independence not measured) — never a
+    default 1.0, so a missing check cannot pass the D-03 gate.
+    Jobs are paired by elr_no; a job without a blank counterpart counts as not independent.
+    """
+    if blank_jobs is None:
+        return None
     if not jobs:
         return 1.0
-    if blank_jobs is None:
-        return 1.0
-    if len(jobs) != len(blank_jobs):
-        return 0.0
-
+    blank_by_elr = {b.elr_no: b for b in blank_jobs}
     match_count = 0
-    for j, b in zip(jobs, blank_jobs):
-        if j.expected == b.expected:
+    for j in jobs:
+        b = blank_by_elr.get(j.elr_no)
+        if b is not None and j.expected == b.expected:
             match_count += 1
     return match_count / len(jobs)
 

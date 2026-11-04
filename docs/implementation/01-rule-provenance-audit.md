@@ -149,3 +149,18 @@
 2. Mark Eng ทบทวน 9 ORACLE_DERIVED + R04-SLR-QUAL — จนกว่าจะอนุมัติ กฎ generate ที่เป็น ORACLE_DERIVED ทำให้บรรทัดเป็น NEEDS_REVIEW
 3. R03-ONE-ABS ต้องถูกแทนด้วย Document Resolver (03) — ห้ามย้ายเข้า `mark_engine`
 4. R04-SLR-LITERAL ย้ายเป็น compare-only และห้ามแก้ `expected_mark`
+
+## 7. การเปลี่ยน implementation ของกฎจาก R1 triage (2026-11-04, branch `phase1/r1-fixes`)
+
+ไม่มี rule_id ใหม่ และไม่เปลี่ยน `provenance_class`/approval ใน `RV-2026-11-04-R0` — ทุกข้อเป็นการทำให้โค้ดตรงกับเนื้อหากฎที่อนุมัติแล้ว
+หลักฐานทุกข้อมาจาก parity R1 vs R0 (ไม่ได้ fit กับ TOP/BACK_MARK: ข้อ 1–3 เป็น generate และพิสูจน์ด้วย independence 668/668)
+
+| # | rule_id | stage | เดิม (Phase 1 code) | ใหม่ | เหตุผล / หลักฐาน | ไฟล์ |
+|---|---|---|---|---|---|---|
+| 1 | R07-ADI1039-LOT | generate (P40) | รองรับเฉพาะ `{Lot-n}`, `{Lot-Full}`, `ASSEMBLY LOT NUMBER` | รูป preview text `n DIGIT LOT NUMBER` / `LAST n DIGIT LOT NUMBER` → `X`×n, `lot_slice = last-n` (ไม่ต้องมี `\b` หน้า/หลัง เพราะ OCR ติดกับฟิลด์ข้างเคียง: `YW6 DIGIT LOT NUMBER`, `3 DIGIT LOT NUMBERYWW`) | ADI1039 Table 2 (`adi1039_tokens.csv` คอลัมน์ preview_text "7 Digit Lot Number" = `{Lot-7}`); R0 `build_compare.py:53-54`; 87 บรรทัด BUG ใน R1 | `mark_engine/encode/adi1039.py` |
+| 2 | R07-OCRFIX-7 | generate (P50) | `COUNTRY OF ORIGINENGn` → `""` (ลบทั้งช่อง) | ตัดเฉพาะ suffix `ENGn` → `COUNTRY OF ORIGIN` แล้ว R07-ADI1039-COO แปลงเป็น `THAILAND` | คำอธิบายกฎ: "drafting suffixes (NUMBERU1, ORIGINENG2)" = ตัด suffix ไม่ใช่ลบฟิลด์; 7 บรรทัด (ADI2605079–090 TOP 5) | `mark_engine/encode/ocr_fix.py` |
+| 3 | R04-SLR-LINE (coverage) | generate (P10) | ประโยคที่มีคำ `line/brand/mark/top/bottom/logo/lot/date code/symbol/laser/attachment` แต่ไม่ได้ instruction → `SLR_UNRESOLVED` ทั้ง ELR | นับเฉพาะคำที่พูดถึงตัว mark: `brand*`, `mark(ing)`, `logo`, `symbol`, `laser`, `date code`, `line N`, `first…fifth line`, `top/bottom side`, `attachment for (further) instructions` | ประโยคที่โดน flag 191 ELR เกือบทั้งหมดเป็นเรื่อง wafer / fab lot / ขนส่ง (header "SPECIAL LOT REQUEST" 63, "IB Lot" 19, "Fab Lot ID" …); 689/803 บรรทัดเท่า Oracle อยู่แล้ว → 86 บรรทัด | `mark_engine/slr/parse.py` |
+| 4 | R07-ADI1039-COO | **compare** | expected `THAILAND` vs Oracle `THAIL` → DIFF | Oracle = expected ที่ย่อ `THAILAND` เหลือ prefix ≥ 4 ตัว (`THAI`…`THAILAN`) → `MATCH`, `compare_rules = (R07-ADI1039-COO,)`, `detail = COO_ABBREVIATED`; `THA`, `THAIX` ยังเป็น DIFF | ADI1039 5.5.3 "full name when space allows" (ย่อได้เมื่อพื้นที่ไม่พอ); Symbol ADI `{Country of Origin}` → THAI; R0 นับเป็น MATCH (MAPPING_RULE); 22 บรรทัด — แยกนับได้จาก `detail` | `mark_engine/compare/engine.py` |
+
+ข้อ 4 อยู่ใน Comparison Engine เท่านั้น (ไม่แก้ `ExpectedMark`) — expected ยังเป็น `THAILAND` ตาม ADI1039
+**[ต้องให้ Mark Eng ยืนยัน]** ว่าชื่อประเทศแบบย่อใน Oracle ยอมรับเป็น MATCH ได้ทุกกรณี หรือควรเป็น NEEDS_REVIEW เมื่อ ABS มีพื้นที่พอ

@@ -1,11 +1,22 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 MATCH_STATUSES = frozenset({"MATCH", "MATCH_SLR", "MATCH_SHIFT", "MATCH_LOT"})
 MISMATCH_STATUSES = frozenset({"DIFF", "DB_WRONG"})
 NON_MEASURABLE_STATUSES = frozenset({"NOT_MEASURABLE"})
 NON_ELIGIBLE_STATUSES = frozenset({"NOT_ELIGIBLE"})
+
+
+_ABS_NO_RE = re.compile(r"ABS\d{6}", re.IGNORECASE)
+
+
+def _abs_number(val: Any) -> str:
+    """Normalise an ABS identifier to ABS + 6 digits (R1 uses file stems like ABS066973-ENG-1)."""
+    s = _clean_str(val)
+    m = _ABS_NO_RE.search(s)
+    return m.group(0).upper() if m else s.upper()
 
 
 def _clean_str(val: Any) -> str:
@@ -66,9 +77,9 @@ def classify(
         return "GATE_SPEC_V2"
 
     # 3. RESOLVER_CHANGED: different ABS selected
-    r1_abs = _clean_str(r1_row.get("abs_no"))
-    r0_abs = _clean_str(r0_row.get("abs_no"))
-    if r1_abs and r0_abs and r1_abs.upper() != r0_abs.upper():
+    r1_abs = _abs_number(r1_row.get("abs_no"))
+    r0_abs = _abs_number(r0_row.get("abs_no"))
+    if r1_abs and r0_abs and r1_abs != r0_abs:
         return "RESOLVER_CHANGED"
 
     # 4. RESOLVER_CHANGED: ELR measurable status differs
@@ -103,7 +114,8 @@ def classify(
     # 8. ORACLE_INFLUENCE_REMOVED: R0 cause in (SLR_OVERRIDE, GRAPHIC_ONLY_LINE, NO_BRAND_LINE, LINE_SHIFT)
     #    or R0 status MATCH_SLR
     if (
-        r0_cause in ("SLR_OVERRIDE", "GRAPHIC_ONLY_LINE", "NO_BRAND_LINE", "LINE_SHIFT")
+        # DB_LINE_EMPTY: R0 matched only because the Oracle line was empty (needs db_mark == '')
+        r0_cause in ("SLR_OVERRIDE", "GRAPHIC_ONLY_LINE", "NO_BRAND_LINE", "LINE_SHIFT", "DB_LINE_EMPTY")
         or r0_status == "MATCH_SLR"
     ):
         return "ORACLE_INFLUENCE_REMOVED"

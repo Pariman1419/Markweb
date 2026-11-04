@@ -12,11 +12,13 @@ def _repl_u_suffix(m: re.Match[str]) -> str:
 
 
 def _repl_origin_eng(m: re.Match[str]) -> str:
-    # Handles THAI(?:LAND)?ENG\d -> THAILAND or ORIGINENG\d -> ""
-    val = m.group(0).upper()
-    if "THAI" in val:
+    # Handles THAI(?:LAND)?ENG\d -> THAILAND or (COUNTRY OF )ORIGINENG\d -> (COUNTRY OF )ORIGIN
+    # ORIGINENG\d -> keep the field text, drop the suffix ("COUNTRY OF ORIGIN" is then
+    # encoded by ADI1039 COO). Returning "" here erased the whole COO line.
+    val = m.group(0)
+    if "THAI" in val.upper():
         return "THAILAND"
-    return ""
+    return re.sub(r"ENG\d$", "", val, flags=re.IGNORECASE)
 
 
 def _repl_serial(m: re.Match[str]) -> str:

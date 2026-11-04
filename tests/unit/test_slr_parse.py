@@ -93,3 +93,39 @@ Scheduled Lot ID
     assert [(i.side, i.line_no, i.value) for i in facts.instructions] == [(Side.TOP, 1, "TOPVAL")]
     assert "Please brand per attachment." in facts.unresolved
     assert facts.scheduled_lots == ("7346019", "7346020")
+
+
+# Coverage must flag only sentences about the mark itself. Real Jan-Jun SLR sentences that
+# mention "lot" for wafer / fab / logistics reasons are not marking instructions (R1 triage:
+# 803 SLR_UNRESOLVED lines, 689 of them already equal to Oracle).
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "ANALOG DEVICES SPECIAL LOT REQUEST SLR231445 SLR231445 All information in this request is proprietary to ANALOG DEVICES INC.",
+        "This is an IB Lot.",
+        "Fab Lot ID: P64937.00 Wafer #: 2;",
+        "Please use fab lot Q67740.3 Wafer #5 for this build.",
+        "LT4356 - Mold compound change control lot",
+        "Use Lot#/W# as instructed below.",
+        "Data gathering is required (pls see attachment).",
+        "The old and new IPD dies have the same die ID (S7_2g TC24.5 (2 lines)), so please use the new die.",
+    ],
+)
+def test_logistics_lot_sentences_not_unresolved(sentence: str) -> None:
+    assert parse_slr(sentence).unresolved == ()
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Same date code with: SLR230991, SLR230992, SLR230993",
+        'Second line of brand content / marking: "LS1234v00" BEF Promis notes: 7.1 is costing off.',
+        "See attachment for further instructions.",
+        "Laser mark lot number on top side.",
+    ],
+)
+def test_marking_sentences_still_unresolved(sentence: str) -> None:
+    assert parse_slr(sentence).unresolved != ()
