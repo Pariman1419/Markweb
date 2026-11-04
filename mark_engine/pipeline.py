@@ -272,10 +272,12 @@ def process_elr(
     comparisons = compare(expected, oracle, slr_facts, meta, rules)
     if layouts is not None:
         comparisons = tuple(
-            replace(item, warning='; '.join(filter(None, [item.warning, 'LAYOUT_POSITION'])))
-            if item.side == Side.TOP and item.status in (LineStatus.MATCH, LineStatus.MATCH_SLR, LineStatus.MATCH_LOT)
-            and item.expected is not None and oracle.get_raw(Side.TOP, item.line_no) is not None
-            and position_differs(item.expected, oracle.get_raw(Side.TOP, item.line_no))
+            replace(item, warning='; '.join(filter(None, [item.warning,
+                    'LAYOUT_LINE_SHIFT' if item.status == LineStatus.MATCH_SHIFT else 'LAYOUT_POSITION'])))
+            if item.side == Side.TOP and (item.status == LineStatus.MATCH_SHIFT or
+               (item.status in (LineStatus.MATCH, LineStatus.MATCH_SLR, LineStatus.MATCH_LOT)
+                and item.expected is not None and oracle.get_raw(Side.TOP, item.line_no) is not None
+                and position_differs(item.expected, oracle.get_raw(Side.TOP, item.line_no))))
             else item for item in comparisons
         )
     if layout_conflicts:

@@ -406,4 +406,5 @@
 ### Prevention / Rules Learned
 - Check wheel contents, preserve job-level failures and verify model provenance, snapshots, image hashes and inference completeness before an official run. Report independence with the number checked and excluded.
 - Pre-freeze review identified and corrected middle-of-line FIX duplication, significant whitespace loss, asymmetric independence checks, unsafe loader status, missing-layout ordering and inference provenance validation. The full suite passed 272 tests before the freeze.
+- A historical page smoke exposed an additional classification defect: `NEEDS_REVIEW` with equal text appeared under TRUE. Stopped the in-progress blind OCR container, corrected the page, added shifted-line warnings and client runtime checks, and reran the suite (274 passed). Regenerate the freeze before rerunning inference.
 

@@ -78,7 +78,8 @@ def preflight(root: Path, months: list[str], cache: Path) -> None:
         raise ValueError('AI validation manifest hash differs')
     runtime = provenance.get('runtime', {})
     if any(runtime.get(key) != validation[key] for key in ('ocr_image_id', 'ocr_rec_sha256', 'symbol_sha256',
-           'detector_sha256', 'detector_config_sha256', 'detector_settings_sha256', 'ultralytics_version', 'torch_version')):
+           'detector_sha256', 'detector_config_sha256', 'detector_settings_sha256', 'ultralytics_version', 'torch_version',
+           'client_python', 'client_numpy', 'client_pillow', 'client_requests', 'client_paramiko')):
         raise ValueError('AI runtime differs from validation manifest')
     for name in ('det_rec.json', 'detections.json', 'reocr.csv'):
         if provenance['output_sha256'].get(name) != file_hash(cache / name):

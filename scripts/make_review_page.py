@@ -42,7 +42,7 @@ def classify(r: dict) -> tuple[str, str]:
     st, fin = r["status"], r.get("final_status") or r["status"]
     if fin in ('DB_WRONG', 'HUMAN_FIXED') or st == 'DIFF':
         return 'ERR', fin if fin in ('DB_WRONG', 'HUMAN_FIXED') else 'รอตรวจ · DIFF'
-    if st == 'NEEDS_REVIEW' and ns(r['expected_mark']) != ns(r['oracle_mark']):
+    if st == 'NEEDS_REVIEW':
         return 'ERR', 'รอตรวจ · ' + (r.get('flags', '').split(';')[0] or 'NEEDS_REVIEW')
     if r.get('warning') and not r['warning'].startswith('COO_ABBREVIATED'):
         return 'WARN', r['warning']

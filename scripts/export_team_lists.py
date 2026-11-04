@@ -15,7 +15,7 @@ def marking_team_rows(lines):
         detail = line.get('review_detail', '')
         if final == 'DB_WRONG':
             destination, issue = confirmed, 'DB_WRONG'
-        elif status in ('DIFF', 'NEEDS_REVIEW') or detail.startswith(('REVISION_MISMATCH', 'PRODUCT_NO_ABS_MISMATCH')):
+        elif status in ('DIFF', 'DB_EMPTY', 'NEEDS_REVIEW') or detail.startswith(('REVISION_MISMATCH', 'PRODUCT_NO_ABS_MISMATCH')):
             destination, issue = pending, status or 'REVIEW'
         else:
             continue

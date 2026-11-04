@@ -9,4 +9,6 @@ Run this unit on the application host with read-only Oracle and NAS access. Depl
 
 `run_blind` checks the freeze, month paths, image hashes, cache completeness and inference-output provenance. `--allow-unfrozen` is for diagnostics and labels its results UNFROZEN. The batch is not yet ready for an official run until the remaining freeze, model and historical-review gates are complete.
 
-Oracle client: install `python-oracledb` and an Oracle Instant Client compatible with the source server. The PostgreSQL loader additionally requires `psycopg2`; DBA applies migration 0004 before the loader is run. `MARK_PG_PASSWORD` belongs only on the authorized DB-loading host.
+Install the package dependencies from `pyproject.toml`. The batch utilities also require `python-oracledb`, `psycopg2`, `paramiko`, `requests`, `numpy` and `Pillow`; Oracle additionally needs an Instant Client compatible with the source server. `run_batch` requires the engine source tree and these libraries on its host. DBA applies migration 0004 before the loader is run. `MARK_PG_PASSWORD` belongs only on the authorized DB-loading host. Preserve and validate the deployed Python environment for a production rollout; a pinned environment lockfile is not yet provided.
+
+The historical re-OCR and deployment smoke in this session used Python 3.12.10, NumPy 2.5.2, Pillow 12.3.0, Requests 2.34.2 and Paramiko 5.0.0 on the engine host. The batch gate checks these versions against `services/inference/validation.json`; validate and freeze a new manifest before using different versions.

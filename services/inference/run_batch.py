@@ -36,6 +36,14 @@ def main():
         raise ValueError('re-OCR endpoint differs from validated environment')
     load_env()
     import paramiko
+    import numpy
+    import PIL
+    import requests
+    client_versions = {'client_python': '.'.join(str(part) for part in sys.version_info[:3]),
+                       'client_numpy': numpy.__version__, 'client_pillow': PIL.__version__,
+                       'client_requests': requests.__version__, 'client_paramiko': paramiko.__version__}
+    if any(validation.get(key) != value for key, value in client_versions.items()):
+        raise ValueError('engine-host inference libraries differ from historical validation')
     client = paramiko.SSHClient()
     client.load_system_host_keys()
     client.set_missing_host_key_policy(paramiko.RejectPolicy())
@@ -143,7 +151,7 @@ def main():
         record = {'freeze_id': frozen['freeze_id'], 'code_sha256': frozen['code_sha256'],
                   'images_index_sha256': index_hash, 'ocr_image_id': image_id, 'ocr_rec_sha256': ocr_hash,
                   'symbol_sha256': symbol_hash, 'detector_sha256': det_hash,
-                  'validation_sha256': digest(validation_path), 'runtime': observed,
+                  'validation_sha256': digest(validation_path), 'runtime': observed | client_versions,
                   'output_sha256': {name: digest(args.cache / name) for name in ('det_rec.json', 'detections.json', 'reocr.csv')}}
         (args.cache / 'models.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
         print('Completed AI batch:', len(names), 'images', flush=True)

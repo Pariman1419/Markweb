@@ -19,3 +19,9 @@ def test_difference_with_warning_remains_error():
     row = {'status': 'DIFF', 'final_status': 'DIFF', 'expected_mark': '*ABC',
            'oracle_mark': '*XYZ', 'warning': 'LAYOUT_FIXED_CONFLICT', 'flags': ''}
     assert classify(row)[0] == 'ERR'
+
+
+def test_equal_text_that_needs_review_is_not_shown_as_true():
+    row = {'status': 'NEEDS_REVIEW', 'final_status': 'NEEDS_REVIEW',
+           'expected_mark': 'ABC', 'oracle_mark': 'ABC', 'warning': '', 'flags': 'RULE_CONFLICT'}
+    assert classify(row)[0] == 'ERR'
