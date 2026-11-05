@@ -87,6 +87,15 @@ def test_log_event_drops_sensitive_fields(capsys):
     assert "password" not in line and "token" not in line
 
 
+def test_log_event_also_writes_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("MARK_LOG_DIR", str(tmp_path))
+    import importlib, mark_api.logging as lg; importlib.reload(lg)
+    lg.log_event("t.file", user_id=1, username="secret")
+    line = (tmp_path / "api.jsonl").read_text(encoding="utf-8").strip().splitlines()[-1]
+    assert json.loads(line)["event"] == "t.file" and "secret" not in line
+
+
+
 def test_safe_file_rejects_traversal(tmp_path):
     (tmp_path / "abs").mkdir()
     (tmp_path / "abs" / "a.png").write_bytes(b"x")

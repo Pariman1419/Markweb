@@ -16,6 +16,7 @@ pipeline {
     booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Run docker compose up and the smoke test after CI')
     string(name: 'MARK_WEB_PORT', defaultValue: '8088', description: 'Host port for NGINX (80 on 10.153.90.17; 8088 on the workstation)')
     string(name: 'MARK_FILES_HOST_DIR', defaultValue: 'D:/CIM Project/mark-web/data/files', description: 'Host folder with the ABS images (git-ignored; mounted read-only)')
+    string(name: 'MARK_LOG_HOST_DIR', defaultValue: 'D:/CIM Project/mark-web/logs', description: 'Host folder for persistent API logs')
     string(name: 'ENV_FILE', defaultValue: 'D:/CIM Project/mark-web/.env', description: 'Path of the .env on the agent host')
     string(name: 'PYTHON_EXE', defaultValue: 'python', description: 'Python 3.12 executable (full path if the Jenkins service PATH lacks it)')
   }
@@ -24,6 +25,7 @@ pipeline {
     COMPOSE_PROJECT_NAME = 'mark-web'
     MARK_WEB_PORT = "${params.MARK_WEB_PORT}"
     MARK_FILES_HOST_DIR = "${params.MARK_FILES_HOST_DIR}"
+    MARK_LOG_HOST_DIR = "${params.MARK_LOG_HOST_DIR}"
     PIP_DISABLE_PIP_VERSION_CHECK = '1'
     PYTHON_EXE = "${params.PYTHON_EXE}"
   }

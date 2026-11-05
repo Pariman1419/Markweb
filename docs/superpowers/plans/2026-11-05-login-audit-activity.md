@@ -258,7 +258,7 @@ def test_admin_activity_range_validation(client):
 **Interfaces:**
 - Produces: when `MARK_LOG_DIR` is set, `log_event` also writes the same JSON line to `<MARK_LOG_DIR>/api.jsonl` through a `RotatingFileHandler(maxBytes=10*1024*1024, backupCount=5)`. The handler is created once, lazily.
 
-- [ ] **Step 1: Write the failing test.**
+- [x] **Step 1: Write the failing test.**
 
 ```python
 def test_log_event_also_writes_file(tmp_path, monkeypatch):
@@ -269,8 +269,8 @@ def test_log_event_also_writes_file(tmp_path, monkeypatch):
     assert json.loads(line)["event"] == "t.file" and "secret" not in line
 ```
 
-- [ ] **Step 2: Run it.** Expected: FAIL (no file).
-- [ ] **Step 3: Implement.**
+- [x] **Step 2: Run it.** Expected: FAIL (no file).
+- [x] **Step 3: Implement.**
   - `logging.py`: the handler as described in Interfaces.
   - `docker-compose.yml`, api service:
     - add `MARK_LOG_DIR=/app/logs`
@@ -279,7 +279,7 @@ def test_log_event_also_writes_file(tmp_path, monkeypatch):
   - Add `logs/` to `.gitignore` and `.dockerignore`.
   - Jenkinsfile: add a parameter `MARK_LOG_HOST_DIR`, default `D:/CIM Project/mark-web/logs`, exported in `environment`, so that deploys from the Jenkins workspace keep one log folder.
 - [ ] **Step 4: Run the unit suite and `docker compose config`.** Expected: pass, and the config is valid.
-- [ ] **Step 5: Commit** with message `"feat: API JSON logs also written to a rotating host file"`.
+- [x] **Step 5: Commit** with message `"feat: API JSON logs also written to a rotating host file"`.
 
 ### Task 6: Rollout (needs the user)
 

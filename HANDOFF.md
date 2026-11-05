@@ -63,6 +63,18 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 5: Persistent API log file
+- **What changed**:
+  - In services/api/mark_api/logging.py: added rotating file handler (RotatingFileHandler(maxBytes=10MB, backupCount=5)) writing JSON lines to <MARK_LOG_DIR>/api.jsonl when MARK_LOG_DIR is configured; preserved current_request_id ContextVar across module reloads.
+  - In docker-compose.yml: mounted host ./logs to /app/logs and set MARK_LOG_DIR=/app/logs in the pi service.
+  - In .env.example: declared MARK_LOG_HOST_DIR=./logs.
+  - Added logs/ to .gitignore and .dockerignore.
+  - In Jenkinsfile: declared MARK_LOG_HOST_DIR parameter and environment variable so redeploys share the host log directory.
+- **Verification**:
+  - 	est_log_event_also_writes_file passed.
+  - docker compose config validated successfully.
+  - Full unit test suite: 352 passed.
+
 ### 2026-11-05 — Task 4: Web /admin page
 - **What changed**:
   - Implemented lazy-loaded Admin console in web/src/pages/Admin.tsx with 3 sections:

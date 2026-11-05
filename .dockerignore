@@ -10,3 +10,4 @@ web/
 **/__pycache__/
 **/*.pyc
 .superpowers/
+logs/

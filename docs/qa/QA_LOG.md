@@ -708,3 +708,16 @@
 ### Verification
 - `tsc -b && vite build` succeeded with 0 errors.
 - Bundle budget compliance: initial JS bundle 88.07 kB gzip (limit ≤ 300 kB), Admin chunk 4.37 kB gzip.
+
+## 2026-11-05 — Task 5: Persistent API log file
+
+### What changed
+- Added `RotatingFileHandler` (10 MB × 5 files) to `services/api/mark_api/logging.py`, writing JSON lines to `<MARK_LOG_DIR>/api.jsonl`.
+- Preserved `current_request_id` ContextVar instance across module reloads to prevent decoupling in test environments.
+- Updated `docker-compose.yml` to mount `${MARK_LOG_HOST_DIR:-./logs}:/app/logs` with `MARK_LOG_DIR=/app/logs`.
+- Updated `.env.example`, `.gitignore`, `.dockerignore`, and added `MARK_LOG_HOST_DIR` parameter in `Jenkinsfile`.
+
+### Verification
+- `test_log_event_also_writes_file` verified file creation and redaction of sensitive fields.
+- `docker compose config` parsed and validated volume mount and environment.
+- Full suite: 352 unit tests passed.
