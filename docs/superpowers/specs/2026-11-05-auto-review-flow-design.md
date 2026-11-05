@@ -83,7 +83,7 @@ flowchart TD
 | Special? | SLR มีหัวข้อ `SPECIAL INSTRUCTIONS` → Special requirement (ใช้ข้อกำหนดจาก SLR) · ไม่มี → Standard (ใช้ ABS) **[ผู้ใช้]** | — | รวมกับ G3 เป็นขั้นเดียว **[ผู้ใช้]** · engine มีตัวจับหัวข้อนี้แล้ว (`slr/parse.py:97`, `documents/classify.py:25`) — แทนกฎเดิมที่ใช้ `CUST_REQ_NO` |
 | — | OCR/YOLO ที่ AI Server | retry แล้ว HOLD `INFERENCE_FAILED` + Notify | §5 |
 | — | Mark Layout ของ `TOP_MARK_ID` | FAILED `LAYOUT_ERROR` + Notify | engine |
-| G5 | จำนวน Row ผลลัพธ์ ≤ 5 (Oracle เก็บได้แค่ TOP_MARK1–5) | HOLD `ROW_OVER_5` + Notify | **ใหม่** · นับหลังได้ผล OCR และ layout แล้ว ตามลำดับของผู้ใช้ |
+| G5 | จำนวน Row ผลลัพธ์ ≤ 5 (Oracle เก็บได้แค่ TOP_MARK1–5) | HOLD `ROW_OVER_5` + Notify | **ใหม่** · **นับหลังจัดลง Layout [ผู้ใช้ 2026-11-05]**: HOLD เฉพาะเมื่อมีบรรทัด TOP ที่มีข้อความอยู่เลยแถว 5 — แถว OCR ที่ว่าง (ไม่มีข้อความ/กราฟิก) ไม่นับ (regression run 19: นับแถวดิบทำให้ HOLD ผิด 18 ELR ที่แถว 6–7 ว่าง) |
 
 ### 2.4 รหัส `CURRENT_STEP` ใน Oracle **[ผู้ใช้ 2026-11-05]**
 

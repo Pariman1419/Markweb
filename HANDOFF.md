@@ -63,6 +63,14 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Engine 0.4.0 regression reviewed; G5 fix planned
+- **Diff:** run-overflowfix → run-gates (engine 0.4.0, 402 ELRs). 46 ELRs changed.
+  - `→ HOLD:CUST_ASSY_TBD` ×28: **accepted**. The 29th TBD ELR, ADI2607077, is STATUS C, so it stays NOT_ELIGIBLE. ADI2609073 moved from BOM_NOT_FOUND to TBD, because the TBD gate runs first.
+  - Special-SLR change: 0 ELRs.
+  - `→ HOLD:ROW_OVER_5` ×18: **rejected**. All 18 have OCR TOP rows 6–7 empty (no text, no graphics). This includes ADI2607022, which was MATCH_ALL 5/5.
+- **User decision:** G5 counts rows **after placement on the Layout**. Hold only when content lands beyond row 5.
+- **Plan for the other agent:** `docs/superpowers/plans/2026-11-05-auto-review-g5-fix.md`. Re-run the regression with `--workers 3`, because 8 workers ran the machine out of RAM; the Jenkins agent was killed and the user restarted it.
+
 ### 2026-11-05 — User confirmed CURRENT_STEP '6' = Mark Eng review
 - **Confirmed:** `MARK_REVIEW_STEP=6` is correct; no code change needed.
 - **Step codes (user):** 1 CS Review, A QA Review, 2 Engineering Review, 3 MC review, 4 Engineering lot Center, 5 PC Reserve, **6 Mark Eng review**, 7 Generate Order.
