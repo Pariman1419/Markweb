@@ -48,4 +48,4 @@ The same rules as the engine-gates plan apply:
   - **Expected:** the only job-level groups are `→ HOLD:CUST_ASSY_TBD` (27 + 1 = 28 ELRs), with **no `ROW_OVER_5`**.
   - **Anything else:** stop and report it.
   - Paste the report (ELR numbers only) into QA_LOG and HANDOFF.
-- [ ] **Step 6: Commit and push.** Use `git commit -m "fix(engine): G5 holds only when content lands beyond TOP row 5"`, then wait for Jenkins to go green.
+- [x] **Step 6: Commit and push.** Use `git commit -m "fix(engine): G5 holds only when content lands beyond TOP row 5"`, then wait for Jenkins to go green.
