@@ -63,6 +63,20 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 5: Web app (spec T4)
+- Scaffolded Vite React 19 + TypeScript app in `web/` with Tailwind CSS v4, Lucide icons, and React Router v7.
+- Implemented `web/src/api.ts` with credentials, CSRF token handling, and typed client methods.
+- Created components:
+  - `ActivelGrid`: 21x5 matrix comparing Oracle and system characters, highlighting differences in red and reserved layout spaces in blue.
+  - `StatusCards`: 4 cards (True, Warning, Error, HOLD) with counts, percentages, top causes, and interactive filter toggles.
+  - `MonthlyChart`: stacked monthly verification volume with month filter.
+  - `CauseChart`: top Error driver and HOLD blocker horizontal bars with cause filter.
+  - `ElrTable`: 50-row paginated table with real-time status badges, search debounced at 300ms, and deep linking to Preview.
+  - `LineReviewForm`: per-line reason selector (7 values), corrected mark inputs, draft/confirm reviews.
+- Created pages: `Login`, `Dashboard`, and `Preview` (lazy-loaded with `React.lazy`).
+- Build verification: `tsc -b && vite build` passed with exit code 0; initial JS chunk is 87.98 kB gzip (well below 300 kB target).
+
+
 ### 2026-11-05 — Task 4: API routes + repository (spec T3)
 - Implemented `Repo` in `services/api/mark_api/repo.py` connecting via `ThreadedConnectionPool` (1..10) with 5s timeout and slow query logging (>500ms).
 - Created FastAPI app `services/api/mark_api/app.py` and routers:

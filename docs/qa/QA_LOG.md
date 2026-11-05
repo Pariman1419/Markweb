@@ -590,3 +590,16 @@
 - `pytest tests/unit/test_api_routes.py -q`: 18 passed.
 - Full suite `pytest tests -q`: 337 passed in 14.6s.
 - Real database verification for run 19: TRUE 866, WARNING 214, ERROR 41, HOLD 34 across 1,304 lines and 402 jobs.
+
+## 2026-11-05 — Task 5: Web app (spec T4)
+
+### What changed
+- Built the React frontend in `web/` using Vite, TypeScript, and Tailwind CSS.
+- Created `ActivelGrid` component rendering 21x5 ACTIVEL character grids with cell differential coloring (red for mismatch, blue for layout reserved).
+- Implemented `Dashboard` with 4 status cards, monthly stacked bars, top cause rankings, and search with 300ms debounce.
+- Implemented `Preview` page with customer ABS drawing preview, SLR instructions breakdown, system vs. Oracle grid side-by-side, per-line review form with 7 reasons, and approval/rejection actions.
+- Configured lazy loading for Preview page via `React.lazy`.
+
+### Verification
+- `tsc -b && vite build`: exited 0 with no errors.
+- Bundle size: initial JavaScript chunk is 87.98 kB gzip (target ≤ 300 kB).

@@ -320,19 +320,19 @@ def test_safe_file_rejects_traversal(tmp_path):
   - The system side shows A–C blank and 1–18 from `expected`.
   - Cell colours: red = this cell's char differs from the same cell in `other` (checked first), blue = reserved by the layout (non-null and blank), white = has a character.
 
-- [ ] **Step 1:** Scaffold with `npm create vite@latest web -- --template react-ts`. Add react-router and a chart library. Set the dev proxy `/api → http://localhost:8000`.
-- [ ] **Step 2:** Build the Login page and Dashboard (spec §6):
+- [x] **Step 1:** Scaffold with `npm create vite@latest web -- --template react-ts`. Add react-router and a chart library. Set the dev proxy `/api → http://localhost:8000`.
+- [x] **Step 2:** Build the Login page and Dashboard (spec §6):
   - Dashboard: run selector, 4 cards, monthly stacked bars, Error and HOLD cause charts.
   - Clicking a chart bar sets the `cause` filter.
   - Search plus the ELR table. Clicking a row opens `/elr/:elr?run=`.
-- [ ] **Step 3:** Build the Preview:
+- [x] **Step 3:** Build the Preview:
   - Left side: ABS image (click to enlarge), SLR instructions used, system grid, and per-line source / rule / warning.
   - Right side: MARK_ID + layout code, MARK_REMARK, MARK_REQUIRE, TOP_TEMPLATE_REMARK, Oracle grid.
   - Line review form with a reason dropdown (7 values from Task 1), note and corrected value.
   - Buttons: บันทึกร่าง / Approve / Reject. On 409, list the blocked line numbers.
   - A HOLD job shows its reason instead of grids.
-- [ ] **Step 4:** Run `npm run build` (runs `tsc -b && vite build`). Expected: exit 0, no type errors, and the initial JS chunk is ≤ 300 KB gzip (Vite prints sizes). Preview is loaded via `React.lazy`, and the search box is debounced at 300 ms. **[USER]** Run the dev server against the local API, then walk the flow: login → dashboard → filter → ELR → review → approve.
-- [ ] **Step 5:** Commit (`feat(web): dashboard and ELR preview for trial`) with HANDOFF and QA_LOG.
+- [x] **Step 4:** Run `npm run build` (runs `tsc -b && vite build`). Expected: exit 0, no type errors, and the initial JS chunk is ≤ 300 KB gzip (Vite prints sizes). Preview is loaded via `React.lazy`, and the search box is debounced at 300 ms. **[USER]** Run the dev server against the local API, then walk the flow: login → dashboard → filter → ELR → review → approve.
+- [x] **Step 5:** Commit (`feat(web): dashboard and ELR preview for trial`) with HANDOFF and QA_LOG.
 
 ### Task 6: Deploy on 10.153.90.17 (spec T5)
 
