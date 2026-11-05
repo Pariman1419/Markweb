@@ -667,3 +667,16 @@
 ### Verification
 - `test_review_audit_carries_ip_and_request_id` passed.
 - Full test suite: 341 unit tests passed.
+
+## 2026-11-05 — Task 2: Audit failed logins, lockouts and expired sessions
+
+### What changed
+- Added `session_status(session, now)` in `mark_api.auth` returning `ok`, `absolute`, or `idle`.
+- Implemented `safe_audit` in `mark_api.deps` which fails open and records `db.error` so audit failures cannot disrupt user login.
+- Enriched `login` endpoint to write `auth.login_failed` (reasons: `unknown_user`, `locked`, `inactive`, `bad_password`), `auth.locked` on account lockout, and `auth.login_ok`.
+- Audited `auth.session_expired` in `current_user` before session row deletion (audited only once).
+- Preserved privacy: unknown usernames are never recorded in `audit_log` or logs (`user_id = None`).
+
+### Verification
+- Added 6 unit tests covering: `session_status` idle/absolute expiry, unknown user audit without username, 5th failure lockout audit, locked and inactive login attempts, single audit for expired session, and fail-open on DB audit error.
+- Full suite: 347 unit tests passed.

@@ -666,3 +666,46 @@ def test_review_audit_carries_ip_and_request_id(client, fake_repo):
     assert row["client_ip"] == "10.0.0.7"          # sent as X-Real-IP header
     assert row["request_id"] == "req-test-1"       # sent as X-Request-ID header
 
+
+def test_unknown_user_audited_without_name(client, fake_repo, capsys):
+    client.post("/api/auth/login", json={"username": "nobody-xyz", "password": "x" * 12},
+                headers={"X-Real-IP": "10.0.0.9"})
+    row = fake_repo.audit_data[-1]
+    assert (row["action"], row["user_id"], row["detail"]["reason"], row["client_ip"]) == \
+           ("auth.login_failed", None, "unknown_user", "10.0.0.9")
+    assert "nobody-xyz" not in json.dumps(fake_repo.audit_data, default=str) + capsys.readouterr().out
+
+
+def test_fifth_failure_audits_failed_and_locked(client, fake_repo):
+    for _ in range(5):
+        client.post("/api/auth/login", json={"username": "engineer1", "password": "WrongPassword!"})
+    actions = [r["action"] for r in fake_repo.audit_data]
+    assert actions.count("auth.login_failed") == 5 and actions[-1] == "auth.locked"
+    assert fake_repo.audit_data[-2]["detail"] == {"reason": "bad_password", "failed_count": 5}
+
+
+def test_locked_and_inactive_attempts_audited(client, fake_repo):
+    u = fake_repo.users["engineer1"]
+    u["locked_until"] = datetime.now(timezone.utc) + timedelta(minutes=10)
+    client.post("/api/auth/login", json={"username": "engineer1", "password": "ValidPassword123!"})
+    assert fake_repo.audit_data[-1]["detail"] == {"reason": "locked"}
+    u["locked_until"], u["active"] = None, False
+    client.post("/api/auth/login", json={"username": "engineer1", "password": "ValidPassword123!"})
+    assert fake_repo.audit_data[-1]["detail"] == {"reason": "inactive"}
+
+
+def test_expired_session_audited_once(client, fake_repo):
+    _login(client)
+    for s in fake_repo.sessions.values():
+        s["last_seen_at"] -= timedelta(minutes=61)
+    assert client.get("/api/runs").status_code == 401
+    assert client.get("/api/runs").status_code == 401
+    rows = [r for r in fake_repo.audit_data if r["action"] == "auth.session_expired"]
+    assert len(rows) == 1 and rows[0]["detail"] == {"why": "idle"}
+
+
+def test_audit_failure_does_not_break_login(client, fake_repo, monkeypatch):
+    monkeypatch.setattr(fake_repo, "audit", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db down")))
+    assert client.post("/api/auth/login", json={"username": "engineer1", "password": "ValidPassword123!"}).status_code == 200
+
+

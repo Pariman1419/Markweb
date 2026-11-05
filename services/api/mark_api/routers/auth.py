@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from mark_api.auth import login_state, new_token, verify_password
-from mark_api.deps import audit_ctx, current_user, get_cookie_name, get_repo
+from mark_api.deps import audit_ctx, current_user, get_cookie_name, get_repo, safe_audit
 from mark_api.logging import log_event
 from mark_api.repo import Repo
 
@@ -28,21 +28,29 @@ def login(req: LoginRequest, request: Request, repo: Repo = Depends(get_repo)):
     user = repo.user_by_name(username)
 
     if not user:
-        log_event("auth.login_failed", username=username)
+        safe_audit(repo, None, "auth.login_failed", request, detail={"reason": "unknown_user"})
+        log_event("auth.login_failed")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     state = login_state(user, now)
     if state == "LOCKED":
+        safe_audit(repo, user["user_id"], "auth.login_failed", request, detail={"reason": "locked"})
         log_event("auth.locked", user_id=user["user_id"])
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account locked")
     if state == "INACTIVE":
+        safe_audit(repo, user["user_id"], "auth.login_failed", request, detail={"reason": "inactive"})
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account inactive")
 
     if not verify_password(user["password_hash"], req.password):
         repo.record_login(user["user_id"], False)
+        updated_user = repo.user_by_id(user["user_id"]) or {}
+        failed_count = updated_user.get("failed_count", (user.get("failed_count", 0) or 0) + 1)
+        safe_audit(repo, user["user_id"], "auth.login_failed", request, detail={"reason": "bad_password", "failed_count": failed_count})
         log_event("auth.login_failed", user_id=user["user_id"])
-        updated_user = repo.user_by_id(user["user_id"])
-        if updated_user and login_state(updated_user, now) == "LOCKED":
+        if login_state(updated_user, now) == "LOCKED":
+            locked_until = updated_user.get("locked_until")
+            iso_str = locked_until.isoformat() if hasattr(locked_until, "isoformat") else str(locked_until)
+            safe_audit(repo, user["user_id"], "auth.locked", request, detail={"locked_until": iso_str})
             log_event("auth.locked", user_id=user["user_id"])
             repo.delete_user_sessions(user["user_id"])
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -60,7 +68,7 @@ def login(req: LoginRequest, request: Request, repo: Repo = Depends(get_repo)):
     raw_csrf, csrf_digest = new_token()
     expires_at = now + timedelta(hours=8)
     repo.create_session(sess_digest, user["user_id"], csrf_digest, expires_at)
-    repo.audit(user["user_id"], "auth.login_ok", **audit_ctx(request))
+    safe_audit(repo, user["user_id"], "auth.login_ok", request)
     log_event("auth.login_ok", user_id=user["user_id"])
 
     resp = JSONResponse(
@@ -104,7 +112,7 @@ def logout(request: Request, user: dict[str, Any] = Depends(current_user), repo:
     sess = getattr(request.state, "session", None)
     if sess:
         repo.delete_session(sess["token_hash"])
-    repo.audit(user["user_id"], "auth.logout", **audit_ctx(request))
+    safe_audit(repo, user["user_id"], "auth.logout", request)
     log_event("auth.logout", user_id=user["user_id"])
 
     resp = JSONResponse({"status": "ok"})

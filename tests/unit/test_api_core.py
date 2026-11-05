@@ -15,6 +15,7 @@ from mark_api.auth import (
     verify_password,
     login_state,
     new_token,
+    session_status,
     session_valid,
     csrf_ok,
     can,
@@ -61,6 +62,14 @@ def test_session_idle_and_absolute_expiry():
     assert session_valid({"expires_at": now + timedelta(hours=1), "last_seen_at": now - timedelta(minutes=59)}, now)
     assert not session_valid({"expires_at": now + timedelta(hours=1), "last_seen_at": now - timedelta(minutes=61)}, now)
     assert not session_valid({"expires_at": now - timedelta(seconds=1), "last_seen_at": now}, now)
+
+
+def test_session_status_absolute_and_idle():
+    now = datetime(2026, 11, 5, 12, tzinfo=timezone.utc)
+    assert session_status({"expires_at": now - timedelta(seconds=1), "last_seen_at": now}, now) == "absolute"
+    assert session_status({"expires_at": now + timedelta(hours=1), "last_seen_at": now - timedelta(minutes=61)}, now) == "idle"
+    assert session_status({"expires_at": now + timedelta(hours=1), "last_seen_at": now}, now) == "ok"
+
 
 
 def test_csrf_and_roles():

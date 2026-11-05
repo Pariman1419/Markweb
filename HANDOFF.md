@@ -63,6 +63,17 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 2: Audit failed logins, lockouts and expired sessions
+- **What changed**:
+  - Added `session_status(session, now)` in `mark_api.auth` returning `"ok"`, `"absolute"`, or `"idle"`; `session_valid` delegates to it.
+  - Added `safe_audit(repo, user_id, action, request, **kw)` in `mark_api.deps`, catching exceptions and logging `db.error`.
+  - In `auth.login`: audit `auth.login_failed` (reasons: `unknown_user` with `user_id=None`, `locked`, `inactive`, `bad_password` with `failed_count`), `auth.locked` on 5th failure with ISO timestamp, and `auth.login_ok`.
+  - In `auth.current_user`: audit `auth.session_expired` with reason before session deletion so repeated calls do not re-audit.
+  - Replaced direct `repo.audit` in auth router with `safe_audit`.
+- **Verification**:
+  - 7 new unit tests in `test_api_core.py` and `test_api_routes.py`.
+  - Full suite: 347 unit tests passed.
+
 ### 2026-11-05 — Task 1: Migration 0006 and request context in Repo.audit
 - **What changed**:
   - Migration `migrations/0006_audit_context.sql`: additive columns `client_ip inet`, `request_id text` and composite index `audit_log_action_created_idx` on `mark_app.audit_log`.

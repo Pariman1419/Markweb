@@ -42,7 +42,7 @@ def new_token() -> tuple[str, str]:
     return raw, digest
 
 
-def session_valid(session: dict[str, Any], now: datetime) -> bool:
+def session_status(session: dict[str, Any], now: datetime) -> Literal["ok", "absolute", "idle"]:
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
 
@@ -51,16 +51,21 @@ def session_valid(session: dict[str, Any], now: datetime) -> bool:
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         if now > expires_at:
-            return False
+            return "absolute"
 
     last_seen_at = session.get("last_seen_at")
     if last_seen_at:
         if last_seen_at.tzinfo is None:
             last_seen_at = last_seen_at.replace(tzinfo=timezone.utc)
         if now > last_seen_at + timedelta(minutes=60):
-            return False
+            return "idle"
 
-    return True
+    return "ok"
+
+
+def session_valid(session: dict[str, Any], now: datetime) -> bool:
+    return session_status(session, now) == "ok"
+
 
 
 def csrf_ok(cookie: str | None, header: str | None) -> bool:

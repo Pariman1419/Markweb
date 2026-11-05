@@ -6,7 +6,8 @@ from typing import Any
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
-from mark_api.auth import can, login_state, session_valid
+from mark_api.auth import can, login_state, session_status, session_valid
+from mark_api.logging import log_event
 from mark_api.repo import Repo
 
 _global_repo: Repo | None = None
@@ -36,6 +37,14 @@ def audit_ctx(request: Request) -> dict[str, str | None]:
     client_ip = request.headers.get("x-real-ip") or (request.client.host if request.client else None)
     req_id = getattr(request.state, "request_id", None) or request.headers.get("x-request-id")
     return {"client_ip": client_ip, "request_id": req_id}
+
+
+def safe_audit(repo: Repo, user_id: int | None, action: str, request: Request, **kw: Any) -> None:
+    try:
+        repo.audit(user_id, action, **audit_ctx(request), **kw)
+    except Exception:
+        log_event("db.error", where="audit", action=action)
+
 
 
 
@@ -75,7 +84,9 @@ def current_user(request: Request, authorization: str | None = Header(None), rep
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
 
     session, user = res
-    if not session_valid(session, now):
+    status_val = session_status(session, now)
+    if status_val != "ok":
+        safe_audit(repo, user["user_id"], "auth.session_expired", request, detail={"why": status_val})
         repo.delete_session(token_hash)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
 

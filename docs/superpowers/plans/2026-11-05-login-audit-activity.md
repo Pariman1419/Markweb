@@ -93,7 +93,7 @@ def test_review_audit_carries_ip_and_request_id(client, fake_repo):
   - `session_status(session: dict, now: datetime) -> Literal["ok", "absolute", "idle"]`.
   - `safe_audit(repo, user_id, action, request, **kw) -> None`, a module function in `deps.py`. It calls `repo.audit(..., **audit_ctx(request))` and swallows exceptions with `log_event("db.error", where="audit", action=action)`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 ```python
 # test_api_core.py
@@ -142,8 +142,8 @@ def test_audit_failure_does_not_break_login(client, fake_repo, monkeypatch):
     assert client.post("/api/auth/login", json={"username": "engineer1", "password": "ValidPassword123!"}).status_code == 200
 ```
 
-- [ ] **Step 2: Run them.** `python -m pytest tests/unit -k "session_status or audited or audit_failure or fifth_failure" -q`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
+- [x] **Step 2: Run them.** `python -m pytest tests/unit -k "session_status or audited or audit_failure or fifth_failure" -q`. Expected: FAIL.
+- [x] **Step 3: Implement.**
   - `session_status` returns `"absolute"` when the 8-hour expiry has passed, and `"idle"` after 60 minutes since `last_seen_at`. Keep `session_valid(...) == (session_status(...) == "ok")`.
   - In `login`, every exit writes one `safe_audit`, with the `detail` from spec §5.2:
     - unknown user → `auth.login_failed`, `user_id=None`, `reason: unknown_user`
@@ -153,8 +153,8 @@ def test_audit_failure_does_not_break_login(client, fake_repo, monkeypatch):
     - ok → `auth.login_ok`
   - In `current_user`, when `session_status` is not ok: `safe_audit(repo, user["user_id"], "auth.session_expired", request, detail={"why": status})`, before the existing `delete_session`.
   - Replace the Task 1 direct `repo.audit` calls in the auth router with `safe_audit`.
-- [ ] **Step 4: Run the unit suite.** `python -m pytest tests/unit -q`. Expected: all pass.
-- [ ] **Step 5: Commit** with message `"feat: audit failed logins, lockouts and expired sessions"`, including HANDOFF and QA_LOG.
+- [x] **Step 4: Run the unit suite.** `python -m pytest tests/unit -q`. Expected: all pass.
+- [x] **Step 5: Commit** with message `"feat: audit failed logins, lockouts and expired sessions"`, including HANDOFF and QA_LOG.
 
 ### Task 3: Admin API: users, unlock, activity, events
 
