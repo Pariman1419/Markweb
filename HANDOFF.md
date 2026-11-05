@@ -74,7 +74,14 @@
 - **Redacted** the two credential mentions in `docs/implementation/00-phase0-readiness.md:57` and `07-open-decisions.md:21`.
   - Earlier commits still contain them, and so does `origin/phase0/readiness`. Rotation remains D-13.
 - **Setup steps:** `services/README.md` → "CI/CD with Jenkins".
-- **Pending user:** push `phase2/trial`, change the Jenkins service logon, add credentials `mark-web-env` and `github-markweb`, then create the job.
+- **Service logon failed:** running the service as `TH\41495406` failed with Event 7041, "user has not been granted the requested logon type" (domain policy).
+  - The service goes back to LocalSystem.
+  - Builds run instead on inbound agent `mark-web-local` (label `mark-web`), started with `scripts/jenkins-agent.bat` under the user's account (JDK 25). `Jenkinsfile` uses `agent { label 'mark-web' }`.
+- **Pending user:**
+  - restore the service to LocalSystem;
+  - create node `mark-web-local` and save its secret to `%USERPROFILE%\.jenkins-agent-secret`;
+  - push `phase2/trial`;
+  - add credentials `mark-web-env` and `github-markweb`.
 
 ### 2026-11-05 — Phase 2 trial: review fix-ups and localhost integration
 - **Reviewed Tasks 1–6 (another agent).** All met the plan, except for the items fixed below.

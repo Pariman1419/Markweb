@@ -45,7 +45,9 @@ docker compose up -d --build
 The pipeline is defined in `Jenkinsfile` at the repo root. It runs on a Windows agent in this order: Preflight → Python tests (venv + pytest, JUnit report) → Web build (`npm ci`, `npm run build`) → Docker images → Deploy (`docker compose up -d`, project `mark-web`) → Smoke test (`/api/ready` 200, and `/api/runs` 401 with `no-store` + CSP).
 
 One-time setup:
-1. **Service account:** in `services.msc` → Jenkins → Log On, run the service as the Windows account that owns Python 3.12, Node and Docker Desktop. That account must be in the `docker-users` group. Restart Jenkins.
+1. **Agent:** the Jenkins service runs as LocalSystem. The workstation's domain policy denies "Log on as a service" to user accounts, so builds run on an inbound agent started under the user's own account.
+   - Manage Jenkins → Nodes → New Node `mark-web-local`: Permanent Agent, label `mark-web`, remote root `D:\jenkins-agent`, launch "by connecting it to the controller".
+   - Save the agent secret to `%USERPROFILE%\.jenkins-agent-secret`, then run `scripts\jenkins-agent.bat` and keep it open while builds run.
 2. **Credentials** (Manage Jenkins → Credentials):
    - `mark-web-env` — *Secret file* holding the `.env`. The Deploy stage copies it into the workspace and deletes it afterwards.
    - `github-markweb` — *SSH Username with private key*, with read access to `git@github.com:Pariman1419/Markweb.git`.

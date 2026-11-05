@@ -2,7 +2,8 @@
 // CI: Python tests + web build + Docker images. CD: docker compose on this host, then a smoke test.
 // Secrets: Jenkins "Secret file" credential `mark-web-env` (the .env); never stored in the repo.
 pipeline {
-  agent any
+  // Runs on the agent started under the user's Windows account (Python, Node, Docker Desktop).
+  agent { label 'mark-web' }
 
   options {
     disableConcurrentBuilds()
