@@ -28,7 +28,7 @@
 - HOLD ELR without an ABS image or with no line results: Preview still opens and shows the HOLD reason plus "ไม่มีภาพ ABS" (pinned in Task 4).
 - Line present on only one side (Oracle row 4 has text, expected has no row 4, or the reverse): the grid shows the empty side and doesn't crash (pinned in Task 2, which always stores 5 Oracle rows).
 - Approve, then Reject, then Approve again: the latest decision is current, and every decision is in `audit_log` (pinned in Task 4).
-- Five wrong passwords: the account locks for 15 minutes, and login returns 423 even with the right password (pinned in Task 3).
+- Five wrong passwords: the account locks for 15 minutes, and login returns 423 even with the right password (pinned in Task 4 `test_five_failures_lock`).
 - A file request with `..` or an absolute path returns 404 and reads nothing (pinned in Task 3).
 
 ---
@@ -38,7 +38,8 @@
 **Files:**
 - Modify: `mark_engine/version.py` (`ENGINE_VERSION = "0.3.0"`), `pyproject.toml` (`version = "0.3.0"`)
 - Create: `migrations/0005_mark_app_trial.sql`, `scripts/create_app_user.py`, `scripts/create_api_token.py`
-- Modify: `migrations/README.md`, `HANDOFF.md`, `docs/qa/QA_LOG.md`
+- Modify: `tests/unit/test_generator.py:255` (assert against `ENGINE_VERSION`, not the literal `"0.2.0"`), `scripts/load_r1_to_pg.py` (blind detection), `migrations/README.md`, `HANDOFF.md`, `docs/qa/QA_LOG.md`
+- Test: `tests/unit/test_load_r1_blind.py`
 
 **Interfaces:**
 - Produces: the 7 `mark_app` tables exactly as in spec §4 + §14 (PK / FK / unique / check / index columns are listed there).
@@ -48,6 +49,7 @@
     - `image_path` is relative to `MARK_FILES_ROOT`.
     - `slr_instructions` is jsonb `[{line,value,quote}]`.
     - `user_session.csrf_hash`.
+    - `elr_snapshot.line_extra` (jsonb, see Task 2).
   - Reason values: `'DB_WRONG','OCR_WRONG','SYMBOL_WRONG','SLR_ECN_CHANGE','RULE_MISSING','LAYOUT_WRONG','OTHER'`.
 - Grants: `mark_app` role gets usage on `mark_app` and select on `mark_logic`.
   - `select, insert` only on `line_review`, `approval`, `audit_log`.
@@ -56,15 +58,20 @@
 - Produces: CLI `python scripts/create_api_token.py <name> --scope metrics:read --days 90`. It prints the token once and stores only its sha256.
 - Produces: CLI `python scripts/create_app_user.py <username> --name "<display>" --role engineer` (prompts for the password with `getpass`).
 
-- [ ] **Step 1:** Bump engine version to 0.3.0 and run the full suite: `python -m pytest tests -q`. Expected: 306 passed.
-- [ ] **Step 2:** Commit (`chore: engine 0.3.0 after overflow review fixes`). Then run the replay from the clean tree: `PYTHONPATH=. python scripts/run_blind.py --oracle artifacts/blind-2026h2/oracle --cache artifacts/blind-2026h2/cache --out artifacts/blind-2026h2/run-trial --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --allow-unfrozen`. Expected: `jobs: 402 … failed: 0`.
+- [ ] **Step 1:** Bump the engine version to 0.3.0 and fix `test_generator.py:255` to compare with `ENGINE_VERSION`.
+  - In `load_r1_to_pg.py`, extract `is_blind_run(period: str, metrics: dict) -> bool` = `metrics.get('freeze', {}).get('freeze_id') == 'FREEZE-R1' or 'blind' in period.lower()`.
+  - Write `tests/unit/test_load_r1_blind.py`:
+    - `is_blind_run('2026-07..2026-11-replay', {'freeze': {'freeze_id': 'UNFROZEN'}}) is False`
+    - `is_blind_run('2026-07..2026-11', {'freeze': {'freeze_id': 'FREEZE-R1'}}) is True`
+  - Run `python -m pytest tests -q`. Expected: 307 passed.
+- [ ] **Step 2:** Commit (`chore: engine 0.3.0 after overflow review fixes`). Then run the replay from the clean tree: `PYTHONPATH=. python scripts/run_blind.py --oracle artifacts/blind-2026h2/oracle --cache artifacts/blind-2026h2/cache --out artifacts/blind-2026h2/run-trial --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --allow-unfrozen`. Expected: `jobs: 402 … failed: 0`, and `lines.csv` is identical to `artifacts/blind-2026h2/run-overflowfix/lines.csv` (only the version changed).
 - [ ] **Step 3:** Dry-run the load: `python scripts/load_r1_to_pg.py artifacts/blind-2026h2/run-trial --period 2026-07..2026-11-replay --note "debug replay after overflow review, commit <sha>, not a holdout"`. Expected: "rolled back". **[USER]** Then re-run it with `--commit` and record the new run_id.
 - [ ] **Step 4:** Write `0005_mark_app_trial.sql`:
   - An UP block in `begin…commit` with the tables, keys and indexes of spec §14.
   - The grants above.
   - A commented DOWN block, as in `0004`.
 - [ ] **Step 5:** Write `scripts/create_app_user.py` (argon2 `PasswordHasher`; reject passwords shorter than 12 characters; `--reset` updates the hash and clears the lock) and `scripts/create_api_token.py`. Both use psycopg2 with the connection from env.
-- [ ] **Step 6 [USER/DBA]:** Apply the 0005 UP section on `mark_web`, then create your user. Verify: `select count(*) from mark_app.app_user` returns 1. Inserting a `line_review` with a non-existent `(run_id, elr_no, abs_no, side, line_no)` fails on the FK. And `select max(run_id) from mark_logic.run` returns the new run.
+- [ ] **Step 6 [USER/DBA]:** Apply the 0005 UP section on `mark_web`, set a password for login role `mark_app` (the API's DB user, `MARK_PG_USER=mark_app` in `.env`), then create your user. Verify: `select count(*) from mark_app.app_user` returns 1. Inserting a `line_review` with a non-existent `(run_id, elr_no, abs_no, side, line_no)` fails on the FK. And `select max(run_id) from mark_logic.run` returns the new run.
 - [ ] **Step 7:** Commit (`feat(db): migration 0005 mark_app trial schema; app user script`) with HANDOFF and QA_LOG.
 
 ### Task 2: Snapshot loader (spec T2)
@@ -80,7 +87,10 @@
   - `cache/images/*.png`
   - `run-trial/jobs.csv`
 - Consumes: the SLR PDFs used by the engine, via `run-trial/work/<elr>/**/SLR*.pdf` and `mark_engine.slr.parse.parse_slr`.
-- Produces: `build_snapshot_rows(run_id: int, oracle_dir: Path, cache_dir: Path, run_dir: Path) -> list[dict]`, with keys matching `mark_app.elr_snapshot` columns.
+- Produces: `build_snapshot_rows(run_id: int, oracle_dir: Path, cache_dir: Path, run_dir: Path) -> list[dict]`, with keys matching `mark_app.elr_snapshot` columns:
+  - `top_mark_id = int(float(TOP_MARK_ID))`, or None.
+  - `layout_code = TOP_LAYOUT_CODE`.
+  - `line_extra` = jsonb `{line_no: {compare_rules, flags, detail}}` taken from the TOP rows of `run_dir/lines.csv`. These are not columns in `mark_logic.line_result`.
 - Produces CLI: `python scripts/load_app_snapshot.py --run-id N --oracle … --cache … --run … [--commit]`. It copies each image to `$MARK_FILES_ROOT/abs/<run_id>/<sha256>.png` and sets `image_path` relative to that root. Without `--commit` it rolls back.
 
 - [ ] **Step 1: Write failing tests** with a tiny fixture: 1 ELR meta dict, a 2-row layout and a 1×1 PNG in `tmp_path`.
@@ -91,6 +101,10 @@ def test_snapshot_row_has_five_oracle_rows_and_layout_grid(tmp_path):
     assert len(row['oracle_top_raw']) == 5 and row['oracle_top_raw'][4] == ''
     assert len(row['layout_cells']) == 5 and len(row['layout_cells'][0]) == 18
     assert row['layout_cells'][0][0] == '@' and row['layout_cells'][0][5] is None  # unlisted = free
+
+def test_mark_id_float_and_line_extra(tmp_path):
+    row = build_snapshot_rows(18, oracle, cache, run)[0]   # fixture TOP_MARK_ID = 25077.0
+    assert row['top_mark_id'] == 25077 and row['line_extra']['1']['compare_rules'] == 'EXACT'
 
 def test_hold_elr_without_image_has_null_image_path(tmp_path):
     assert build_snapshot_rows(18, oracle, cache, run_hold_only)[0]['image_path'] is None
@@ -222,7 +236,7 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `GET /elrs/{elr}?run=` → `{snapshot, job, lines:[{line_no, expected, oracle, status, group, warning, detail, compare_rules}], reviews, approval, image_available}`
   - `GET /files/abs/{run}/{elr}`: a `FileResponse` stream with `ETag` = `abs_sha256` and `Cache-Control: private, max-age=86400`. A matching `If-None-Match` returns 304.
   - `POST /reviews {run_id, elr_no, line_no, reason, note, corrected_mark, is_draft}`
-  - `POST /approvals {run_id, elr_no, decision}` → 409 with `{blocked_lines}` when `approve_blockers` is non-empty and decision is APPROVED
+  - `POST /approvals {run_id, elr_no, decision}` → 409 with `{blocked_lines}` when `approve_blockers` is non-empty and decision is APPROVED. Also 409 `{reason: 'HOLD'}` for APPROVED on a HOLD job; REJECTED is allowed.
 - Every write also writes `audit_log`.
 
 - [ ] **Step 1: Write failing tests** using `fastapi.testclient.TestClient`, with `app.dependency_overrides[get_repo]` set to an in-memory `FakeRepo` defined in the test file that implements the methods above. Tests:
@@ -232,6 +246,8 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `test_approve_blocked_then_allowed`: 409 `{blocked_lines:[2]}`; then POST a non-draft review; then 200.
   - `test_latest_decision_wins_and_all_audited`: approve, then reject, then approve. `latest_approval.decision == 'APPROVED'`, and the fake audit has 3 approval rows.
   - `test_file_traversal_404`: snapshot `image_path='../x'` → 404.
+  - `test_hold_cannot_be_approved`: APPROVED on a HOLD job → 409 `{reason:'HOLD'}`; REJECTED → 200.
+  - `test_five_failures_lock`: 5 wrong passwords, then the right one → 423.
   - `test_post_without_csrf_403`: logged in, `POST /api/reviews` without `X-CSRF-Token` → 403.
   - `test_engineer_cannot_read_metrics`: engineer → 403 on `/api/metrics`; a fake API token with `metrics:read` → 200 with key `requests`.
   - `test_request_id_echoed`: the response has an `X-Request-ID` header.
@@ -246,8 +262,9 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `test_csrf_from_other_session_rejected`: session A's cookie with session B's CSRF token → 403.
   - `test_no_cors_by_default`: `OPTIONS /api/runs` with `Origin: http://evil.example` and `Access-Control-Request-Method: GET` → the response has no `access-control-allow-origin` header. With `MARK_CORS_ORIGINS=http://ok.example`, that origin gets it echoed and `evil.example` does not.
 - [ ] **Step 2:** Run `python -m pytest tests/unit/test_api_routes.py -q`. Expected: FAIL.
-- [ ] **Step 3:** Implement the repository SQL and the routers. `lines()` reads `mark_logic.line_result` for `side='TOP'` and returns `final_status` as `status` (spec §14).
-- [ ] **Step 4:** Run the tests and the full suite. Expected: PASS. **[USER]** Run `uvicorn services.api.mark_api.app:app --port 8000` against the DB, then log in and open `/api/dashboard?run=<new>`. The card counts must equal the line statuses in `run-trial/metrics.json`. Then open `/api/metrics`: p95 is within the spec §18 targets (dashboard ≤ 300 ms cold, elr detail ≤ 150 ms).
+- [ ] **Step 3:** Implement the repository SQL and the routers. `lines()` reads `mark_logic.line_result` for `side='TOP'` and maps `final_mark → expected`, `db_mark → oracle`, `final_status → status`. It merges `compare_rules/flags/detail` from `elr_snapshot.line_extra`.
+  - `POST /reviews` sets `side='TOP'` and takes `abs_no` from `job_result`.
+- [ ] **Step 4:** Run the tests and the full suite. Expected: PASS. **[USER]** Run `uvicorn services.api.mark_api.app:app --port 8000` against the DB, then log in and open `/api/dashboard?run=<new>`. The cards must equal the TOP rows of `run-trial/lines.csv` grouped by `classify_line`: for an output identical to `run-overflowfix`, **TRUE 866, WARNING 214, ERROR 41, HOLD 34** (183 lines not compared). `metrics.json` counts both sides and has no Warning group, so it is not the reference. Then open `/api/metrics`: p95 is within the spec §18 targets (dashboard ≤ 300 ms cold, elr detail ≤ 150 ms).
 - [ ] **Step 5:** Commit (`feat(api): auth, mark, validation, workflow routers`) with HANDOFF and QA_LOG.
 
 ### Task 5: Web app (spec T4)
@@ -281,20 +298,21 @@ def test_safe_file_rejects_traversal(tmp_path):
 ### Task 6: Deploy on 10.153.90.17 (spec T5)
 
 **Files:**
-- Create: `services/api/Dockerfile`, `web/Dockerfile` (build, then NGINX), `web/nginx.conf`, `docker-compose.yml`
+- Create: `services/api/Dockerfile`, `web/Dockerfile` (build, then NGINX), `web/nginx.conf`, `web/security_headers.conf`, `docker-compose.yml`
 - Modify: `.env.example` (add `MARK_PG_HOST`, `MARK_PG_DB`, `MARK_PG_USER`, `MARK_PG_PASSWORD`, `MARK_FILES_ROOT`, `MARK_SESSION_HOURS`), `services/README.md` (trial deployment section)
 
 **Interfaces:**
 - Consumes: Tasks 4–5.
 - Produces:
-  - Compose services `api` (uvicorn :8000, `.env` via `env_file`, `MARK_FILES_ROOT` mounted read-only) and `web` (NGINX :80 serving `dist/`).
+  - Compose services `api` (uvicorn :8000 with `--workers 1`, because `/api/metrics` is in-process (spec §18), `.env` via `env_file`, `MARK_FILES_ROOT` mounted read-only) and `web` (NGINX :80 serving `dist/`).
   - `location /api/ { proxy_pass http://api:8000; proxy_set_header X-Request-ID $request_id; }` and an SPA fallback `try_files $uri /index.html`.
-  - The three `limit_req_zone` zones of spec §12 (`login` 5r/m burst 5, `files` 10r/s burst 20, `api` 20r/s burst 40), returning `limit_req_status 429`, plus `client_max_body_size 1m`.
+  - The three `limit_req_zone` zones of spec §12 (`login` 5r/m burst 5, `files` 10r/s burst 20, `api` 20r/s burst 40), all `nodelay`, returning `limit_req_status 429`, plus `client_max_body_size 1m`.
+  - Separate locations: `= /api/auth/login` (zone login), `/api/files/` (zone files, no `no-store`), `/api/` (zone api, `Cache-Control: no-store`).
   - `log_format json` with `request_id, status, request_time, upstream_response_time, uri`.
   - `gzip on; gzip_min_length 1024; gzip_types application/json text/css application/javascript;`
-  - Security headers from spec §16 via `add_header ... always` (CSP, nosniff, Referrer-Policy, X-Frame-Options); `Cache-Control: no-store` on `/api/`.
+  - Security headers from spec §16 in `web/security_headers.conf` (`add_header ... always`), included in every location, because a nested `add_header` does not inherit.
   - Compose `logging: {driver: json-file, options: {max-size: 20m, max-file: '10'}}` on both services.
 
 - [ ] **Step 1:** Write the Dockerfiles, `nginx.conf` and compose file. Build locally with `docker compose build`. Expected: both images build.
-- [ ] **Step 2 [USER/ops]:** On 10.153.90.17, copy the repo (without `artifacts/` or `.env`), create `.env`, mount the files root, then run `docker compose up -d`. Verify: `curl http://10.153.90.17/api/ready` returns 200, and the login page loads from a workstation browser. Six rapid wrong logins: the sixth returns 429 from NGINX, and `docker compose logs web` shows the JSON line for it.
+- [ ] **Step 2 [USER/ops]:** On 10.153.90.17, first check that `docker compose version` works and `pg_isready -h 10.151.28.2 -p 5432` succeeds. Then copy the repo (without `artifacts/` or `.env`), create `.env`, mount the files root, then run `docker compose up -d`. Verify: `curl http://10.153.90.17/api/ready` returns 200, and the login page loads from a workstation browser. Seven rapid logins: the seventh returns 429 from NGINX (1 + burst 5 pass), and `docker compose logs web` shows the JSON line for it. `curl -I` on `/api/runs` shows `no-store` and the CSP. On `/api/files/...` it shows `private, max-age=86400` and the CSP.
 - [ ] **Step 3:** Commit (`chore(deploy): docker compose for phase 2 trial`) with HANDOFF and QA_LOG.

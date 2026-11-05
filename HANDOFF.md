@@ -102,6 +102,14 @@
   - **Frontend:** initial JS ≤ 300 KB gzip.
   - **Targets:** p95 dashboard ≤ 300 ms cold, detail ≤ 150 ms.
   - **Redesign trigger:** L > 50k or > 20 concurrent users.
+- Analysed the design and plan against the real artifacts and DB (`docs/superpowers/specs/2026-11-05-phase2-trial-analysis.md`). Fixed 4 blockers and 9 inconsistencies; 3 decisions are waiting on the user.
+  - The loader rejected UNFROZEN runs as blind.
+  - `compare_rules`/`flags` are not `line_result` columns; they are now stored as `elr_snapshot.line_extra`.
+  - Columns are `final_mark`/`db_mark`.
+  - The engine version test was pinned to `"0.2.0"`.
+  - NGINX now uses `nodelay` and separate locations for `/api/files`.
+  - 1 uvicorn worker.
+  - Card reference values: TRUE 866 / WARNING 214 / ERROR 41 / HOLD 34.
 - Facts checked against the DB on 2026-11-05: the `line_result` PK is `(run_id, elr_no, abs_no, side, line_no)`, and line status is in `final_status`.
 
 ### 2026-11-05 — Engine fixes from the run-17 overflow review (post-holdout, not frozen)

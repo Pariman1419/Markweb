@@ -46,7 +46,7 @@
 | `app_user` | username, display_name, role (`engineer`/`mark_eng_approver`/`admin`), password_hash (argon2), active, failed_count, locked_until | ผู้ใช้คนแรกสร้างด้วย script (ไม่มีหน้าสมัคร) |
 | `user_session` | token hash, user_id, csrf hash, expires_at, last_seen_at | ข้อ 11 |
 | `api_token` | name, token_hash, scopes, expires_at, last_used_at, created_by | สำหรับ Airflow / monitor (ข้อ 11) |
-| `elr_snapshot` | (run_id, elr_no) PK, top_mark_id, layout_code, mark_remark, mark_require, top_template_remark, oracle_top_raw (TOP_MARK1–5 ดิบ 21 ช่อง), layout_cells (jsonb 5×18), abs_file, abs_sha256, image_path, slr_files, slr_instructions (jsonb: line, value, quote), import_date | ค่า Oracle ณ เวลารัน — หน้าเว็บไม่ดึง Oracle สด **[ผู้ใช้]** |
+| `elr_snapshot` | (run_id, elr_no) PK, top_mark_id (int), layout_code, line_extra (jsonb: compare_rules / flags / detail ต่อบรรทัด — ไม่มีเป็นคอลัมน์ใน `line_result`), mark_remark, mark_require, top_template_remark, oracle_top_raw (TOP_MARK1–5 ดิบ 21 ช่อง), layout_cells (jsonb 5×18), abs_file, abs_sha256, image_path, slr_files, slr_instructions (jsonb: line, value, quote), import_date | ค่า Oracle ณ เวลารัน — หน้าเว็บไม่ดึง Oracle สด **[ผู้ใช้]** |
 | `line_review` | id, run_id, elr_no, abs_no, side, line_no, reason (DB wrong · OCR wrong · Symbol wrong · SLR / ECN change · Rule missing · Layout wrong · Other), note, corrected_mark, reviewer_id, created_at, is_draft | เก็บทุกครั้ง (ไม่ทับ) — แถวล่าสุดคือค่าปัจจุบัน |
 | `approval` | id, run_id, elr_no, decision (APPROVED / REJECTED), user_id, created_at | |
 | `audit_log` | id, user_id, action, target (run_id/elr_no/line_no), detail jsonb, created_at | ทุก login / review / approve |
@@ -62,7 +62,7 @@
 | Validation | `GET /dashboard?run=` (การ์ด 4 ใบ, รายเดือน, สาเหตุ Error / HOLD) |
 | Workflow | `POST /reviews` (บันทึกร่าง/เหตุผล/ค่าที่ถูกต้อง) · `POST /approvals` |
 
-กฎฝั่ง server **[ผู้ใช้ จาก spec เดิม §4.4]**: Approve ไม่ผ่านถ้ามีบรรทัด Error ที่ยังไม่มีเหตุผล + ค่าที่ถูกต้อง · ทุก endpoint ต้อง login
+กฎฝั่ง server **[ผู้ใช้ จาก spec เดิม §4.4]**: Approve ไม่ผ่านถ้ามีบรรทัด Error ที่ยังไม่มีเหตุผล + ค่าที่ถูกต้อง · ELR ที่ HOLD Approve ไม่ได้ (Reject ได้) **[Claude]** · API ต่อ DB ด้วย role `mark_app` · ทุก endpoint ต้อง login
 · ตรวจ path ของไฟล์ภาพให้อยู่ใต้ `MARK_FILES_ROOT` เท่านั้น
 
 **การจัดกลุ่ม True / Warning / Error / HOLD [Claude — ผู้ใช้ตรวจ]** (ระดับบรรทัด TOP)
@@ -95,7 +95,7 @@ NOT_ELIGIBLE / NOT_MEASURABLE / NOT_COMPARABLE ไม่นับในการ
 
 ## 8. เกณฑ์รับงาน
 
-- ตัวเลขการ์ด Dashboard ตรงกับ `metrics.json` ของ run เดียวกัน
+- ตัวเลขการ์ด Dashboard ตรงกับบรรทัด TOP ใน `lines.csv` ของ run เดียวกันที่จัดกลุ่มตามข้อ 5 (ค่าคาดหวังดู [analysis](2026-11-05-phase2-trial-analysis.md) M4)
 - ตาราง 21 ช่องของ Oracle ใน Preview ตรงกับ `TOP_MARK1–5` ดิบ; ฝั่งระบบตรงกับ `expected_mark`
 - บันทึก review / approve แล้วอยู่ใน `mark_app` + `audit_log`; ไม่มีการเขียน `mark_logic` หรือ Oracle
 - ภาพ ABS และข้อมูลลูกค้าเปิดได้เฉพาะในเครือข่ายภายใน, ไม่มีรหัสผ่านใน repo
@@ -136,7 +136,7 @@ holdout ใหม่ (รอข้อมูล พ.ย. ครบเดือน
 
 ## 12. Rate limit **[Claude]**
 
-ทำที่ NGINX ด้วย `limit_req_zone` ต่อ IP (ไม่ต้องมี Redis) · เกินแล้วตอบ **429** และ log `rate_limited`
+ทำที่ NGINX ด้วย `limit_req_zone` ต่อ IP แบบ `nodelay` (เกิน burst แล้วปฏิเสธทันที ไม่หน่วง) (ไม่ต้องมี Redis) · เกินแล้วตอบ **429** และ log `rate_limited`
 
 | Zone | Path | อัตรา | burst |
 |---|---|---|---|
@@ -309,7 +309,7 @@ NGINX access log ใช้ `log_format json` ด้วยฟิลด์ชุ�
 
 **ฝั่ง server**
 - Connection pool `psycopg2.pool.ThreadedConnectionPool(min=1, max=10)` (ไม่เปิด connection ใหม่ทุก request)
-- uvicorn 2 worker · cache dashboard แยกในแต่ละ worker ได้ (ข้อมูลไม่เปลี่ยน จึงไม่ต้อง sync)
+- uvicorn **1 worker** ในรอบทดลอง เพราะ `/api/metrics` เป็นตัวนับในหน่วยความจำ · ขยาย worker เมื่อย้าย metrics ไปเก็บร่วมกัน (B6) · cache dashboard แยกต่อ worker ได้ (ข้อมูลไม่เปลี่ยน)
 - `statement_timeout = 5s` ต่อ connection · query เกิน 500 ms log `db.slow_query` (ข้อ 15)
 - response ใหญ่ (dashboard, elrs) บีบอัดด้วย gzip ที่ NGINX (`gzip on`, ≥ 1 KB)
 

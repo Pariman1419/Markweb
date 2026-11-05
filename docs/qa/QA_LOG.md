@@ -538,3 +538,4 @@
 - CORS has one route test, `test_no_cors_by_default`, which also covers the allowlist case. Security headers are checked by hand at deploy with `curl -I`.
 - Cookies have two route tests: `test_cookie_attributes_and_rotation` and `test_csrf_from_other_session_rejected`.
 - Performance is pinned by 3 cheap route tests: fixed query count for ELR detail, dashboard cache per run, and ELR list paging. Timing targets are checked by hand from `/api/metrics` on real data, with no benchmark suite.
+- Plan analysis added 4 tests for new behaviour: blind detection in the loader, mark-id/line_extra in the snapshot, HOLD cannot be approved, and the five-failure lock via route. The total is 29 new tests; none duplicate engine tests.
