@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from mark_api.auth import login_state, new_token, verify_password
-from mark_api.deps import current_user, get_cookie_name, get_repo
+from mark_api.deps import audit_ctx, current_user, get_cookie_name, get_repo
 from mark_api.logging import log_event
 from mark_api.repo import Repo
 
@@ -60,7 +60,7 @@ def login(req: LoginRequest, request: Request, repo: Repo = Depends(get_repo)):
     raw_csrf, csrf_digest = new_token()
     expires_at = now + timedelta(hours=8)
     repo.create_session(sess_digest, user["user_id"], csrf_digest, expires_at)
-    repo.audit(user["user_id"], "auth.login_ok")
+    repo.audit(user["user_id"], "auth.login_ok", **audit_ctx(request))
     log_event("auth.login_ok", user_id=user["user_id"])
 
     resp = JSONResponse(
@@ -104,7 +104,7 @@ def logout(request: Request, user: dict[str, Any] = Depends(current_user), repo:
     sess = getattr(request.state, "session", None)
     if sess:
         repo.delete_session(sess["token_hash"])
-    repo.audit(user["user_id"], "auth.logout")
+    repo.audit(user["user_id"], "auth.logout", **audit_ctx(request))
     log_event("auth.logout", user_id=user["user_id"])
 
     resp = JSONResponse({"status": "ok"})

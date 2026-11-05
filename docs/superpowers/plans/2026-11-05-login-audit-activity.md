@@ -53,8 +53,8 @@
   - `Repo.audit(user_id: int | None, action: str, run_id=None, elr_no=None, line_no=None, detail=None, *, client_ip: str | None = None, request_id: str | None = None) -> int`
   - `audit_ctx(request: Request) -> dict[str, str | None]`, which returns `{"client_ip": ..., "request_id": ...}`.
 
-- [ ] **Step 1: Write the migration** `migrations/0006_audit_context.sql`, exactly as in spec §5.1, wrapped in `begin; … commit;` like 0005.
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 1: Write the migration** `migrations/0006_audit_context.sql`, exactly as in spec §5.1, wrapped in `begin; … commit;` like 0005.
+- [x] **Step 2: Write the failing test**
 
 ```python
 def test_review_audit_carries_ip_and_request_id(client, fake_repo):
@@ -69,14 +69,14 @@ def test_review_audit_carries_ip_and_request_id(client, fake_repo):
     assert row["request_id"] == "req-test-1"       # sent as X-Request-ID header
 ```
 
-- [ ] **Step 3: Run it.** `python -m pytest tests/unit/test_api_routes.py -k carries_ip -q`. Expected: FAIL with a KeyError on `client_ip`.
-- [ ] **Step 4: Implement.**
+- [x] **Step 3: Run it.** `python -m pytest tests/unit/test_api_routes.py -k carries_ip -q`. Expected: FAIL with a KeyError on `client_ip`.
+- [x] **Step 4: Implement.**
   - `audit_ctx` in `deps.py`: `request_id` is `request.state.request_id`; `client_ip` is `X-Real-IP` or `request.client.host`.
   - Extend `Repo.audit`'s insert with the two columns. Pass `client_ip` as text; Postgres casts it to `inet`.
   - Pass `**audit_ctx(request)` in every existing `repo.audit(...)` call: auth login_ok and logout, plus workflow review and approval. Add a `request: Request` parameter where a route lacks one.
   - `FakeRepo.audit` stores both new keys.
-- [ ] **Step 5: Run the whole unit suite.** `python -m pytest tests/unit -q`. Expected: all pass.
-- [ ] **Step 6: Commit.** Run `git add migrations/0006_audit_context.sql services/api/mark_api tests/unit HANDOFF.md docs/qa/QA_LOG.md`, then `git commit -m "feat: audit rows carry client_ip and request_id (migration 0006)"`.
+- [x] **Step 5: Run the whole unit suite.** `python -m pytest tests/unit -q`. Expected: all pass.
+- [x] **Step 6: Commit.** Run `git add migrations/0006_audit_context.sql services/api/mark_api tests/unit HANDOFF.md docs/qa/QA_LOG.md`, then `git commit -m "feat: audit rows carry client_ip and request_id (migration 0006)"`.
 
 ### Task 2: Audit failed logins, lockouts and expired sessions
 

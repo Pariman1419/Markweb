@@ -655,3 +655,15 @@
 
 ## 2026-11-05 — Login audit / admin plan (design only)
 - No code yet. The plan adds about 13 tests and duplicates none: the existing lockout and no-username tests are kept as they are.
+
+## 2026-11-05 — Task 1: Audit rows carry client_ip and request_id (migration 0006)
+
+### What changed
+- Created `migrations/0006_audit_context.sql` adding `client_ip inet`, `request_id text`, and `audit_log_action_created_idx` to `mark_app.audit_log`.
+- Added `audit_ctx` helper in `mark_api.deps` reading `X-Real-IP` and `request_id`.
+- Extended `Repo.audit` and `FakeRepo.audit` to record `client_ip` and `request_id`.
+- Wired `**audit_ctx(request)` into `auth.login_ok`, `auth.logout`, `review.saved`, and `approval.saved`.
+
+### Verification
+- `test_review_audit_carries_ip_and_request_id` passed.
+- Full test suite: 341 unit tests passed.

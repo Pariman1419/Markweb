@@ -181,13 +181,16 @@ class Repo:
         return self._execute(q, (run_id, elr), fetch_one=True)
 
     def audit(self, user_id: int | None, action: str, run_id: int | None = None,
-              elr_no: str | None = None, line_no: int | None = None, detail: Any = None) -> int:
+              elr_no: str | None = None, line_no: int | None = None, detail: Any = None,
+              *, client_ip: str | None = None, request_id: str | None = None) -> int:
         q = """
-        insert into mark_app.audit_log (user_id, action, run_id, elr_no, line_no, detail)
-        values (%s, %s, %s, %s, %s, %s)
+        insert into mark_app.audit_log (user_id, action, run_id, elr_no, line_no, detail, client_ip, request_id)
+        values (%s, %s, %s, %s, %s, %s, %s, %s)
         returning audit_id
         """
-        res = self._execute(q, (user_id, action, run_id, elr_no, line_no, Json(detail) if detail is not None else None),
+        res = self._execute(q, (user_id, action, run_id, elr_no, line_no,
+                                Json(detail) if detail is not None else None,
+                                client_ip, request_id),
                             fetch_one=True, commit=True)
         return res["audit_id"]
 

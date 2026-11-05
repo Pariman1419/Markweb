@@ -1,11 +1,11 @@
 """Workflow endpoints: reviews and approvals."""
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from mark_api.deps import current_user, get_repo, require
+from mark_api.deps import audit_ctx, current_user, get_repo, require
 from mark_api.grouping import classify_job
 from mark_api.logging import log_event
 from mark_api.repo import Repo
@@ -31,7 +31,7 @@ class ApprovalRequest(BaseModel):
 
 
 @router.post("/reviews")
-def add_review(req: ReviewRequest, user: dict[str, Any] = Depends(require("review")), repo: Repo = Depends(get_repo)):
+def add_review(req: ReviewRequest, request: Request, user: dict[str, Any] = Depends(require("review")), repo: Repo = Depends(get_repo)):
     snapshot = repo.snapshot(req.run_id, req.elr_no)
     abs_no = snapshot.get("abs_file", "") if snapshot else ""
 
@@ -54,13 +54,14 @@ def add_review(req: ReviewRequest, user: dict[str, Any] = Depends(require("revie
         elr_no=req.elr_no,
         line_no=req.line_no,
         detail={"reason": req.reason, "is_draft": req.is_draft},
+        **audit_ctx(request),
     )
     log_event("review.saved", run_id=req.run_id, elr_no=req.elr_no, line_no=req.line_no)
     return {"status": "ok", "review_id": rev_id}
 
 
 @router.post("/approvals")
-def add_approval(req: ApprovalRequest, user: dict[str, Any] = Depends(require("approve")), repo: Repo = Depends(get_repo)):
+def add_approval(req: ApprovalRequest, request: Request, user: dict[str, Any] = Depends(require("approve")), repo: Repo = Depends(get_repo)):
     if req.decision == "APPROVED":
         # Check if job is HOLD
         snapshot = repo.snapshot(req.run_id, req.elr_no)
@@ -82,6 +83,6 @@ def add_approval(req: ApprovalRequest, user: dict[str, Any] = Depends(require("a
             return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"blocked_lines": blockers})
 
     app_id = repo.add_approval(req.run_id, req.elr_no, req.decision, user["user_id"])
-    repo.audit(user["user_id"], "approval.saved", run_id=req.run_id, elr_no=req.elr_no, detail={"decision": req.decision})
+    repo.audit(user["user_id"], "approval.saved", run_id=req.run_id, elr_no=req.elr_no, detail={"decision": req.decision}, **audit_ctx(request))
     log_event("approval.saved", run_id=req.run_id, elr_no=req.elr_no, decision=req.decision)
     return {"status": "ok", "approval_id": app_id, "decision": req.decision}

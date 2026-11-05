@@ -32,6 +32,13 @@ def get_cookie_name(base: str) -> str:
     return base
 
 
+def audit_ctx(request: Request) -> dict[str, str | None]:
+    client_ip = request.headers.get("x-real-ip") or (request.client.host if request.client else None)
+    req_id = getattr(request.state, "request_id", None) or request.headers.get("x-request-id")
+    return {"client_ip": client_ip, "request_id": req_id}
+
+
+
 def current_user(request: Request, authorization: str | None = Header(None), repo: Repo = Depends(get_repo)) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
 

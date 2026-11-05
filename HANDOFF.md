@@ -63,6 +63,16 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 1: Migration 0006 and request context in Repo.audit
+- **What changed**:
+  - Migration `migrations/0006_audit_context.sql`: additive columns `client_ip inet`, `request_id text` and composite index `audit_log_action_created_idx` on `mark_app.audit_log`.
+  - Added `audit_ctx(request: Request)` in `services/api/mark_api/deps.py` extracting `client_ip` from `X-Real-IP` (falling back to `request.client.host`) and `request_id` from `request.state.request_id` (or header).
+  - Updated `Repo.audit` and `FakeRepo.audit` to take keyword arguments `client_ip` and `request_id`.
+  - Updated `routers/auth.py` and `routers/workflow.py` to forward `**audit_ctx(request)` on login, logout, review and approval.
+- **Verification**:
+  - `pytest tests/unit -q`: 341 passed.
+  - Added unit test `test_review_audit_carries_ip_and_request_id` in `tests/unit/test_api_routes.py`.
+
 ### 2026-11-05 — Design and plan: login audit, admin unlock and activity dashboard
 - **Why:** the user needs to answer "I can't log in" from the DB, and managers want an overview (role `admin`).
 - **Gaps found:**

@@ -211,7 +211,8 @@ class FakeRepo:
         return matches[-1] if matches else None
 
     def audit(self, user_id: int | None, action: str, run_id: int | None = None,
-              elr_no: str | None = None, line_no: int | None = None, detail: Any = None) -> int:
+              elr_no: str | None = None, line_no: int | None = None, detail: Any = None,
+              *, client_ip: str | None = None, request_id: str | None = None) -> int:
         self.call_count += 1
         audit_id = len(self.audit_data) + 1
         self.audit_data.append({
@@ -222,6 +223,8 @@ class FakeRepo:
             "elr_no": elr_no,
             "line_no": line_no,
             "detail": detail,
+            "client_ip": client_ip,
+            "request_id": request_id,
             "created_at": datetime.now(timezone.utc),
         })
         return audit_id
@@ -650,3 +653,16 @@ def test_failed_login_log_has_no_username(client, capsys):
     client.post("/api/auth/login", json={"username": "someone_secret", "password": "wrong-password-1"})
     out = capsys.readouterr().out
     assert "auth.login_failed" in out and "someone_secret" not in out
+
+
+def test_review_audit_carries_ip_and_request_id(client, fake_repo):
+    csrf = _login(client)
+    client.post("/api/reviews",
+                json={"run_id": 18, "elr_no": "ADI2607001", "line_no": 1, "reason": "OTHER",
+                      "note": "n", "corrected_mark": "VAL", "is_draft": False},
+                headers={"X-CSRF-Token": csrf, "X-Real-IP": "10.0.0.7", "X-Request-ID": "req-test-1"})
+    row = fake_repo.audit_data[-1]
+    assert row["action"] == "review.saved"
+    assert row["client_ip"] == "10.0.0.7"          # sent as X-Real-IP header
+    assert row["request_id"] == "req-test-1"       # sent as X-Request-ID header
+
