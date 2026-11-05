@@ -63,6 +63,19 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Plan: auto review step 1, engine gates (for the other agent)
+- **Plan:** `docs/superpowers/plans/2026-11-05-auto-review-engine-gates.md`.
+- **Tasks:**
+  - T1: G1 Cust Assy TBD → HOLD.
+  - T2: SLR instructions apply only when the SLR has SPECIAL INSTRUCTIONS.
+  - T3: G5 more than 5 TOP rows → HOLD.
+  - T4: G0 pending-review selector + a read-only Oracle check of the step value.
+  - T5: engine 0.4.0, run-19 regression into `artifacts/blind-2026h2/run-gates` + `scripts/diff_runs.py` report.
+- **Data facts:**
+  - The run-19 snapshot's CURRENT_STEP has only 7 and 1 (no 6). So G0 can't be regressed there, and the step value comes from live Oracle.
+  - 29 ELRs are TBD and will move to HOLD.
+- **No DB load and no re-freeze:** the user decides after the diff.
+
 ### 2026-11-05 — Auto Review Flow design rev 3 (user confirmed §10)
 - **G1:** TBD.
 - **Approvals:** an approved revision is kept as history. New data → a new revision with its own create date. No duplicate of **any** old revision: the `(oracle_fp, docs_fp)` pair is unique per ELR, and `result_fp` flags `result_unchanged`.
