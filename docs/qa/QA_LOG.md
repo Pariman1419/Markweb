@@ -636,3 +636,8 @@
 ### Manual (localhost:8088, docker compose)
 - `/api/ready` 200; security headers present; SPA fallback 200.
 - 7th rapid login returns 429, logged as JSON with `limit_req: REJECTED`.
+
+## 2026-11-05 — Jenkins pipeline
+- The pipeline reruns the existing suites (pytest, `npm run build`). It adds no new unit tests.
+- The smoke stage checks the deployed stack: ready 200, 401 without login, `no-store` and CSP on `/api`.
+- The first green build is still pending: it needs the user's Jenkins setup (service logon, credentials, job).

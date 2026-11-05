@@ -63,6 +63,19 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Jenkins CI/CD for mark-web
+- **User decisions:**
+  - Jenkins (Windows service, localhost:8080, 2.580.2) builds from GitHub after `phase2/trial` is pushed.
+  - The service runs under the user's Windows account, so it gets Python, Node and Docker Desktop.
+- **Added `Jenkinsfile`:** Preflight → pytest (venv, JUnit) → web build → `docker compose build` → deploy (`.env` from Secret file credential `mark-web-env`, deleted after) → smoke test (`/api/ready` 200; `/api/runs` 401 with `no-store` + CSP).
+  - Parameters: `DEPLOY`, `MARK_WEB_PORT`, `MARK_FILES_HOST_DIR`, `PYTHON_EXE`.
+- **Compose:** image folder is now `${MARK_FILES_HOST_DIR:-./data/files}`, because ABS images are not in git.
+- **`.gitignore`:** added `reports/`.
+- **Redacted** the two credential mentions in `docs/implementation/00-phase0-readiness.md:57` and `07-open-decisions.md:21`.
+  - Earlier commits still contain them, and so does `origin/phase0/readiness`. Rotation remains D-13.
+- **Setup steps:** `services/README.md` → "CI/CD with Jenkins".
+- **Pending user:** push `phase2/trial`, change the Jenkins service logon, add credentials `mark-web-env` and `github-markweb`, then create the job.
+
 ### 2026-11-05 — Phase 2 trial: review fix-ups and localhost integration
 - **Reviewed Tasks 1–6 (another agent).** All met the plan, except for the items fixed below.
 - **Security:**

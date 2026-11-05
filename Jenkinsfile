@@ -1,0 +1,98 @@
+// mark-web CI/CD (Windows Jenkins agent).
+// CI: Python tests + web build + Docker images. CD: docker compose on this host, then a smoke test.
+// Secrets: Jenkins "Secret file" credential `mark-web-env` (the .env); never stored in the repo.
+pipeline {
+  agent any
+
+  options {
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+    timeout(time: 45, unit: 'MINUTES')
+  }
+
+  parameters {
+    booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Run docker compose up and the smoke test after CI')
+    string(name: 'MARK_WEB_PORT', defaultValue: '8088', description: 'Host port for NGINX (80 on 10.153.90.17; 8088 on the workstation)')
+    string(name: 'MARK_FILES_HOST_DIR', defaultValue: 'D:/CIM Project/mark-web/data/files', description: 'Host folder with the ABS images (git-ignored; mounted read-only)')
+    string(name: 'PYTHON_EXE', defaultValue: 'python', description: 'Python 3.12 executable (full path if the Jenkins service PATH lacks it)')
+  }
+
+  environment {
+    COMPOSE_PROJECT_NAME = 'mark-web'
+    MARK_WEB_PORT = "${params.MARK_WEB_PORT}"
+    MARK_FILES_HOST_DIR = "${params.MARK_FILES_HOST_DIR}"
+    PIP_DISABLE_PIP_VERSION_CHECK = '1'
+  }
+
+  stages {
+    stage('Preflight') {
+      steps {
+        bat '"%PYTHON_EXE%" --version && node --version && git --version && docker version --format "docker {{.Server.Version}}"'
+      }
+    }
+
+    stage('Python tests') {
+      environment { PYTHON_EXE = "${params.PYTHON_EXE}" }
+      steps {
+        bat '"%PYTHON_EXE%" -m venv .venv'
+        bat '.venv\\Scripts\\python -m pip install -q -e ".[dev,api]"'
+        bat 'if not exist reports mkdir reports && .venv\\Scripts\\python -m pytest tests -q --junitxml=reports\\pytest.xml'
+      }
+      post {
+        always { junit allowEmptyResults: true, testResults: 'reports/pytest.xml' }
+      }
+    }
+
+    stage('Web build') {
+      steps {
+        dir('web') {
+          bat 'npm ci --no-audit --no-fund'
+          bat 'npm run build'
+        }
+      }
+    }
+
+    stage('Docker images') {
+      steps {
+        bat 'docker compose build'
+      }
+    }
+
+    stage('Deploy') {
+      when { expression { params.DEPLOY } }
+      steps {
+        withCredentials([file(credentialsId: 'mark-web-env', variable: 'MARK_ENV_FILE')]) {
+          bat 'copy /Y "%MARK_ENV_FILE%" .env >nul'
+          bat 'docker compose up -d --remove-orphans'
+        }
+      }
+      post {
+        always { bat 'if exist .env del /Q .env' }
+      }
+    }
+
+    stage('Smoke test') {
+      when { expression { params.DEPLOY } }
+      steps {
+        // /api/ready checks the DB and the image folder; the headers prove NGINX config is live.
+        powershell '''
+          $base = "http://localhost:$env:MARK_WEB_PORT"
+          $ok = $false
+          foreach ($i in 1..30) {
+            try { if ((Invoke-WebRequest "$base/api/ready" -UseBasicParsing -TimeoutSec 5).StatusCode -eq 200) { $ok = $true; break } } catch {}
+            Start-Sleep -Seconds 2
+          }
+          if (-not $ok) { docker compose logs --tail 50 api; throw "api not ready at $base" }
+          try { Invoke-WebRequest "$base/api/runs" -UseBasicParsing | Out-Null } catch { $r = $_.Exception.Response }
+          if ([int]$r.StatusCode -ne 401) { throw "expected 401 without login, got $([int]$r.StatusCode)" }
+          if ($r.Headers["Cache-Control"] -ne "no-store" -or -not $r.Headers["Content-Security-Policy"]) { throw "security headers missing on /api" }
+          Write-Host "smoke OK: $base"
+        '''
+      }
+    }
+  }
+
+  post {
+    failure { bat 'docker compose ps' }
+  }
+}

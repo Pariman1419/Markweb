@@ -17,3 +17,4 @@ models/**/inference.json
 .env
 .env.*
 !.env.example
+reports/

@@ -7,7 +7,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./data/files:/app/data/files:ro
+      - ${MARK_FILES_HOST_DIR:-./data/files}:/app/data/files:ro
     environment:
       - MARK_FILES_ROOT=/app/data/files
       - PYTHONPATH=/app:/app/services/api

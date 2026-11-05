@@ -39,3 +39,25 @@ docker compose up -d --build
 - NGINX rate limit check: Rapidly issue 7 requests to `POST /api/auth/login` (7th returns 429)
 - Static files caching: `curl -I http://10.153.90.17/api/files/...` (expect `Cache-Control: private, max-age=86400` and CSP)
 - API caching: `curl -I http://10.153.90.17/api/runs` (expect `Cache-Control: no-store` and CSP)
+
+## CI/CD with Jenkins (workstation, http://localhost:8080)
+
+The pipeline is defined in `Jenkinsfile` at the repo root. It runs on a Windows agent in this order: Preflight → Python tests (venv + pytest, JUnit report) → Web build (`npm ci`, `npm run build`) → Docker images → Deploy (`docker compose up -d`, project `mark-web`) → Smoke test (`/api/ready` 200, and `/api/runs` 401 with `no-store` + CSP).
+
+One-time setup:
+1. **Service account:** in `services.msc` → Jenkins → Log On, run the service as the Windows account that owns Python 3.12, Node and Docker Desktop. That account must be in the `docker-users` group. Restart Jenkins.
+2. **Credentials** (Manage Jenkins → Credentials):
+   - `mark-web-env` — *Secret file* holding the `.env`. The Deploy stage copies it into the workspace and deletes it afterwards.
+   - `github-markweb` — *SSH Username with private key*, with read access to `git@github.com:Pariman1419/Markweb.git`.
+3. **Job:** New Item → *Pipeline* `mark-web`, then Definition *Pipeline script from SCM* with:
+   - Git URL `git@github.com:Pariman1419/Markweb.git`
+   - credentials `github-markweb`
+   - branch `*/phase2/trial`
+   - script path `Jenkinsfile`
+   - trigger: *Poll SCM* `H/5 * * * *`
+
+Parameters:
+- `DEPLOY`: default true.
+- `MARK_WEB_PORT`: 8088 on the workstation (IIS uses 80, Jenkins uses 8080); 80 on 10.153.90.17.
+- `MARK_FILES_HOST_DIR`: the folder with the ABS images, which are not in git.
+- `PYTHON_EXE`: full path if `python` is not on the service PATH.

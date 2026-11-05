@@ -54,7 +54,7 @@
 | **B4** | เกณฑ์ผ่าน Phase 1 ใน spec ("regression ได้ผลเท่าเดิม") ใช้ไม่ได้กับผลที่ Oracle-conditioned | Phase 1 acceptance | เจ้าของรับเกณฑ์ legacy-parity + R1 | D-03 |
 | **B5** | NAS เข้าไม่ได้ | Blind test, resolver บนข้อมูลจริง | มีสิทธิ์อ่านหรือสำเนา ก.ค.–พ.ย. | D-12 |
 | **B6** | ไม่มีนิยาม trigger "Mark Eng Review" ใน Oracle | Airflow polling (Phase 5) | ทีม ACTL ยืนยัน | D-01 |
-| B7 | credential `postgres`/`actlusr` อยู่ในแชท | production | rotate | D-13 |
+| B7 | credential `postgres`/`<redacted>` อยู่ในแชท | production | rotate | D-13 |
 
 ## เงื่อนไขก่อนเริ่ม Phase 1 (CONDITIONAL GO)
 
