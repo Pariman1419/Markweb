@@ -41,7 +41,8 @@ pipeline {
         bat '.venv\\Scripts\\python -m pip install -q -e ".[dev,api]"'
         // separate steps: in cmd, `if not exist X a && b` runs b only inside the if
         bat 'if exist reports rmdir /S /Q reports'
-        bat '.venv\\Scripts\\python -m pytest tests -q --junitxml=reports\\pytest.xml'
+        // tests/regression reads artifacts/ (customer data, git-ignored): it is a local gate, not run in CI
+        bat '.venv\\Scripts\\python -m pytest tests -q --ignore=tests/regression --junitxml=reports\\pytest.xml'
       }
       post {
         always { junit allowEmptyResults: false, testResults: 'reports/pytest.xml' }
