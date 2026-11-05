@@ -63,6 +63,20 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Auto Review Flow design rev 2 (user corrections)
+- **Entry points:** an Airflow `mark_elr_polling` schedule, and "Select by user". The user path first checks our PostgreSQL. If the ELR isn't there: notify → user may search Oracle → if found, trigger that one ELR through the same flow; if not, notify.
+- **Gates now follow the user's order:**
+  - G0: ADI + Mark Engineer step + history/update check.
+  - G1: Cust Assy TBD.
+  - G2: Type E and layout not ZY. This is the Skip Mark check; run 19 has no non-ZY skips.
+  - G3: ABS **and** SLR are both required. Special requirement = the SLR has SPECIAL INSTRUCTIONS.
+  - Then OCR/YOLO on the AI Server → layout → G5 rows ≤ 5 → decode → generate (layout Fix cells already handled in `mark_layout.py`) → compare.
+- **New update logic (spec §4):**
+  - Fingerprints: `oracle_fp`, `docs_fp`, `version_fp`.
+  - Re-check only when Oracle data or docs change. A change after approval keeps the approval but flags it and notifies.
+  - A version-only change doesn't auto re-run.
+- **Open:** 5 confirmations in spec §10, including TBD vs "THB".
+
 ### 2026-11-05 — Design: Auto Review Flow (B3 + B4)
 - **Spec:** `docs/superpowers/specs/2026-11-05-auto-review-flow-design.md`, derived from the user's TO-BE Marking Process diagram.
 - **Gaps between the engine and the diagram:**
