@@ -300,11 +300,11 @@ def test_safe_file_rejects_traversal(tmp_path):
     - Logout sends both cookies with `Max-Age=0`.
   - `test_csrf_from_other_session_rejected`: session A's cookie with session B's CSRF token → 403.
   - `test_no_cors_by_default`: `OPTIONS /api/runs` with `Origin: http://evil.example` and `Access-Control-Request-Method: GET` → the response has no `access-control-allow-origin` header. With `MARK_CORS_ORIGINS=http://ok.example`, that origin gets it echoed and `evil.example` does not.
-- [ ] **Step 2:** Run `python -m pytest tests/unit/test_api_routes.py -q`. Expected: FAIL.
-- [ ] **Step 3:** Implement the repository SQL and the routers. `lines()` reads `mark_logic.line_result` for `side='TOP'` and maps `final_mark → expected`, `db_mark → oracle`, `final_status → status`. It merges `compare_rules/flags/detail` from `elr_snapshot.line_extra`.
+- [x] **Step 2:** Run `python -m pytest tests/unit/test_api_routes.py -q`. Expected: FAIL.
+- [x] **Step 3:** Implement the repository SQL and the routers. `lines()` reads `mark_logic.line_result` for `side='TOP'` and maps `final_mark → expected`, `db_mark → oracle`, `final_status → status`. It merges `compare_rules/flags/detail` from `elr_snapshot.line_extra`.
   - `POST /reviews` sets `side='TOP'` and takes `abs_no` from `job_result`.
-- [ ] **Step 4:** Run the tests and the full suite. Expected: PASS. **[USER]** Run `uvicorn services.api.mark_api.app:app --port 8000` against the DB, then log in and open `/api/dashboard?run=<new>`. The cards must equal the TOP rows of `run-trial/lines.csv` grouped by `classify_line`: for an output identical to `run-overflowfix`, **TRUE 866, WARNING 214, ERROR 41, HOLD 34** (183 lines not compared). `metrics.json` counts both sides and has no Warning group, so it is not the reference. Then open `/api/metrics`: p95 is within the spec §18 targets (dashboard ≤ 300 ms cold, elr detail ≤ 150 ms).
-- [ ] **Step 5:** Commit (`feat(api): auth, mark, validation, workflow routers`) with HANDOFF and QA_LOG.
+- [x] **Step 4:** Run the tests and the full suite. Expected: PASS. **[USER]** Run `uvicorn services.api.mark_api.app:app --port 8000` against the DB, then log in and open `/api/dashboard?run=<new>`. The cards must equal the TOP rows of `run-trial/lines.csv` grouped by `classify_line`: for an output identical to `run-overflowfix`, **TRUE 866, WARNING 214, ERROR 41, HOLD 34** (183 lines not compared). `metrics.json` counts both sides and has no Warning group, so it is not the reference. Then open `/api/metrics`: p95 is within the spec §18 targets (dashboard ≤ 300 ms cold, elr detail ≤ 150 ms).
+- [x] **Step 5:** Commit (`feat(api): auth, mark, validation, workflow routers`) with HANDOFF and QA_LOG.
 
 ### Task 5: Web app (spec T4)
 

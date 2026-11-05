@@ -124,6 +124,7 @@ create index if not exists audit_log_user_created_idx on mark_app.audit_log (use
 
 -- Grants
 grant usage on schema mark_app to mark_app;
+grant usage on schema mark_logic to mark_app;
 grant select on all tables in schema mark_logic to mark_app;
 grant select, insert on mark_app.line_review, mark_app.approval, mark_app.audit_log to mark_app;
 grant select, insert, update, delete on mark_app.app_user, mark_app.user_session, mark_app.api_token, mark_app.elr_snapshot to mark_app;

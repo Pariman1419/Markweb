@@ -63,6 +63,20 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 4: API routes + repository (spec T3)
+- Implemented `Repo` in `services/api/mark_api/repo.py` connecting via `ThreadedConnectionPool` (1..10) with 5s timeout and slow query logging (>500ms).
+- Created FastAPI app `services/api/mark_api/app.py` and routers:
+  - `auth`: `POST /auth/login` (rate limit, lockout after 5 failures, session rotation), `POST /auth/logout`, `GET /auth/me`.
+  - `mark`: `GET /runs`, `GET /elrs` (paged at 50, filters), `GET /elrs/{elr}` (fixed 4-query limit), `GET /files/abs/{run}/{elr}` (stream with ETag & traversal guard).
+  - `validation`: `GET /dashboard?run=` with in-memory per-run caching.
+  - `workflow`: `POST /reviews`, `POST /approvals` (blocks approval on unreviewed ERROR lines and blocks approval on HOLD).
+  - System: `GET /api/health`, `GET /api/ready`, `GET /api/metrics`.
+- Implemented double-submit CSRF protection and exact SameSite/HttpOnly cookie attributes.
+- Granted `mark_app` usage on `mark_logic` schema.
+- Verified 18 unit route tests (`tests/unit/test_api_routes.py`) and full suite (337 passed).
+- Live DB verification on run 19 matched exact reference counts: TRUE 866, WARNING 214, ERROR 41, HOLD 34.
+
+
 ### 2026-11-05 — Task 3: API core logic (pure functions)
 - Implemented `services/api/mark_api/`:
   - `grouping.py`: `classify_line` (TRUE/WARNING/ERROR/NONE), `classify_job`, `summarize` with cards, monthly trends, and error/hold cause breakdowns.

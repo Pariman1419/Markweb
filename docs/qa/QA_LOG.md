@@ -577,3 +577,16 @@
 ### Verification
 - `pytest tests/unit/test_api_core.py -q`: 8 passed.
 - Full suite `pytest tests -q`: 319 passed in 7.2s.
+
+## 2026-11-05 — Task 4: API routes + repository (spec T3)
+
+### What changed
+- Created `services/api/mark_api/repo.py` implementing database persistence with connection pooling, slow query monitoring, and audit trails.
+- Implemented FastAPI routers `auth`, `mark`, `validation`, `workflow`, and dependencies `deps.py`.
+- Configured CSRF verification on unsafe methods, strict SameSite cookies, session rotation on login, and selective CORS support.
+- Added comprehensive route testing suite in `tests/unit/test_api_routes.py` (18 tests).
+
+### Verification
+- `pytest tests/unit/test_api_routes.py -q`: 18 passed.
+- Full suite `pytest tests -q`: 337 passed in 14.6s.
+- Real database verification for run 19: TRUE 866, WARNING 214, ERROR 41, HOLD 34 across 1,304 lines and 402 jobs.
