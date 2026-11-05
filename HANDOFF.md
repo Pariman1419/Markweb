@@ -63,6 +63,15 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Jenkins job `mark-web` created; first builds
+- **Job created** at http://localhost:8080/job/mark-web: Pipeline from SCM, `https://github.com/Pariman1419/Markweb.git` `*/phase2/trial`, polls every 5 min.
+- **Jenkins fixes made during the first builds:**
+  - The global Git tool now points to the user's Git (`C:\Users\41495406\AppData\Local\Programs\Git\cmd\git.exe`), because the LocalSystem controller had no `git.exe` on PATH.
+  - Node `mark-web-local` remote root had a leading space (`" D:\jenkins-agent"`) and was corrected to `D:\jenkins-agent`.
+- **Dependency fix (found by CI's clean venv, cf30405):** a fresh install pulled FastAPI 0.162 / Starlette 1.10, whose test client needs `httpx2`. Tests had only been run on FastAPI 0.141 / Starlette 0.52 with `httpx` installed by hand.
+  - Pinned `fastapi>=0.110.0,<0.142` (this also applies to the API image).
+  - Added `httpx>=0.27,<0.29` to `dev`.
+
 ### 2026-11-05 — Jenkins CI/CD for mark-web
 - **User decisions:**
   - Jenkins (Windows service, localhost:8080, 2.580.2) builds from GitHub after `phase2/trial` is pushed.
