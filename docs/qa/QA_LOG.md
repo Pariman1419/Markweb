@@ -1163,3 +1163,12 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
   - `wt-review` worktree not removed.
   - `force=gpu` with the CPU-only Paddle is not guarded.
 
+
+
+## 2026-11-06 ? Airflow Mark DAGs and deferred deployment
+
+- Key-only SSH succeeded and Airflow scheduler/webserver were observed active as systemd services. The host-to-dev API probe returned HTTP 000. Version, DAG folder, timezone and CLI access have not been verified.
+- User reports .3 ? 10.151.97.18 blocked, .3 ? 10.153.90.17 OK, and port 8088 on .17 occupied. Task 3?4 are deferred until deployment to .17; the Mark API port there is undecided.
+- Added three paused Mark DAGs and client. All endpoint information comes from Airflow Connection `mark_api`; no server deployment or parse test was performed. HTTP tests use a local loopback server and fake failure cases.
+- 409 is skipped; 401/403 fail without retry; transient errors retry. Logs contain only scan ID and counts. Prerequisites for Task 3 remain B3 Task 5 green and migration 0007 applied to real DB.
+- Verification: 12 focused tests passed; the full non-regression suite passed 403 tests with one pynvml deprecation warning. DAG settings were verified locally with Airflow stubs; a real scheduler parse remains pending.
