@@ -280,6 +280,9 @@ class FakeRepo:
         for k in to_del:
             self.sessions.pop(k, None)
 
+    def active_sessions(self) -> int:
+        return len(self.sessions)
+
     def token_by_hash(self, token_hash: str) -> dict[str, Any] | None:
         return self.api_tokens.get(token_hash)
 
@@ -786,3 +789,22 @@ def test_elrs_and_detail_handle_null_text_fields(client, fake_repo):
     assert r.status_code == 200 and r.json()["total"] >= 1
     assert client.get("/api/elrs?run=18&q=adi").status_code == 200
     assert client.get("/api/elrs/ADI2607001?run=18").status_code == 200
+
+
+def test_metrics_counts_logins(client, fake_repo):
+    from mark_api.metrics import metrics
+    raw_tok = "tok_test_metrics_12345"
+    digest = hashlib.sha256(raw_tok.encode("utf-8")).hexdigest()
+    fake_repo.api_tokens[digest] = {
+        "token_id": 2,
+        "name": "metrics_token_2",
+        "scopes": ["metrics:read"],
+        "expires_at": None,
+    }
+    before = metrics.login_failed
+    client.post("/api/auth/login", json={"username": "engineer1", "password": "WrongPassword!"})
+    _login(client)
+    body = client.get("/api/metrics", headers={"Authorization": f"Bearer {raw_tok}"}).json()
+    assert body["login_failed"] == before + 1 and body["login_ok"] >= 1
+    assert "active_sessions" in body and "rate_limited" not in body
+

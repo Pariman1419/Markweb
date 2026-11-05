@@ -138,7 +138,7 @@ stage('Real-DB check') {
 ```
 
   `MARK_ENV_FILE_BS` is `params.ENV_FILE.replace('/', '\\')`, set in `environment`.
-- [ ] **Step 4: Commit and push.** Use `git commit -m "test: read-only real-DB acceptance check and Jenkins stage"`. Then wait for green. The new stage must show `OK` lines in the console.
+- [x] **Step 4: Commit and push.** Use `git commit -m "test: read-only real-DB acceptance check and Jenkins stage"`. Then wait for green. The new stage must show `OK` lines in the console.
 
 ### Task 3: `/api/metrics` per spec §15
 
@@ -157,7 +157,7 @@ stage('Real-DB check') {
 - Produces: `Repo.active_sessions() -> int`, which is `select count(*) from mark_app.user_session where expires_at > now()`.
 - **`rate_limited` is removed.** NGINX answers 429 before the API sees the request; the count lives in the NGINX JSON log (`limit_req`). Note this in `services/README.md`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_metrics_percentiles_and_cap():
@@ -181,8 +181,8 @@ def test_metrics_counts_logins(client, fake_repo):
     assert "active_sessions" in body and "rate_limited" not in body
 ```
 
-- [ ] **Step 2: Run them.** Expected: FAIL.
-- [ ] **Step 3: Implement.**
+- [x] **Step 2: Run them.** Expected: FAIL.
+- [x] **Step 3: Implement.**
   - **Login counters:** `routers/auth.py` calls `metrics.inc(...)` next to each existing `auth.login_ok` / `auth.login_failed` / `auth.locked` audit.
   - **DB errors:** `Repo._execute`'s except block calls `metrics.inc("db_error")`.
   - **Endpoint:** `/api/metrics` returns `metrics.snapshot(repo.active_sessions())`, catching a DB error and passing `None` instead.

@@ -63,6 +63,19 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Acceptance Task 3: /api/metrics per spec §15
+- **What changed**:
+  - Created `services/api/mark_api/metrics.py` extracting `InProcessMetrics` singleton out of `app.py`.
+  - Added route ring buffers (`deque(maxlen=1000)`) with nearest-rank p50 and p95 duration calculation.
+  - Added counters for `login_ok`, `login_failed`, `login_locked`, and `db_error`.
+  - Added `Repo.active_sessions()` querying `user_session` where `expires_at > now()`.
+  - Wired counters in `routers/auth.py` and `Repo._execute` exception handler.
+  - Updated `GET /api/metrics` to return `metrics.snapshot(repo.active_sessions())` (passing `None` on DB error).
+  - Dropped `rate_limited` from API metrics (handled at NGINX) and documented in `services/README.md`.
+- **Verification**:
+  - `test_metrics_percentiles_and_cap` and `test_metrics_counts_logins` passed.
+  - Full test suite: 355 unit tests passed.
+
 ### 2026-11-05 — Acceptance Task 2: Read-only real-DB acceptance check and Jenkins stage
 - **What changed**:
   - Implemented `scripts/check_trial_readonly.py` testing 8 acceptance checks sequentially (`runs`, `dashboard_cards`, `elrs_total`, `elrs_pages`, `elr_detail`, `oracle_raw`, `expected_match`, `admin_reads`).

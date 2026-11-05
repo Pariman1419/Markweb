@@ -39,6 +39,7 @@ docker compose up -d --build
 - NGINX rate limit check: Rapidly issue 7 requests to `POST /api/auth/login` (7th returns 429)
 - Static files caching: `curl -I http://10.153.90.17/api/files/...` (expect `Cache-Control: private, max-age=86400` and CSP)
 - API caching: `curl -I http://10.153.90.17/api/runs` (expect `Cache-Control: no-store` and CSP)
+- Metrics endpoint: `GET /api/metrics` (token with `metrics:read` or `admin` role) returns request status classes, login counters (`login_ok`, `login_failed`, `login_locked`), `db_error`, `active_sessions`, and per-route p50/p95 duration ring buffers. Note: `rate_limited` is removed from API metrics because NGINX enforces rate limits directly with 429 before reaching the backend; 429 occurrences are recorded in NGINX JSON access logs (`limit_req`).
 
 ### Real-DB Acceptance Check (Read-Only):
 To verify that trial run data in PostgreSQL matches expected cards, counts, detail endpoints, and admin queries without altering database state:

@@ -773,3 +773,19 @@ OK expected_match sampled 20 ELRs line expected values match
 OK admin_reads admin_users (4), activity, audit_events (15) OK
 ```
 - Full suite: 353 unit tests passed.
+
+## 2026-11-05 — Acceptance Task 3: /api/metrics per spec §15
+
+### What changed
+- Created `services/api/mark_api/metrics.py` extracting `InProcessMetrics` singleton out of `app.py` to prevent circular imports.
+- Added route ring buffers via `collections.deque(maxlen=1000)` computing nearest-rank p50 and p95 duration percentiles.
+- Added counters for `login_ok`, `login_failed`, `login_locked`, and `db_error`.
+- Added `Repo.active_sessions()` querying `mark_app.user_session` where `expires_at > now()`.
+- Wired counters into `routers/auth.py` and `Repo._execute` database exception handler.
+- Updated `GET /api/metrics` to return `metrics.snapshot(repo.active_sessions())` (passing `None` if DB error).
+- Removed `rate_limited` from API metrics as 429 responses are terminated directly by NGINX and logged in NGINX JSON access logs.
+
+### Verification
+- `test_metrics_percentiles_and_cap` verified nearest-rank calculation, p50/p95, and 1000-sample deque cap.
+- `test_metrics_counts_logins` verified login failure and success counters, presence of `active_sessions`, and absence of `rate_limited`.
+- Full suite: 355 unit tests passed.

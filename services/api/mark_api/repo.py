@@ -61,6 +61,11 @@ class Repo:
             except Exception as e:
                 conn.rollback()
                 log_event("db.error", error=str(e), sql=query[:200])
+                try:
+                    from mark_api.metrics import metrics
+                    metrics.inc("db_error")
+                except Exception:
+                    pass
                 raise
 
     def runs(self) -> list[dict[str, Any]]:
@@ -273,6 +278,11 @@ class Repo:
 
     def delete_user_sessions(self, user_id: int) -> None:
         self._execute("delete from mark_app.user_session where user_id = %s", (user_id,), commit=True)
+
+    def active_sessions(self) -> int:
+        q = "select count(*) as cnt from mark_app.user_session where expires_at > now()"
+        row = self._execute(q, fetch_one=True)
+        return int(row["cnt"]) if row and "cnt" in row else 0
 
     def token_by_hash(self, token_hash: str) -> dict[str, Any] | None:
         q = """

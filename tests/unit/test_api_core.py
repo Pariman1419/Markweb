@@ -101,3 +101,16 @@ def test_safe_file_rejects_traversal(tmp_path):
     (tmp_path / "abs" / "a.png").write_bytes(b"x")
     assert safe_file(tmp_path, "abs/a.png") is not None
     assert safe_file(tmp_path, "../secret") is None and safe_file(tmp_path, "C:/Windows/win.ini") is None
+
+
+def test_metrics_percentiles_and_cap():
+    from mark_api.metrics import InProcessMetrics
+    m = InProcessMetrics()
+    m.record_request(200, 10.0, "/api/x")
+    s = m.snapshot(None)["routes"]["/api/x"]
+    assert (s["count"], s["p50_ms"], s["p95_ms"]) == (1, 10.0, 10.0)
+    for i in range(1, 1201):
+        m.record_request(200, float(i), "/api/y")
+    y = m.snapshot(None)["routes"]["/api/y"]
+    assert y["count"] == 1000 and y["p95_ms"] == 1151.0   # last 1000 = 201..1200
+    assert "/api/z" not in m.snapshot(None)["routes"]

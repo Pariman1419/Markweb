@@ -14,36 +14,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from mark_api.auth import csrf_ok
 from mark_api.deps import get_cookie_name, get_repo, require
 from mark_api.logging import current_request_id, log_event
+from mark_api.metrics import metrics
 from mark_api.repo import Repo
 from mark_api.routers import admin, auth, mark, validation, workflow
 
 app = FastAPI(title="Mark API", version="0.3.0")
-
-
-class InProcessMetrics:
-    def __init__(self):
-        self.requests = {
-            "total": 0,
-            "2xx": 0,
-            "3xx": 0,
-            "4xx": 0,
-            "5xx": 0,
-        }
-        self.login_ok = 0
-        self.login_failed = 0
-        self.login_locked = 0
-        self.rate_limited = 0
-        self.durations: dict[str, list[float]] = {}
-
-    def record_request(self, status_code: int, duration_ms: float, route: str):
-        self.requests["total"] += 1
-        cls = f"{status_code // 100}xx"
-        if cls in self.requests:
-            self.requests[cls] += 1
-        self.durations.setdefault(route, []).append(duration_ms)
-
-
-metrics = InProcessMetrics()
 
 
 def _same_origin(origin: str, request: Request) -> bool:
@@ -162,11 +137,9 @@ def ready(repo: Repo = Depends(get_repo)):
 
 
 @app.get("/api/metrics")
-def get_metrics(user: dict[str, Any] = Depends(require("metrics"))):
-    return {
-        "requests": metrics.requests,
-        "login_ok": metrics.login_ok,
-        "login_failed": metrics.login_failed,
-        "login_locked": metrics.login_locked,
-        "rate_limited": metrics.rate_limited,
-    }
+def get_metrics(user: dict[str, Any] = Depends(require("metrics")), repo: Repo = Depends(get_repo)):
+    try:
+        active = repo.active_sessions()
+    except Exception:
+        active = None
+    return metrics.snapshot(active)

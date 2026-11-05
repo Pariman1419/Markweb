@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from mark_api.auth import login_state, new_token, verify_password
 from mark_api.deps import audit_ctx, current_user, get_cookie_name, get_repo, safe_audit
 from mark_api.logging import log_event
+from mark_api.metrics import metrics
 from mark_api.repo import Repo
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -30,15 +31,18 @@ def login(req: LoginRequest, request: Request, repo: Repo = Depends(get_repo)):
     if not user:
         safe_audit(repo, None, "auth.login_failed", request, detail={"reason": "unknown_user"})
         log_event("auth.login_failed")
+        metrics.inc("login_failed")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     state = login_state(user, now)
     if state == "LOCKED":
         safe_audit(repo, user["user_id"], "auth.login_failed", request, detail={"reason": "locked"})
         log_event("auth.locked", user_id=user["user_id"])
+        metrics.inc("login_failed")
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Account locked")
     if state == "INACTIVE":
         safe_audit(repo, user["user_id"], "auth.login_failed", request, detail={"reason": "inactive"})
+        metrics.inc("login_failed")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account inactive")
 
     if not verify_password(user["password_hash"], req.password):
@@ -47,11 +51,13 @@ def login(req: LoginRequest, request: Request, repo: Repo = Depends(get_repo)):
         failed_count = updated_user.get("failed_count", (user.get("failed_count", 0) or 0) + 1)
         safe_audit(repo, user["user_id"], "auth.login_failed", request, detail={"reason": "bad_password", "failed_count": failed_count})
         log_event("auth.login_failed", user_id=user["user_id"])
+        metrics.inc("login_failed")
         if login_state(updated_user, now) == "LOCKED":
             locked_until = updated_user.get("locked_until")
             iso_str = locked_until.isoformat() if hasattr(locked_until, "isoformat") else str(locked_until)
             safe_audit(repo, user["user_id"], "auth.locked", request, detail={"locked_until": iso_str})
             log_event("auth.locked", user_id=user["user_id"])
+            metrics.inc("login_locked")
             repo.delete_user_sessions(user["user_id"])
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
@@ -70,6 +76,7 @@ def login(req: LoginRequest, request: Request, repo: Repo = Depends(get_repo)):
     repo.create_session(sess_digest, user["user_id"], csrf_digest, expires_at)
     safe_audit(repo, user["user_id"], "auth.login_ok", request)
     log_event("auth.login_ok", user_id=user["user_id"])
+    metrics.inc("login_ok")
 
     resp = JSONResponse(
         {
