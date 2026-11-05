@@ -133,7 +133,7 @@ def test_slr_without_special_instructions_uses_abs_only(month_tree: Path, tmp_pa
 - [x] **Step 2: Run the tests.** `python -m pytest tests/unit/test_slr_parse.py tests/unit/test_pipeline.py -k "special" -q`. Expected: FAIL (`special` doesn't exist yet, and the SLR instruction is applied).
 - [x] **Step 3: Implement** the field, the flag and the pipeline `replace`, exactly as described in Interfaces.
 - [x] **Step 4: Run the unit suite.** Expected: all pass. If an existing test relied on header-less SLR instructions, **stop and report it to the user**, because it is a behaviour change the user must see. Do not edit the old test to make it pass.
-- [ ] **Step 5: Commit and push.** Use `git commit -m "feat(engine): SLR instructions apply only to Special requirement (SPECIAL INSTRUCTIONS)"`, then wait for green.
+- [x] **Step 5: Commit and push.** Use `git commit -m "feat(engine): SLR instructions apply only to Special requirement (SPECIAL INSTRUCTIONS)"`, then wait for green.
 
 ### Task 3: G5 — more than 5 TOP rows holds the job
 
@@ -144,7 +144,7 @@ def test_slr_without_special_instructions_uses_abs_only(month_tree: Path, tmp_pa
 **Interfaces:**
 - Produces: when `inference.lines` has more than 5 lines with `side == Side.TOP`, the job is HOLD with `hold_reason "ROW_OVER_5"` and `hold_detail f"{n} TOP rows"`. `resolution` is kept, so the reviewer can still open the documents. `expected=None`. Comparisons are NOT_MEASURABLE with `detail "ROW_OVER_5"`. `layout_source` is set from `inference`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 @pytest.mark.parametrize("top_rows, bottom_rows, expect_hold", [(5, 2, False), (6, 0, True)])
@@ -163,9 +163,9 @@ def test_row_over_5_gate(month_tree: Path, tmp_path: Path, top_rows, bottom_rows
         assert job.hold_reason != "ROW_OVER_5"
 ```
 
-- [ ] **Step 2: Run the test.** Expected: the `6` case FAILS.
-- [ ] **Step 3: Implement** the gate as described in Interfaces.
-- [ ] **Step 4: Run the unit suite.** Expected: all pass.
+- [x] **Step 2: Run the test.** Expected: the `6` case FAILS.
+- [x] **Step 3: Implement** the gate as described in Interfaces.
+- [x] **Step 4: Run the unit suite.** Expected: all pass.
 - [ ] **Step 5: Commit and push.** Use `git commit -m "feat(engine): G5 hold when OCR gives more than 5 TOP rows"`, then wait for green.
 
 ### Task 4: G0 — pending Mark Engineer review selector, and confirm the step value

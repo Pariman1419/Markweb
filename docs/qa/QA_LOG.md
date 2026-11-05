@@ -850,3 +850,15 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 - `test_special_flag_follows_section_header` in `tests/unit/test_slr_parse.py`: verified plain SLR (`special=False`, scheduled lots parsed), SLR with header (`special=True`), and joined SLRs (`special=True`).
 - `test_slr_without_special_instructions_uses_abs_only` in `tests/unit/test_pipeline.py`: verified pipeline does not apply SLR instruction without special header.
 - Full suite: 364 unit tests passed.
+
+
+## 2026-11-05 — Engine Gates Task 3: G5 OCR gives > 5 TOP rows holds the job
+
+### What changed
+- In `mark_engine/pipeline.py`: added gate G5 right after empty inference check (`NO_LAYOUT`) and before expected generation.
+- Counts inference lines with `side == Side.TOP`. If greater than 5, returns `ProcessingStatus.HOLD` with `hold_reason="ROW_OVER_5"` and `comparisons` set to `LineStatus.NOT_MEASURABLE` with `detail="ROW_OVER_5"`.
+- `resolution` is preserved with `hold_detail=f"{top_lines} TOP rows"` so human reviewers can still open and view associated ABS/SLR drawings in the UI.
+
+### Verification
+- `test_row_over_5_gate` in `tests/unit/test_pipeline.py`: verified 5 TOP rows proceeds while 6 TOP rows enters HOLD.
+- Full suite: 366 unit tests passed.

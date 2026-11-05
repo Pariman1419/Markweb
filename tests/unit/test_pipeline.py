@@ -374,3 +374,20 @@ def test_slr_without_special_instructions_uses_abs_only(month_tree: Path, tmp_pa
     job = process_elr(meta, oracle, month_tree, ["1_JAN"], tmp_path / "work", _rules(), loader)
     assert job.comparisons[0].status != LineStatus.MATCH_SLR
     assert all(t.source != "SLR" for line in job.expected.lines for t in line.tokens)
+
+
+
+@pytest.mark.parametrize("top_rows, bottom_rows, expect_hold", [(5, 2, False), (6, 0, True)])
+def test_row_over_5_gate(month_tree: Path, tmp_path: Path, top_rows, bottom_rows, expect_hold):
+    _, meta = _setup_elr(month_tree, f"ADI26010{30 + top_rows}", include_slr=True)
+    lines = tuple(LayoutLine(side=Side.TOP, line_no=i, text="ADW", graphics="") for i in range(1, top_rows + 1)) + \
+            tuple(LayoutLine(side=Side.BOTTOM, line_no=i, text="X", graphics="") for i in range(1, bottom_rows + 1))
+    oracle = OracleMark(elr_no=meta.elr_no, lines=((Side.TOP, 1, "ADW"),))
+    job = process_elr(meta, oracle, month_tree, ["1_JAN"], tmp_path / "work", _rules(),
+                      lambda elr, stem: InferenceResult(elr, lines=lines, layout_source="auto"))
+    if expect_hold:
+        assert (job.processing_status, job.hold_reason) == (ProcessingStatus.HOLD, "ROW_OVER_5")
+        assert job.resolution is not None and job.expected is None
+        assert job.comparisons[0].detail == "ROW_OVER_5"
+    else:
+        assert job.hold_reason != "ROW_OVER_5"

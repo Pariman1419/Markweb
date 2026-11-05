@@ -356,6 +356,34 @@ def process_elr(
             layout_source=inference.layout_source,
         )
 
+    # G5: More than 5 TOP rows holds the job
+    top_lines = sum(1 for line in inference.lines if line.side == Side.TOP)
+    if top_lines > 5:
+        comparisons = tuple(
+            LineComparison(
+                side=s,
+                line_no=n,
+                expected=None,
+                oracle=text,
+                status=LineStatus.NOT_MEASURABLE,
+                compare_rules=(),
+                detail="ROW_OVER_5",
+            )
+            for s, n, text in oracle.lines
+        )
+        res = replace(resolution, hold_detail=f"{top_lines} TOP rows") if resolution else None
+        return JobResult(
+            elr_no=meta.elr_no,
+            processing_status=ProcessingStatus.HOLD,
+            hold_reason="ROW_OVER_5",
+            verification_status=None,
+            approval_status=ApprovalStatus.NOT_REVIEWED,
+            resolution=res,
+            expected=None,
+            comparisons=comparisons,
+            layout_source=inference.layout_source,
+        )
+
     # 6. Generate Expected Mark
     # CRITICAL INVARIANT: must run before touching oracle
     expected = generate_expected(meta, resolution, slr_facts, inference, rules)

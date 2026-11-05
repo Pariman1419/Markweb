@@ -63,6 +63,15 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Engine Gates Task 3: G5 OCR gives > 5 TOP rows holds the job
+- **What changed**:
+  - In `mark_engine/pipeline.py`: after empty layout check and before `generate_expected`, added gate G5 checking `sum(1 for line in inference.lines if line.side == Side.TOP) > 5`.
+  - When triggered, returns `JobResult(processing_status=HOLD, hold_reason="ROW_OVER_5", ...)` with `resolution` kept (so reviewer can inspect documents) and comparisons marked `LineStatus.NOT_MEASURABLE` with `detail="ROW_OVER_5"`.
+  - Updated `resolution.hold_detail` to `f"{top_lines} TOP rows"`.
+- **Verification**:
+  - `test_row_over_5_gate` in `tests/unit/test_pipeline.py` (5 TOP rows proceeds, 6 TOP rows enters HOLD).
+  - Full suite: 366 unit tests passed.
+
 ### 2026-11-05 — Engine Gates Task 2: SLR instructions apply only when SLR has SPECIAL INSTRUCTIONS
 - **What changed**:
   - In `mark_engine/domain/models.py`: added `special: bool = False` to `SlrFacts`.
