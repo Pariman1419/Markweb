@@ -443,6 +443,7 @@
 ### Resolution & Code Fix
 - Added a read-only diagnostic replay in `services/engine/overflow_review.py` and a local HTML template. It validates run-17 input/output hashes and the archived engine before replay and checks the original ABS source fingerprint.
 - All 141 recorded failures were reproduced; independently checking all five rows exposed 188 affected rows in total. The local page shows the Generator, Layout cells, Oracle snapshot and cached image without inventing a partial placement. Review notes stay in browser local storage and can be exported to CSV.
+- The Generator text is reconstructed using the SLR available on NAS at replay time. Run 17 did not retain an SLR fingerprint, so the page explicitly warns that text can differ if that SLR changed; reproducing the error alone does not prove every input was unchanged.
 - Created a portable local archive with the HTML and all 39 referenced images, and verified all 141 image references resolve within it; the archive remains Git-ignored.
 - Verified 282 Python tests, run-17 input/output hashes, frozen engine integrity and offline JavaScript search/navigation checks. Browser automation approval for Edge was denied; a visual screenshot review was therefore not performed.
 

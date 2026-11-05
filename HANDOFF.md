@@ -67,6 +67,7 @@
 
 - Built `artifacts/blind-2026h2/overflow-review/index.html` from the frozen run-17 inputs, replaying only failed jobs without modifying the DB or original result. All 141 recorded errors reproduced; checking all five TOP rows found 188 rows with layout-placement errors. Additional errors are labeled as replay findings, not original per-job counts.
 - The local page compares Generator text, reserved/fixed/free Layout cells, Oracle cells and ABS image. Review decisions remain in local browser storage and can be exported to CSV. Images are linked to the local cache, so the cache and HTML must remain together.
+- Generator text is reconstructed from the SLR currently on NAS; unlike ABS, SLR content was not fingerprinted in run 17, so unchanged SLR inputs cannot be independently established.
 - A portable local archive `artifacts/blind-2026h2/overflow-review-bundle.zip` contains the page and its 39 referenced images; it contains customer data and is Git-ignored.
 - The browser-control approval system did not permit opening Edge for visual QA. Offline JavaScript checks verified 141 records, search, navigation and image section; 282 Python tests passed.
 
