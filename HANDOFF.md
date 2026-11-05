@@ -63,6 +63,12 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — User confirmed CURRENT_STEP '6' = Mark Eng review
+- **Confirmed:** `MARK_REVIEW_STEP=6` is correct; no code change needed.
+- **Step codes (user):** 1 CS Review, A QA Review, 2 Engineering Review, 3 MC review, 4 Engineering lot Center, 5 PC Reserve, **6 Mark Eng review**, 7 Generate Order.
+- **Live Oracle:** step 6 currently has 0 open ADI ELRs, because ELRs pass through it quickly. The 15-min scan must catch them before they reach step 7. An empty step 6 is normal.
+- Recorded in spec §2.2 / §2.4.
+
 ### 2026-11-05 — Engine Gates Task 4: G0 pending-review selector & Oracle CURRENT_STEP query
 - **What changed**:
   - Created `mark_engine/select.py` defining `pending_reason(meta: ElrMeta, review_step: str) -> str | None` and `review_step_from_env() -> str`.

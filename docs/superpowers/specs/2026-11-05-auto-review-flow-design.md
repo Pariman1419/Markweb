@@ -76,7 +76,7 @@ flowchart TD
 
 | Gate | เช็ก | ไม่ผ่าน → | หมายเหตุ |
 |---|---|---|---|
-| G0 | `CUST_CODE='ADI'`, `CURRENT_STEP` = Mark Engineer, เคยตรวจหรือยัง / มีอัปเดตไหม (§4) | ไม่ตรวจ (บันทึกเหตุผลใน scan log) | **engine ตอนนี้ไม่ได้กรอง step** · ค่า step ให้ผู้สร้างยืนยันจาก Oracle จริง (spec เดิมเขียน 6) |
+| G0 | `CUST_CODE='ADI'`, `CURRENT_STEP = '6'` (Mark Eng review — **ผู้ใช้ยืนยัน 2026-11-05**), เคยตรวจหรือยัง / มีอัปเดตไหม (§4) | ไม่ตรวจ (บันทึกเหตุผลใน scan log) | ตั้งใน env `MARK_REVIEW_STEP=6` · ตารางรหัส step ดู §2.4 |
 | G1 | `CUST_ASSY_LOT` ไม่ใช่ `TBD` (ไม่สนตัวพิมพ์/ช่องว่าง) | HOLD `CUST_ASSY_TBD` + Notify | **ใหม่** · ผู้ใช้พิมพ์ "THB" ในข้อความล่าสุด ผู้ออกแบบถือว่าเป็น TBD ตามแผนภาพ (ยืนยันใน §10) |
 | G2 | `TOP_TYPE_CODE='E'` และ `TOP_LAYOUT_CODE≠'ZY'` — **คือการเช็ก Skip Mark** | SKIP_VALIDATE | มีใน engine (`pipeline.py:168`) · run 19 ไม่มี ELR ที่ skip ด้วยเหตุอื่นนอกจาก ZY (NOT_MARKED = 0) — ตัวเช็ก `MARK_REMARK`/`MARK_REQUIRE` เดิมคงไว้เป็นกันพลาดภายใน ผลรวมเป็น SKIP_VALIDATE เหมือนกัน **[Claude]** |
 | G3 | ELR Search: หา **ABS และ SLR** บน NAS (`\\th1srnas03\ADI`) ตามเลข ELR — **ต้องมีครบทั้งสอง** เพราะถ้าไม่มี SLR จะไม่รู้ว่าเป็น Special requirement ไหม **[ผู้ใช้]** | HOLD ตามเหตุ (`NO_FOLDER`, `ABS_NOT_FOUND`/`BOM_NOT_FOUND`, `SLR_NOT_FOUND`, `REVISION_CONFLICT`, `SLR_CONFLICT`) + Notify | engine `documents/resolve.py` มีเหตุเหล่านี้แล้ว |
@@ -84,6 +84,21 @@ flowchart TD
 | — | OCR/YOLO ที่ AI Server | retry แล้ว HOLD `INFERENCE_FAILED` + Notify | §5 |
 | — | Mark Layout ของ `TOP_MARK_ID` | FAILED `LAYOUT_ERROR` + Notify | engine |
 | G5 | จำนวน Row ผลลัพธ์ ≤ 5 (Oracle เก็บได้แค่ TOP_MARK1–5) | HOLD `ROW_OVER_5` + Notify | **ใหม่** · นับหลังได้ผล OCR และ layout แล้ว ตามลำดับของผู้ใช้ |
+
+### 2.4 รหัส `CURRENT_STEP` ใน Oracle **[ผู้ใช้ 2026-11-05]**
+
+| รหัส | ขั้น |
+|---|---|
+| `1` | CS Review |
+| `A` | QA Review |
+| `2` | Engineering Review |
+| `3` | MC review |
+| `4` | Engineering lot Center |
+| `5` | PC Reserve |
+| **`6`** | **Mark Eng review** ← ขั้นที่ระบบกวาดมาตรวจ |
+| `7` | Generate Order |
+
+ข้อมูลจริง 2026-11-05 (ADI, STATUS ≠ C): 1=246, 2=2, 4=4, 5=2, 6=0, 7=8,290 — ELR อยู่ step 6 ไม่นาน จึงต้องกวาดทุก 15 นาทีเพื่อจับให้ทันก่อนเลื่อนไป step 7 · ช่วงที่ไม่มี ELR ที่ step 6 เป็นเรื่องปกติ ไม่ใช่ error · รหัสเป็นข้อความ (มี `A`) จึงเทียบแบบ string
 
 ### 2.3 Decode และ Generate **[ผู้ใช้]**
 - Decode ด้วย ADI1039 + Symbol Profile + SLR + TOP_REMARK — มีใน engine (`encode/adi1039.py`, `encode/symbol_adi.py`, `encode/remark.py`)
