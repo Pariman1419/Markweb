@@ -63,6 +63,14 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — B3 Task 2: Input Fingerprints & Re-check Decision Table (Spec §4)
+- **Implemented**: `mark_engine/history/__init__.py`, `mark_engine/history/fingerprint.py`, `mark_engine/history/decide.py`, `tests/unit/test_history.py`.
+- **Key Modules**:
+  - `fingerprint.py`: implements `ORACLE_FP_FIELDS` (15 fields), `oracle_fp`, `changed_oracle_fields`, `docs_fp` (sorted roles/paths/hashes), `version_fp`, and `result_fp`.
+  - `decide.py`: implements pure decision table `decide(pending_reason, prev, oracle_fp, docs_fp, manual)` evaluating manual override, eligibility, new ELR, cheap-first unchanged skip, older revision reversion dedup (`skip_same_as_rev`), and change tagging (`oracle`, `docs`, `both`).
+- **Verification**: Strict TDD Red -> Green. 30 unit tests added in `tests/unit/test_history.py`. Entire test suite: 421 passed.
+- **Next immediate action**: Commit Task 2, push to `origin/phase2/trial`, verify green Jenkins build, then proceed to Task 3 (Oracle source and PostgreSQL SKIP LOCKED queue).
+
 ### 2026-11-06 — B3 Task 1: Migration 0007 (Auto-Review History, Queue, Notifications, Worker Role)
 - **Implemented**: `migrations/0007_auto_review.sql`, `migrations/0007_auto_review_down.sql`, `migrations/README.md`.
 - **Schema & Grants**:

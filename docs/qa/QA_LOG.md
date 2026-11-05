@@ -1,5 +1,34 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] B3 Task 2: History Input Fingerprints & Re-check Decision Table (Spec §4)
+
+### Context & Objective
+- Provide deterministic hashing for inputs (`oracle_fp`, `docs_fp`, `version_fp`) and results (`result_fp`), as well as a pure decision state machine (`decide(...)`) to prevent redundant engine executions and audit-log every change reason.
+
+### Implementation Details (`mark_engine/history/`)
+- **`fingerprint.py`**:
+  - `ORACLE_FP_FIELDS`: exactly 15 Oracle columns (`PRODUCT_NO`, `CUST_ASSY_LOT`, `TOP_MARK1–5`, `TOP_MARK_ID`, `TOP_TYPE_CODE`, `TOP_LAYOUT_CODE`, `MARK_REMARK`, `MARK_REQUIRE`, `CUST_REQ_NO`, `CURRENT_STEP`, `STATUS`).
+  - `oracle_fp(row)`: case-insensitive key lookup, strips trailing spaces, maps `None` to `""`, serializes to sorted canonical JSON, and computes sha256 hex digest.
+  - `changed_oracle_fields(old_row, new_row)`: returns field names whose canonical values differ.
+  - `docs_fp(resolution)`: extracts `abs` and `slr` document references, sorts by `(role, path, sha256)`, and hashes canonical JSON. If resolution is `None` or has no documents, returns sha256 of `"none"`.
+  - `version_fp(engine_version, model_version)`: sha256 of `"{engine_version}:{model_version}"`.
+  - `result_fp(job)`: sha256 of canonical structure containing `processing_status`, `hold_reason`, expected mark lines, and line comparison statuses.
+- **`decide.py`**:
+  - `RevisionKey(revision, oracle_fp, docs_fp)`: lightweight immutable revision descriptor.
+  - `Decision(action, changed, same_as_rev)`: pure decision output.
+  - State machine rules:
+    1. `manual=True` -> `check` (`changed="manual"`).
+    2. `pending_reason` is set -> `skip_not_eligible`.
+    3. `not prev` -> `check` (`changed="new"`).
+    4. Matches latest revision -> `skip_unchanged` (supports cheap-first probe where `docs_fp is None`).
+    5. Matches an older revision -> `skip_same_as_rev` (`same_as_rev=N`), preventing redundant revision spam when data reverts.
+    6. Input changed relative to latest -> `check` (`changed="oracle" | "docs" | "both"`).
+
+### Verification
+- Added 30 unit tests in `tests/unit/test_history.py` verifying field order invariance, trailing whitespace stripping, sensitivity to every single Oracle field, doc revision changes, result sensitivity, and decision table branches.
+- Full unit test suite: 421 passed (0 regressions).
+
+
 ## [2026-11-06] B3 Task 1: Migration 0007 (Auto-Review History, Queue, Notifications, Worker Role)
 
 ### Context & Objective
