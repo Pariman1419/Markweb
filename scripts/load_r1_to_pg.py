@@ -20,7 +20,7 @@ from pathlib import Path
 import psycopg2
 from psycopg2.extras import execute_values
 
-MONTH = {"01": "1_JAN", "02": "2_FEB", "03": "3_MAR", "04": "4_APR", "05": "5_MAY", "06": "6_JUN", "07": "7_JUL", "08": "8_AUG", "09": "9_SEP", "10": "10_OCT", "11": "11_NOV"}
+from services.worker.results import MONTH, _abs_number, job_row, line_row
 NEEDS_REVIEW_MEANING = (
     "R1 mark_engine: expected line carries a review flag (SLR_UNRESOLVED, SLR_AMBIGUOUS, UNMAPPED_TOKEN, "
     "GRAPHIC_REMARK_CONFLICT, RULE_CONFLICT) or Oracle digits not verifiable"
@@ -31,34 +31,6 @@ def _git(*a: str) -> str:
     return subprocess.run(["git", *a], capture_output=True, text=True).stdout.strip()
 
 
-def _abs_number(s: str) -> str:
-    m = re.search(r"ABS\d{6}", s or "", re.IGNORECASE)
-    return m.group(0).upper() if m else ""
-
-
-def line_row(run_id: int, r: dict[str, str], abs_no: str, parity: str) -> tuple:
-    cause = r.get("hold_reason") or r.get("detail") or r.get("compare_rules") or None
-    detail = "; ".join(f"{k}={v}" for k, v in [
-        ("rules", r.get("compare_rules", "")), ("flags", r.get("flags", "")),
-        ("detail", r.get("detail", "")), ("warning", r.get("warning", "")),
-        ("hold_detail", r.get("hold_detail", "")), ("review_detail", r.get("review_detail", "")),
-        ("review_verdict", r.get("review_verdict", "")),
-        ("system_status", r["status"] if r.get("final_status") and r["final_status"] != r["status"] else ""),
-        ("layout_source", r.get("layout_source", "")), ("parity_vs_r0", parity),
-    ] if v)
-    final = r.get("final_status") or r["status"]
-    return (run_id, r["elr_no"], _abs_number(abs_no), r["side"], int(r["line_no"]),
-            MONTH.get(r["elr_no"][5:7]), r.get("expected_mark") or None,
-            r.get("oracle_mark") or None, final, cause, detail,
-            r["status"], final, r.get("review_detail") or None, r.get("warning") or None,
-            r.get("hold_detail") or None, r.get("layout_source") or None)
-
-
-def job_row(run_id: int, row: dict[str, str]) -> tuple:
-    return (run_id, row['elr_no'], row['processing_status'], row.get('hold_reason') or None,
-            row.get('hold_detail') or None, row.get('review_detail') or None,
-            row.get('verification_status') or None, row.get('approval_status') or None,
-            row.get('layout_source') or None, row.get('abs_no') or None)
 
 
 def is_blind_run(period: str, metrics: dict) -> bool:

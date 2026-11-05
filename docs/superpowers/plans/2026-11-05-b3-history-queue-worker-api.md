@@ -87,10 +87,10 @@
 - `notification`: `unique(elr_no, kind, revision)`, so one ELR gets one notice per reason per revision (spec §7). The kinds are: `not_in_system`, `not_in_oracle`, `not_eligible`, `hold`, `failed`, `inference_failed`, `changed_after_approve`, `scan_failed`.
 - **View `mark_app.latest_job_result`:** for each `elr_no`, the `job_result` row of the highest `elr_revision.revision`, with `run_id` and `revision`.
 
-- [ ] **Step 1: Write UP and DOWN.** DOWN drops only what UP created. It never touches `mark_logic` rows.
-- [ ] **Step 2: Test on a throwaway database or schema** (local Postgres, or a `mark_web` schema named `t0007_<date>` that is dropped afterwards). Apply UP, then DOWN, then UP. Record the commands and their results in QA_LOG.
-- [ ] **Step 3:** Commit `feat(db): 0007 auto-review history, queue, notifications`, then push and wait for a green Jenkins build.
-- [ ] **Step 4: [USER] Apply 0007 to `10.151.28.2/mark_web`.** Give the user the exact command, then check that the role and tables exist (names only) and that row counts in runs 1–19 are unchanged.
+- [x] **Step 1: Write UP and DOWN.** DOWN drops only what UP created. It never touches `mark_logic` rows.
+- [x] **Step 2: Test on a throwaway database or schema** (local Postgres, or a `mark_web` schema named `t0007_<date>` that is dropped afterwards). Apply UP, then DOWN, then UP. Record the commands and their results in QA_LOG.
+- [x] **Step 3:** Commit `feat(db): 0007 auto-review history, queue, notifications`, then push and wait for a green Jenkins build.
+- [x] **Step 4: [USER] Apply 0007 to `10.151.28.2/mark_web`.** Give the user the exact command, then check that the role and tables exist (names only) and that row counts in runs 1–19 are unchanged.
 
 ### Task 2: Fingerprints and the decision table
 
@@ -118,16 +118,16 @@
     6. Otherwise → `check` with `oracle`, `docs` or `both`.
 - **Cheap first (spec §4):** the worker computes `docs_fp` only when `oracle_fp` is unchanged and a quick NAS check (path + size + mtime of the last resolved files, stored in `elr_revision.docs_probe jsonb`) shows a change. Otherwise it reuses the stored `docs_fp`.
 
-- [ ] **Step 1: Tests.**
+- [x] **Step 1: Tests.**
   - `test_oracle_fp_ignores_field_order_and_trailing_spaces`
   - `test_oracle_fp_changes_on_each_field`: parametrize over every field in `ORACLE_FP_FIELDS`.
   - `test_docs_fp_changes_with_revision_file`
   - `test_decide_table`: parametrize one case per row of spec §4, including manual, same-as-older-revision and version-only.
   - `test_changed_oracle_fields_names_only`
-- [ ] **Step 2:** Run them. Expected: FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run the unit suite. Expected: all pass.
-- [ ] **Step 5:** Commit `feat(engine): input fingerprints and re-check decision (spec §4)`, then push and wait for a green Jenkins build.
+- [x] **Step 2:** Run them. Expected: FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run the unit suite. Expected: all pass.
+- [x] **Step 5:** Commit `feat(engine): input fingerprints and re-check decision (spec §4)`, then push and wait for a green Jenkins build.
 
 ### Task 3: Oracle source and the queue
 
@@ -148,16 +148,16 @@
   - `fail(cur, item_id, error: str, retry_in: timedelta | None)`
 - The retry delays are `RETRY_DELAYS = (1, 5, 15)` minutes. After the third failure, the item becomes `failed`.
 
-- [ ] **Step 1: Tests.**
+- [x] **Step 1: Tests.**
   - **Oracle source:** use a fake connection that records SQL. `test_fetch_window_uses_read_only_and_bind_params` asserts read-only and no string-formatted values.
   - **Queue:** use the existing test-DB approach if the repo has one. Otherwise use a `FakeCursor` that implements the SQL contract. Tests:
     - `test_enqueue_is_idempotent_per_active_elr`
     - `test_claim_skips_locked_and_future_items`
     - `test_stuck_running_returns_to_retry`
     - `test_fail_backoff_then_failed`
-- [ ] **Step 2:** Run them. Expected: FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run the unit suite. Expected: all pass.
+- [x] **Step 2:** Run them. Expected: FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run the unit suite. Expected: all pass.
 - [ ] **Step 5:** Commit `feat(worker): Oracle source and Postgres SKIP LOCKED queue`, then push and wait for a green Jenkins build.
 
 ### Task 4: Results writer and worker loop
@@ -187,7 +187,7 @@
   - Options: `--once` (process until the queue is empty, then exit) and `--poll-seconds 5`.
   - Logs carry ELR numbers, actions and reason codes only.
 
-- [ ] **Step 1: Tests**, with fakes for Oracle, the engine and inference, and the `FakeCursor` or test DB from Task 3:
+- [x] **Step 1: Tests**, with fakes for Oracle, the engine and inference, and the `FakeCursor` or test DB from Task 3:
   - `test_day_run_reuses_until_elr_repeats_then_suffix`
   - `test_write_result_never_updates_existing_rows`: the SQL log contains only INSERTs for `mark_logic`.
   - `test_approved_revision_kept_and_new_revision_notifies`
@@ -195,9 +195,9 @@
   - `test_inference_down_retries_then_hold_inference_failed`
   - `test_version_only_change_not_rechecked`
   - `test_loader_scripts_unchanged_output`: the refactored `job_row` / `line_row` / `build_snapshot_rows` return the same values as before for one fixture.
-- [ ] **Step 2:** Run them. Expected: FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run the unit suite. Expected: all pass.
+- [x] **Step 2:** Run them. Expected: FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run the unit suite. Expected: all pass.
 - [ ] **Step 5:** Commit `feat(worker): results writer to daily auto run and worker loop`, then push and wait for a green Jenkins build.
 
 ### Task 5: Scan and lookup API

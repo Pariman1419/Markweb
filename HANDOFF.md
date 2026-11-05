@@ -63,6 +63,24 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — B3 Task 4: Daily Run Results Writer & Worker Loop
+- **Implemented**: `services/worker/results.py`, `services/worker/main.py`.
+- **Refactored**: `scripts/load_r1_to_pg.py` and `scripts/load_app_snapshot.py` to import `job_row`, `line_row`, `build_snapshot_rows`, and `copy_images` from `services.worker.results`.
+- **Results Writer & Loop**:
+  - `day_run_for`: allocates daily runs `auto-YYYY-MM-DD` (and `.2`, `.3` upon collision).
+  - `write_result`: insert-only writes into `job_result`, `line_result`, `elr_snapshot`, and `elr_revision`.
+  - `notify_for`: generates notifications for status transitions and approval invalidation, and issues `NOTIFY mark_events`.
+  - `run_worker_cycle`: implements full pipeline with cheap-first probe and post-resolve decision re-evaluation (`skip_same_as_rev` creates no revision).
+- **Verification**: Strict TDD Red -> Green. 8 unit tests added in `tests/unit/test_worker.py`. Total test suite: 437 passed.
+- **Next immediate action**: Commit Task 4, push to `origin/phase2/trial`, verify green Jenkins build, then proceed to Task 5 (Scan, ELR Lookup, and Notification API).
+
+
+### 2026-11-06 — Migration 0007 applied to the real DB ([USER] step done)
+- User ran `apply_migration_0007.py` against `10.151.28.2:5432/mark_web`: dry run (ROLLBACK) first, then `--commit`.
+- All checks passed in both runs: tables `mark_app.scan`, `elr_revision`, `work_item`, `notification`; view `latest_job_result`; column `elr_revision.docs_probe`; `mark_worker` has no UPDATE/DELETE on `mark_logic.run/job_result/line_result`; runs 1–19 unchanged (16 run / 804 job_result / 34,723 line_result rows, content md5 equal).
+- Role `mark_worker` password generated and stored in `.env` as `MARK_WORKER_PG_PASSWORD` (`.env` is gitignored; not shown anywhere).
+- **Next**: Task 4 worker can now connect as `mark_worker` to the real schema.
+
 ### 2026-11-06 — B3 Task 3: Postgres Queue with SKIP LOCKED & Oracle Source Adapter
 - **Implemented**: `services/worker/__init__.py`, `services/worker/oracle_source.py`, `services/worker/queue.py`, `tests/unit/test_worker.py`.
 - **Refactored**: Extracted `ELR_FIELDS` and `BASE_ELR_QUERY` into `mark_engine/adapters/oracle_snapshot.py` and updated `scripts/fetch_oracle_snapshot.py`.

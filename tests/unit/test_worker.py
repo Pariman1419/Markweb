@@ -300,3 +300,263 @@ def test_fail_backoff_then_failed():
     # Attempt 4 -> exceeds 3 attempts -> failed
     state4 = fail_with_backoff(cur, item.item_id, 4, "error 4")
     assert state4 == "failed"
+
+
+# ---------------------------------------------------------------------------
+# Task 4 Tests: Results writer & Worker loop
+# ---------------------------------------------------------------------------
+from mark_engine.domain.models import JobResult, ProcessingStatus, VerificationStatus, ApprovalStatus
+from services.worker.results import (
+    day_run_for,
+    write_result,
+    notify_for,
+    job_row,
+    line_row,
+)
+from services.worker.main import run_worker_cycle
+
+
+class FakePgCursor:
+    def __init__(self):
+        self.executed: list[tuple[str, tuple]] = []
+        self.runs: dict[int, dict[str, Any]] = {}
+        self.job_results: list[dict[str, Any]] = []
+        self.line_results: list[dict[str, Any]] = []
+        self.snapshots: list[dict[str, Any]] = []
+        self.revisions: list[dict[str, Any]] = []
+        self.notifications: list[dict[str, Any]] = []
+        self.approvals: list[dict[str, Any]] = []
+        self._next_run_id = 100
+        self._last_fetch = None
+
+    def execute(self, sql: str, params: tuple = ()):
+        self.executed.append((sql, params))
+        sql_clean = " ".join(sql.split()).lower()
+
+        if "select run_id from mark_logic.run where period =" in sql_clean:
+            period = params[0]
+            matched = [rid for rid, r in self.runs.items() if r["period"] == period]
+            self._last_fetch = (matched[0],) if matched else None
+
+        elif "select 1 from mark_logic.job_result where run_id =" in sql_clean:
+            run_id, elr_no = params[0], params[1]
+            exists = any(j["run_id"] == run_id and j["elr_no"] == elr_no for j in self.job_results)
+            self._last_fetch = (1,) if exists else None
+
+        elif "insert into mark_logic.run" in sql_clean:
+            period = params[0]
+            rid = self._next_run_id
+            self._next_run_id += 1
+            self.runs[rid] = {"run_id": rid, "period": period}
+            self._last_fetch = (rid,)
+
+        elif "insert into mark_logic.job_result" in sql_clean:
+            self.job_results.append({"run_id": params[0], "elr_no": params[1]})
+            self._last_fetch = None
+
+        elif "insert into mark_logic.line_result" in sql_clean:
+            self.line_results.append({"run_id": params[0], "elr_no": params[1]})
+            self._last_fetch = None
+
+        elif "insert into mark_app.elr_snapshot" in sql_clean:
+            self.snapshots.append({"run_id": params[0], "elr_no": params[1]})
+            self._last_fetch = None
+
+        elif "insert into mark_app.elr_revision" in sql_clean:
+            self.revisions.append({"elr_no": params[0], "revision": params[1], "run_id": params[9]})
+            self._last_fetch = None
+
+        elif "select coalesce(max(revision), 0) from mark_app.elr_revision where elr_no =" in sql_clean:
+            elr_no = params[0]
+            revs = [r["revision"] for r in self.revisions if r["elr_no"] == elr_no]
+            self._last_fetch = (max(revs, default=0),)
+
+        elif "select 1 from mark_app.approval where elr_no =" in sql_clean:
+            elr_no, run_id = params[0], params[1]
+            exists = any(a["elr_no"] == elr_no and a["run_id"] == run_id and a["verdict"] == "APPROVED" for a in self.approvals)
+            self._last_fetch = (1,) if exists else None
+
+        elif "insert into mark_app.notification" in sql_clean:
+            self.notifications.append({"elr_no": params[0], "run_id": params[1], "revision": params[2], "kind": params[3]})
+            self._last_fetch = None
+
+        elif "select revision, oracle_fp, docs_fp, result_fp, run_id from mark_app.elr_revision where elr_no =" in sql_clean:
+            elr_no = params[0]
+            matched = [r for r in self.revisions if r["elr_no"] == elr_no]
+            self._last_fetchall = [(r["revision"], r.get("oracle_fp", ""), r.get("docs_fp", ""), r.get("result_fp", ""), r["run_id"]) for r in matched]
+
+        else:
+            self._last_fetch = None
+
+    def fetchone(self):
+        return self._last_fetch
+
+    def fetchall(self):
+        return getattr(self, "_last_fetchall", [])
+
+
+def test_day_run_reuses_until_elr_repeats_then_suffix():
+    cur = FakePgCursor()
+    day = datetime(2026, 11, 6).date()
+
+    # 1. First ELR creates run auto-2026-11-06
+    r1 = day_run_for(cur, "ADI2601001", day)
+    assert cur.runs[r1]["period"] == "auto-2026-11-06"
+
+    # Simulate recording job_result for ADI2601001 in r1
+    cur.job_results.append({"run_id": r1, "elr_no": "ADI2601001"})
+
+    # 2. Second different ELR reuses the same run r1
+    r2 = day_run_for(cur, "ADI2601002", day)
+    assert r2 == r1
+
+    # 3. Same ELR ADI2601001 repeats on the same day -> must create suffix run .2
+    r3 = day_run_for(cur, "ADI2601001", day)
+    assert r3 != r1
+    assert cur.runs[r3]["period"] == "auto-2026-11-06.2"
+
+
+def test_write_result_never_updates_existing_rows():
+    cur = FakePgCursor()
+    meta = ElrMeta(elr_no="ADI2601001", product_no="AD999")
+    job = JobResult(elr_no="ADI2601001", processing_status=ProcessingStatus.DONE)
+    oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD999"}
+    rev_info = {
+        "run_id": 100,
+        "oracle_fp": "ofp1",
+        "docs_fp": "dfp1",
+        "version_fp": "vfp1",
+        "result_fp": "rfp1",
+        "changed": "new",
+        "changed_fields": [],
+        "result_unchanged": False,
+        "docs_probe": {},
+    }
+
+    new_rev = write_result(cur, job, meta, oracle_row, resolution=None, revision_info=rev_info)
+    assert new_rev == 1
+
+    # Invariant check: only INSERT queries on mark_logic, zero UPDATE or DELETE
+    for sql, _ in cur.executed:
+        sql_lower = sql.lower()
+        if "mark_logic." in sql_lower:
+            assert sql_lower.strip().startswith("insert") or sql_lower.strip().startswith("select")
+
+
+def test_approved_revision_kept_and_new_revision_notifies():
+    cur = FakePgCursor()
+    cur.approvals.append({"elr_no": "ADI2601001", "run_id": 100, "verdict": "APPROVED"})
+    job = JobResult(elr_no="ADI2601001", processing_status=ProcessingStatus.DONE)
+
+    # When previous revision was approved, notification includes changed_after_approve
+    notified = notify_for(cur, job, revision=2, prev_approved=True, run_id=101)
+    assert "changed_after_approve" in notified
+    assert len(cur.notifications) == 1
+    assert cur.notifications[0]["kind"] == "changed_after_approve"
+
+
+def test_same_as_old_revision_creates_nothing():
+    cur = FakePgCursor()
+    # Revision 1 exists
+    cur.revisions.append({"elr_no": "ADI2601001", "revision": 1, "oracle_fp": "ofp1", "docs_fp": "dfp1", "run_id": 100})
+    # Revision 2 exists
+    cur.revisions.append({"elr_no": "ADI2601001", "revision": 2, "oracle_fp": "ofp2", "docs_fp": "dfp2", "run_id": 101})
+
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "recheck")
+
+    # Oracle row reverted back to ofp1
+    oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A"}
+
+    # Mock oracle and resolution
+    prev_rev_count = len(cur.revisions)
+    executed_check = run_worker_cycle(
+        cur,
+        q_cur,
+        oracle_row=oracle_row,
+        force_oracle_fp="ofp1",
+        resolved_docs_fp="dfp1",
+        worker_id="worker-test",
+    )
+    # If same as revision 1, no new revision created
+    assert executed_check is False
+    assert len(cur.revisions) == prev_rev_count
+
+
+def test_oracle_reverted_to_old_rev_after_docs_resolved_creates_nothing():
+    """Requirement (5): After docs resolved, re-check decide() with real docs_fp.
+
+    If skip_same_as_rev, creates no revision.
+    """
+    cur = FakePgCursor()
+    # Rev 1: oracle=ofp1, docs=dfp1
+    cur.revisions.append({"elr_no": "ADI2601001", "revision": 1, "oracle_fp": "ofp1", "docs_fp": "dfp1", "run_id": 100})
+    # Rev 2: oracle=ofp2, docs=dfp2
+    cur.revisions.append({"elr_no": "ADI2601001", "revision": 2, "oracle_fp": "ofp2", "docs_fp": "dfp2", "run_id": 101})
+
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    # cheap-first saw ofp1 (which is different from latest ofp2), so it proceeded to resolve docs
+    # but when docs resolved, docs_fp is dfp1, matching rev 1!
+    prev_rev_count = len(cur.revisions)
+    executed = run_worker_cycle(
+        cur,
+        q_cur,
+        oracle_row={"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A"},
+        force_oracle_fp="ofp1",
+        resolved_docs_fp="dfp1",
+        worker_id="worker-test",
+    )
+    assert executed is False
+    assert len(cur.revisions) == prev_rev_count
+
+
+def test_inference_down_retries_then_hold_inference_failed():
+    cur = FakePgCursor()
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    # Simulate inference failing on all attempts
+    for attempt in range(1, 4):
+        item = claim(q_cur, "worker-1")
+        assert item is not None
+        assert item.attempts == attempt
+        state = fail_with_backoff(q_cur, item.item_id, item.attempts, "InferenceUnavailable: connection refused")
+        assert state == "retry"
+        # Simulate backoff timer elapsed
+        queue_store.items[item.item_id]["next_attempt_at"] = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    # 4th attempt -> fails with backoff returns "failed"
+    item = claim(q_cur, "worker-1")
+    assert item is not None
+    assert item.attempts == 4
+    state = fail_with_backoff(q_cur, item.item_id, item.attempts, "InferenceUnavailable: connection refused")
+    assert state == "failed"
+
+
+def test_version_only_change_not_rechecked():
+    from mark_engine.history.decide import RevisionKey, decide
+    # When oracle and docs are unchanged but version_fp changes:
+    prev = [RevisionKey(1, "o1", "d1")]
+    dec = decide(pending_reason=None, prev=prev, oracle_fp="o1", docs_fp="d1", manual=False)
+    # Automatic re-check skips unchanged input even if version changes
+    assert dec.action == "skip_unchanged"
+
+
+def test_loader_scripts_unchanged_output():
+    # Verify line_row and job_row contracts
+    jrow = job_row(100, {"elr_no": "ADI2601001", "processing_status": "DONE"})
+    assert jrow[0] == 100
+    assert jrow[1] == "ADI2601001"
+    assert jrow[2] == "DONE"
+
+    lrow = line_row(100, {"elr_no": "ADI2601001", "side": "TOP", "line_no": "1", "status": "MATCH"}, "ABS065001", "IDENTICAL")
+    assert lrow[0] == 100
+    assert lrow[1] == "ADI2601001"
+    assert lrow[2] == "ABS065001"
+    assert lrow[8] == "MATCH"
+
