@@ -116,7 +116,7 @@ message HealthReply { string status = 1; string ocr_device = 2; string symbol_de
 - [x] **Step 2:** Run `python -m pytest tests/unit/test_inference_service.py -q`. Expected: FAIL (no module).
 - [x] **Step 3:** Write the proto, the generator script (`python -m grpc_tools.protoc ...` into `services/inference/`), and `server.py`.
 - [x] **Step 4:** Run `python -m pytest tests/unit -q -p no:cacheprovider`. Expected: all pass.
-- [ ] **Step 5:** Commit `feat(inference): gRPC contract and server skeleton with API key`, then push and wait for a green Jenkins build.
+- [x] **Step 5:** Commit `feat(inference): gRPC contract and server skeleton with API key`, then push and wait for a green Jenkins build.
 
 ### Task 2: Shared engines and the GPU→CPU fallback
 
@@ -145,14 +145,14 @@ message HealthReply { string status = 1; string ocr_device = 2; string symbol_de
 - `free_vram_mb()` reads NVML (`pynvml`), and returns `None` on error.
 - Set `FLAGS_allocator_strategy=auto_growth` before Paddle is imported.
 
-- [ ] **Step 1: Tests, with no real models.**
+- [x] **Step 1: Tests, with no real models.**
   - `test_choose_device` (parametrize: force cpu / force gpu / None / below min / above min)
   - `test_oom_falls_back_to_cpu_once`: a fake GPU call raises an OOM-like error twice; CPU is used both times, and the CPU engine is built once.
   - `test_other_errors_are_not_swallowed`
   - `test_server_reports_cpu_after_fallback`: the reply has `model.device == "cpu"`.
-- [ ] **Step 2:** Run them. Expected: FAIL.
-- [ ] **Step 3:** Implement. Move the model code; do not copy it. The batch scripts become thin `argparse` wrappers.
-- [ ] **Step 4:** Run the unit suite. Expected: all pass, including the existing reocr tests.
+- [x] **Step 2:** Run them. Expected: FAIL.
+- [x] **Step 3:** Implement. Move the model code; do not copy it. The batch scripts become thin `argparse` wrappers.
+- [x] **Step 4:** Run the unit suite. Expected: all pass, including the existing reocr tests.
 - [ ] **Step 5:** Commit `refactor(inference): shared OCR/YOLO engines with GPU->CPU fallback`, then push and wait for a green Jenkins build.
 
 ### Task 3: Engine client and the `MARK_INFERENCE` switch

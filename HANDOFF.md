@@ -63,6 +63,22 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — B4 Inference Service Task 2: Shared engines and GPU→CPU fallback
+- **What changed**:
+  - Created services/inference/devices.py: ree_vram_mb() via pynvml, choose_device(free_mb, min_free_mb, force), is_cuda_oom(exc), and with_cpu_fallback(run_gpu, run_cpu).
+  - Created mark_engine/abs/reocr.py: extracted legend_candidates and 	rim_logo from batch script.
+  - Created services/inference/engines.py: OcrEngine(device, recognizer_dir) and SymbolEngine(device, weights) with lazy model loading and CPU fallback on CUDA OOM. Configured FLAGS_allocator_strategy=auto_growth and PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True.
+  - Refactored services/inference/det_rec_batch.py, yolo_batch.py, and 
+eocr_batch.py to be thin CLI wrappers over shared engines without changing output shape or precision.
+  - Updated services/inference/server.py to use choose_device, ree_vram_mb, OcrEngine, and SymbolEngine.
+  - Extended 	ests/unit/test_inference_service.py with unit tests for device selection, lazy single-build CPU fallback, error propagation, and server reporting CPU device after fallback.
+  - Updated 	ests/unit/test_reocr_batch.py to verify imports from mark_engine.abs.reocr.
+- **Verification**:
+  - 	ests/unit/test_inference_service.py: 15 passed.
+  - 	ests/unit/test_reocr_batch.py & 	ests/unit/test_adapters_reocr.py: 2 passed.
+  - Full unit suite: 385 passed in 21.46s.
+- **Next immediate action**: Commit Task 2, wait for Jenkins green, tick Step 5, and proceed to Task 3.
+
 ### 2026-11-05 — B4 Inference Service Task 1: Contract, server skeleton, API key
 - **What changed**:
   - In `services/inference/proto/mark_inference.proto`: defined package `mark.inference.v1` with RPCs `Health`, `Page`, `Symbols`, `Rec`.

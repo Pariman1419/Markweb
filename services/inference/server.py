@@ -153,14 +153,21 @@ def main():
     min_free_mb = int(os.getenv("MARK_INF_MIN_FREE_MB", "3000"))
     force_device = os.getenv("MARK_INF_FORCE_DEVICE")
 
-    # In Task 2, real engines will be imported from services.inference.engines
+    # Use choose_device and shared engines
+    from services.inference.devices import choose_device, free_vram_mb
     from services.inference.engines import OcrEngine, SymbolEngine
-    ocr = OcrEngine(min_free_mb=min_free_mb, force_device=force_device)
-    symbols = SymbolEngine(min_free_mb=min_free_mb, force_device=force_device)
+
+    free_mb = free_vram_mb()
+    device = choose_device(free_mb, min_free_mb=min_free_mb, force=force_device)
+    recognizer_dir = os.getenv("MARK_INF_RECOGNIZER_DIR", "/models/exp09")
+    weights = os.getenv("MARK_INF_SYMBOL_WEIGHTS", "/models/symdet/v2/weights/best.pt")
+
+    ocr = OcrEngine(device=device, recognizer_dir=recognizer_dir)
+    symbols = SymbolEngine(device=device, weights=weights)
 
     server = build_server(ocr, symbols, api_key=api_key, port=port)
     server.start()
-    print(f"mark-inference service running on port {port}")
+    print(f"mark-inference service running on port {port} (device={device})")
     server.wait_for_termination()
 
 

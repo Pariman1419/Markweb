@@ -968,3 +968,27 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 ### Verification
 - `test_inference_service.py`: 5 passed.
 - Full unit test suite: 375 passed.
+
+## 2026-11-05 — B4 Inference Service Task 2: Shared engines and GPU→CPU fallback
+
+### What changed
+- Created `services/inference/devices.py`:
+  - `free_vram_mb()`: Reads NVML memory info safely with `pynvml`, returns `None` on missing driver/NVML error.
+  - `choose_device(free_vram_mb, min_free_mb, force)`: Selects `gpu` or `cpu` based on priority (`force` override, `None` VRAM -> `cpu`, below min -> `cpu`, otherwise `gpu`).
+  - `is_cuda_oom(exc)`: Identifies PyTorch `OutOfMemoryError`, Paddle external OOM, or memory exhausted messages.
+  - `with_cpu_fallback(run_gpu, run_cpu)`: Executes GPU inference; on CUDA OOM logs a warning and falls back to CPU. Propagates non-OOM exceptions immediately.
+- Created `mark_engine/abs/reocr.py`:
+  - Moved `legend_candidates` and `trim_logo` from `services/inference/reocr_batch.py` into `mark_engine.abs.reocr`.
+- Created `services/inference/engines.py`:
+  - Sets `FLAGS_allocator_strategy=auto_growth` and `PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True` before importing Paddle.
+  - `OcrEngine(device, recognizer_dir)`: Shared text detection and recognition engine with `.page(png)` and `.rec(crops)`. Falls back to CPU lazily on CUDA OOM.
+  - `SymbolEngine(device, weights)`: Shared YOLO symbol detection engine with `.symbols(png)`. Falls back to CPU lazily on CUDA OOM.
+- Refactored `services/inference/det_rec_batch.py`, `yolo_batch.py`, and `reocr_batch.py` into thin CLI wrappers over the shared engines and functions.
+- Updated `services/inference/server.py` to use `choose_device`, `free_vram_mb`, `OcrEngine`, and `SymbolEngine`.
+- Extended `tests/unit/test_inference_service.py` with tests for device choice, lazy single-build CPU fallback on OOM, error non-swallowing, and server reporting CPU device after fallback.
+- Updated `tests/unit/test_reocr_batch.py` to verify imports from `mark_engine.abs.reocr`.
+
+### Verification
+- `test_inference_service.py`: 15 passed.
+- `test_reocr_batch.py` & `test_adapters_reocr.py`: 2 passed.
+- Full unit suite: 385 passed in 21.46s.
