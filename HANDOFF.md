@@ -63,6 +63,20 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Live admin check on localhost:8088: `/api/runs` bug fixed
+- **Test accounts:** `qa_admin` (admin, user_id 3) and `qa_engineer` (engineer, user_id 4) were created for trial testing.
+  - Passwords are random and stored only in the git-ignored `.env`, as `MARK_TEST_ADMIN_*` and `MARK_TEST_ENGINEER_*`.
+  - The user's own admin account is user_id 2.
+- **Live checks (via NGINX):**
+  - **Lockout:** 5 bad logins on `qa_engineer` → 401 ×5, then the correct password → 423. A 7th login request within a minute → 429 (rate limit).
+  - **Admin endpoints:** as `qa_admin`, users → 200. Unlock without CSRF → 403, unlock → 200, unknown id → 404. A 200-day activity range → 422.
+  - **Events:** these show `auth.login_failed` (`bad_password` with counts 1–5, then `locked`), `auth.locked` with `locked_until`, `auth.login_ok` and `admin.unlock`, each with `client_ip` and `request_id`.
+- **Bug (from Phase 2 Task 4):** `Repo.runs()` selected `created_at`, but `mark_logic.run` has `run_at`. So `/api/runs`, the Dashboard's run list and `/api/admin/activity` without `run_id` all returned 500 on the real DB. The unit tests use a fake repo, so they never caught it.
+  - **Fix:** `run_at as created_at`.
+  - Every other `Repo` read was run against the real DB (run 19) and all passed: lines 1304, jobs 402, ELR detail, snapshot, reviews, approval, admin users, activity (402 undecided), events.
+- **Events IP:** shown as `host(client_ip)`, without `/32`.
+- **Note:** behind Docker Desktop NAT, every client appears as `172.18.0.1`, the bridge gateway. On 10.153.90.17, check that NGINX sees real client IPs; Docker's userland proxy can hide them.
+
 ### 2026-11-05 — Review of the login-audit work (agent commits 8aa889a..5c565f4) and a CI fix
 - **Tasks 1–5 reviewed:** all match the plan. Re-run per commit gave 341 → 347 → 351 → 352 unit tests passing. The web build passes, and `Admin` is a 4.4 KB gzip chunk.
 - **Migration 0006 is applied** on `mark_web` @10.151.28.2, run by the other agent by 13:32.

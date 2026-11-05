@@ -727,3 +727,10 @@
 - The Jenkins build for 5c565f4 failed at collection, because `zoneinfo` had no `tzdata` in the clean venv.
   - Fixed by using a fixed UTC+7 in `routers/admin.py`; 352 tests pass.
 - DB check: migration 0006 columns are present, and there is 1 admin user.
+
+## 2026-11-05 — Live admin check and `/api/runs` fix
+- Live via NGINX: lockout 401×5 → 423; rate limit 429; admin unlock 403 without CSRF, 200, 404 for unknown; 422 for over 92 days; events carry IP and request_id.
+- Found: `Repo.runs()` used a non-existent column, `mark_logic.run.created_at`, which gave 500 on the real DB. Fixed with `run_at as created_at`.
+- Smoke of all `Repo` reads on the real DB (run 19): all OK.
+- Gap: unit tests use a fake repo and cannot catch column-name errors. The real-DB read smoke is the check for that.
+- 352 unit tests pass.

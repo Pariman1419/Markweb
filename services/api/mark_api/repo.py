@@ -64,7 +64,7 @@ class Repo:
                 raise
 
     def runs(self) -> list[dict[str, Any]]:
-        return self._execute("select run_id, period, created_at, note from mark_logic.run order by run_id desc", fetch_all=True)
+        return self._execute("select run_id, period, run_at as created_at, note from mark_logic.run order by run_id desc", fetch_all=True)
 
     def lines(self, run_id: int) -> list[dict[str, Any]]:
         q = """
@@ -393,7 +393,7 @@ class Repo:
             a.action,
             a.user_id,
             u.display_name,
-            a.client_ip::text as client_ip,
+            host(a.client_ip) as client_ip,
             a.request_id,
             a.detail
         from mark_app.audit_log a
