@@ -1,6 +1,49 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
-## [2026-11-05] B4 Task 4: mark-inference Deployment and A100 Host Validation
+## [2026-11-05] B4 Task 5: Parity Verification against Run-19 Cache & Regression Comparison
+
+### Context & Objective
+- Prove that `mark-inference` service on A100 reproduces run-19 cache outputs with 0 differences on CPU OCR and zero regression at the engine level against `run-gates`.
+
+### Cache Parity Verification (`scripts/compare_inference.py`)
+- **Cache Dir**: `artifacts/blind-2026h2/cache` (287 rows in `images_index.csv`, 118 distinct drawing PNGs)
+- **Target Host**: A100 (`10.151.28.9:50051`, `ocr_device=cpu`, `symbol_device=gpu`)
+- **Comparison Results**:
+  - `images_total`: 287
+  - `images_passed`: 287 (100.0%)
+  - `page_diffs`: 0 (exact match on box count, bounding boxes within 1px, texts identical, scores within 0.01)
+  - `symbol_diffs`: 0 (YOLO on GPU matched detections.json multiset, bounding boxes within 1px, confidence within 0.01)
+  - `reocr_diffs`: 0 (crops re-OCR matched all candidates in reocr.csv)
+  - `total_diff_records`: 0
+
+### Engine-Level Regression (`run-gates` vs `run-service`)
+- **Command**:
+  ```powershell
+  python scripts/run_blind.py --oracle artifacts/blind-2026h2/oracle --cache artifacts/blind-2026h2/cache --out artifacts/blind-2026h2/run-service --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --allow-unfrozen --workers 3 --inference service
+  python scripts/diff_runs.py --base artifacts/blind-2026h2/run-gates --new artifacts/blind-2026h2/run-service
+  ```
+- **Execution Metrics**: `jobs: 402 independence: 254 / 254 excluded: 148 failed: 0 freeze: UNFROZEN`
+- **Diff Summary**:
+  - **Job-Level Changes**: 0 (No job state changes)
+  - **Line-Level Status Changes**:
+    - `DB_EMPTY`: base=43 -> new=43 (0)
+    - `DIFF`: base=7 -> new=7 (0)
+    - `MATCH`: base=929 -> new=929 (0)
+    - `MATCH_LOT`: base=21 -> new=21 (0)
+    - `MATCH_SLR`: base=69 -> new=69 (0)
+    - `NEEDS_REVIEW`: base=101 -> new=101 (0)
+    - `NOT_ELIGIBLE`: base=81 -> new=81 (0)
+    - `NOT_MEASURABLE`: base=107 -> new=107 (0)
+
+### Production Hardening & Final Container Image
+- **Docker Image**: `mark-inference:0.1.0`
+- **Updated Image ID**: `sha256:afae88a43926de1d26c09e2e5bda4ec08026b293effc56ce01efb0cad2c63f32`
+- **Container Name**: `mark-inference` (Container ID `44ec121eab7a`)
+- **Healthcheck Override**: Added `HEALTHCHECK NONE` in `services/inference/Dockerfile` to suppress inherited `ic-marking-ocr:exp09` HTTP :8000 healthcheck, preventing false unhealthy monitoring alerts.
+- **Thread Safety**: Added `threading.Lock()` inside `OcrEngine` (`page()`, `rec()`) and `SymbolEngine` (`symbols()`) ensuring multiple simultaneous gRPC requests are serialized safely without C++ memory corruption.
+- **Client LRU Cache**: Implemented bounded `_SERVICE_INFERENCE_CACHE` (LRU 512 with `OrderedDict` and thread lock) in `mark_engine/adapters/inference_service.py` to prevent memory unbounded growth in long-running worker processes while keeping per-image execution instant.
+
+---
 
 ### Context & Deployment
 - **Target Host**: A100 (`10.151.28.9:50051`)

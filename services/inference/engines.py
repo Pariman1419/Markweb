@@ -3,6 +3,7 @@ import io
 import os
 from pathlib import Path
 import tempfile
+import threading
 from typing import Any
 
 # Ensure auto_growth and avoid unneeded model source check before Paddle is imported
@@ -26,16 +27,43 @@ def _to_yolo_device(device: str) -> str:
     return dev
 
 
+def _setup_paddlex_cache():
+    pdx_dir = Path(os.environ.get("PADDLE_PDX_CACHE_HOME", Path.home() / ".paddlex"))
+    official_dir = pdx_dir / "official_models"
+    try:
+        pdx_dir.mkdir(parents=True, exist_ok=True)
+        if not official_dir.exists():
+            for source in [
+                Path("/models/paddlex_cache/official_models"),
+                Path("/models/official_models"),
+            ]:
+                if source.exists():
+                    os.symlink(str(source), str(official_dir))
+                    break
+    except Exception:
+        pass
+
+
 class OcrEngine:
     """PaddleOCR text detector (PP-OCRv5_server_det) and recognizer (EXP09)."""
 
     def __init__(self, device: str = "cpu", recognizer_dir: str = "/models/exp09"):
         self.device = device
+        if self.device == "gpu":
+            try:
+                import paddle
+                if hasattr(paddle, "device") and hasattr(paddle.device, "is_compiled_with_cuda"):
+                    if not paddle.device.is_compiled_with_cuda():
+                        self.device = "cpu"
+            except Exception:
+                pass
         self.recognizer_dir = str(recognizer_dir)
+        self._lock = threading.Lock()
         self._gpu_models: tuple[Any, Any] | None = None
         self._cpu_models: tuple[Any, Any] | None = None
 
     def _get_models(self, device: str):
+        _setup_paddlex_cache()
         target = _to_paddle_device(device)
         if target == "gpu":
             if self._gpu_models is None:
@@ -118,24 +146,26 @@ class OcrEngine:
         return results
 
     def page(self, png: bytes) -> list[list]:
-        if _to_paddle_device(self.device) == "gpu":
-            res, dev = with_cpu_fallback(
-                lambda: self._predict_page(png, "gpu"),
-                lambda: self._predict_page(png, "cpu"),
-            )
-            self.device = dev
-            return res
-        return self._predict_page(png, "cpu")
+        with self._lock:
+            if _to_paddle_device(self.device) == "gpu":
+                res, dev = with_cpu_fallback(
+                    lambda: self._predict_page(png, "gpu"),
+                    lambda: self._predict_page(png, "cpu"),
+                )
+                self.device = dev
+                return res
+            return self._predict_page(png, "cpu")
 
     def rec(self, crops: list[bytes]) -> list[tuple[str, float]]:
-        if _to_paddle_device(self.device) == "gpu":
-            res, dev = with_cpu_fallback(
-                lambda: self._predict_rec(crops, "gpu"),
-                lambda: self._predict_rec(crops, "cpu"),
-            )
-            self.device = dev
-            return res
-        return self._predict_rec(crops, "cpu")
+        with self._lock:
+            if _to_paddle_device(self.device) == "gpu":
+                res, dev = with_cpu_fallback(
+                    lambda: self._predict_rec(crops, "gpu"),
+                    lambda: self._predict_rec(crops, "cpu"),
+                )
+                self.device = dev
+                return res
+            return self._predict_rec(crops, "cpu")
 
 
 class SymbolEngine:
@@ -144,6 +174,7 @@ class SymbolEngine:
     def __init__(self, device: str = "cpu", weights: str = "/models/symdet/v2/weights/best.pt"):
         self.device = device
         self.weights = str(weights)
+        self._lock = threading.Lock()
         self._model = None
 
     def _get_model(self):
@@ -171,11 +202,12 @@ class SymbolEngine:
                 Path(img_temp_name).unlink(missing_ok=True)
 
     def symbols(self, png: bytes) -> list[list]:
-        if _to_paddle_device(self.device) == "gpu":
-            res, dev = with_cpu_fallback(
-                lambda: self._predict_symbols(png, "gpu"),
-                lambda: self._predict_symbols(png, "cpu"),
-            )
-            self.device = dev
-            return res
-        return self._predict_symbols(png, "cpu")
+        with self._lock:
+            if _to_paddle_device(self.device) == "gpu":
+                res, dev = with_cpu_fallback(
+                    lambda: self._predict_symbols(png, "gpu"),
+                    lambda: self._predict_symbols(png, "cpu"),
+                )
+                self.device = dev
+                return res
+            return self._predict_symbols(png, "cpu")

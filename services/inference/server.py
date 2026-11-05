@@ -176,7 +176,8 @@ def main():
     from services.inference.engines import OcrEngine, SymbolEngine
 
     free_mb = free_vram_mb()
-    device = choose_device(free_mb, min_free_mb=min_free_mb, force=force_device)
+    ocr_device = choose_device(free_mb, min_free_mb=min_free_mb, force=force_device, engine="ocr")
+    symbol_device = choose_device(free_mb, min_free_mb=min_free_mb, force=force_device, engine="symbol")
     recognizer_dir = os.getenv("MARK_INF_RECOGNIZER_DIR", "/models/exp09")
     weights = os.getenv("MARK_INF_SYMBOL_WEIGHTS", "/models/symdet/v2/weights/best.pt")
 
@@ -195,12 +196,12 @@ def main():
         "detector_sha256": _file_sha256(det_path),
     }
 
-    ocr = OcrEngine(device=device, recognizer_dir=recognizer_dir)
-    symbols = SymbolEngine(device=device, weights=weights)
+    ocr = OcrEngine(device=ocr_device, recognizer_dir=recognizer_dir)
+    symbols = SymbolEngine(device=symbol_device, weights=weights)
 
     server = build_server(ocr, symbols, api_key=api_key, port=port, model_info=model_info)
     server.start()
-    print(f"mark-inference service running on port {port} (device={device})")
+    print(f"mark-inference service running on port {port} (ocr={ocr.device}, symbol={symbols.device})")
     server.wait_for_termination()
 
 

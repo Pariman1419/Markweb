@@ -326,4 +326,116 @@ def test_run_blind_service_failure_is_inference_failed(monkeypatch):
     assert job.verification_status.name == "NOT_VERIFIABLE"
 
 
+def test_compare_counts_box_and_text_diffs(tmp_path):
+    import json
+    from scripts.compare_inference import run_comparison
+
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    images_dir = cache_dir / "images"
+    images_dir.mkdir()
+    img_name = "test_img.png"
+    (images_dir / img_name).write_bytes(TINY_PNG)
+
+    (cache_dir / "images_index.csv").write_text(
+        "elr,abs_file,image,source_sha256,sha256\n"
+        f"ADI2607001,ABS000001,{img_name},dummy_src,dummy_sha\n",
+        encoding="utf-8",
+    )
+
+    # Cached data has 1 page item and 1 symbol
+    det_rec = {
+        img_name: [
+            [10.0, 20.0, 100.0, 40.0, "CACHED_TEXT", 0.99],
+        ]
+    }
+    (cache_dir / "det_rec.json").write_text(json.dumps(det_rec), encoding="utf-8")
+
+    detections = {
+        "test_img": [
+            ["pin1_dot", 0.95, 10.0, 10.0, 20.0, 20.0],
+        ]
+    }
+    (cache_dir / "detections.json").write_text(json.dumps(detections), encoding="utf-8")
+
+    # Mock client with mismatched page text and mismatched symbol
+    class FakeClient:
+        def health(self):
+            return {"ocr_device": "cpu", "model": {"service_version": "0.1.0"}}
+
+        def page(self, name, png):
+            # Same box, different text -> should flag text diff
+            return [[10.0, 20.0, 100.0, 40.0, "DIFFERENT_TEXT", 0.99]]
+
+        def symbols(self, name, png):
+            # Different symbol class
+            return [["adi_logo", 0.95, 10.0, 10.0, 20.0, 20.0]]
+
+        def rec(self, crops):
+            return []
+
+    out_dir = tmp_path / "out"
+    summary = run_comparison(cache_dir=cache_dir, client=FakeClient(), out_dir=out_dir)
+
+    assert summary["images_total"] == 1
+    assert summary["images_passed"] == 0
+    assert summary["page_diffs"] == 1
+    assert summary["symbol_diffs"] == 1
+
+    diffs_csv = (out_dir / "diffs.csv").read_text(encoding="utf-8")
+    assert "image_sha256,kind,field" in diffs_csv
+    assert "test_img,page,text" in diffs_csv
+    assert "test_img,symbol,class_multiset" in diffs_csv
+    # Verify no raw OCR text leaked in output
+    assert "CACHED_TEXT" not in diffs_csv
+    assert "DIFFERENT_TEXT" not in diffs_csv
+
+
+def test_choose_device_ocr_cpu_when_paddle_not_cuda(monkeypatch):
+    import sys
+    from unittest.mock import MagicMock
+    from services.inference.devices import choose_device
+
+    fake_paddle = MagicMock()
+    fake_paddle.device.is_compiled_with_cuda.return_value = False
+    monkeypatch.setitem(sys.modules, "paddle", fake_paddle)
+
+    # When VRAM is abundant (> 3000 MB):
+    # OCR should choose CPU because paddle is not CUDA-compiled
+    ocr_dev = choose_device(free_vram_mb=8000, min_free_mb=3000, engine="ocr")
+    assert ocr_dev == "cpu"
+
+    # YOLO / Symbol should still choose GPU
+    sym_dev = choose_device(free_vram_mb=8000, min_free_mb=3000, engine="symbol")
+    assert sym_dev == "gpu"
+
+
+def test_health_reports_ocr_cpu_and_symbol_gpu():
+    from services.inference.server import build_server
+    from services.inference import mark_inference_pb2 as pb2
+    from services.inference import mark_inference_pb2_grpc as pb2_grpc
+
+    port = find_free_port()
+    api_key = "test-split-device-key"
+    ocr = FakeOcrEngine()
+    ocr.device = "cpu"
+    symbols = FakeSymbolEngine()
+    symbols.device = "gpu"
+
+    server = build_server(ocr, symbols, api_key=api_key, port=port)
+    server.start()
+    channel = grpc.insecure_channel(f"127.0.0.1:{port}")
+    stub = pb2_grpc.MarkInferenceStub(channel)
+    try:
+        reply = stub.Health(pb2.HealthRequest(), metadata=(("x-api-key", api_key),))
+        assert reply.status == "ok"
+        assert reply.ocr_device == "cpu"
+        assert reply.symbol_device == "gpu"
+    finally:
+        channel.close()
+        server.stop(grace=None)
+
+
+
+
 

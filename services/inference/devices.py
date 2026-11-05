@@ -25,17 +25,31 @@ def free_vram_mb() -> int | None:
         return None
 
 
-def choose_device(free_vram_mb: int | None, min_free_mb: int, force: str | None = None) -> str:
+def choose_device(
+    free_vram_mb: int | None,
+    min_free_mb: int,
+    force: str | None = None,
+    engine: str | None = None,
+) -> str:
     """Choose 'gpu' or 'cpu' device.
 
     Rules:
     - force wins if specified ('gpu' or 'cpu').
+    - If engine == 'ocr': if paddle.device.is_compiled_with_cuda() is False -> 'cpu'.
     - None (no GPU or no NVML) -> 'cpu'.
     - free < min_free_mb -> 'cpu'.
     - Otherwise -> 'gpu'.
     """
     if force:
         return force.lower().strip()
+    if engine == "ocr":
+        try:
+            import paddle
+            if hasattr(paddle, "device") and hasattr(paddle.device, "is_compiled_with_cuda"):
+                if not paddle.device.is_compiled_with_cuda():
+                    return "cpu"
+        except Exception:
+            pass
     if free_vram_mb is None:
         return "cpu"
     if free_vram_mb < min_free_mb:

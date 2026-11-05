@@ -1,6 +1,8 @@
 """gRPC inference service client and service-backed inference loader."""
+from collections import OrderedDict
 import io
 from pathlib import Path
+import threading
 import time
 from typing import Any
 import grpc
@@ -89,6 +91,11 @@ class InferenceClient:
         return [(res.text, res.score) for res in reply.results]
 
 
+_SERVICE_INFERENCE_CACHE: OrderedDict[str, tuple[list, list, dict]] = OrderedDict()
+_CACHE_MAX_SIZE = 512
+_CACHE_LOCK = threading.Lock()
+
+
 def load_service_inference(
     client: InferenceClient,
     images_dir: Path,
@@ -109,6 +116,16 @@ def load_service_inference(
 
     name = matching[0]["image"]
     stem = Path(name).stem
+
+    with _CACHE_LOCK:
+        cached = _SERVICE_INFERENCE_CACHE.get(name)
+        if cached is not None:
+            _SERVICE_INFERENCE_CACHE.move_to_end(name)
+
+    if cached is not None:
+        page_items, symbol_items, reocr_map = cached
+        return build_auto_inference(elr_no, stem, page_items, symbol_items, reocr_map)
+
     image_path = images_dir / name
     if not image_path.is_file():
         raise FileNotFoundError(f"Inference image missing: {image_path}")
@@ -143,5 +160,11 @@ def load_service_inference(
             new = (new_text or "").strip()
             if new and new != old and score >= REOCR_MIN_SCORE:
                 reocr_map[candidate["key"]] = (old, new)
+
+    with _CACHE_LOCK:
+        _SERVICE_INFERENCE_CACHE[name] = (page_items, symbol_items, reocr_map)
+        _SERVICE_INFERENCE_CACHE.move_to_end(name)
+        if len(_SERVICE_INFERENCE_CACHE) > _CACHE_MAX_SIZE:
+            _SERVICE_INFERENCE_CACHE.popitem(last=False)
 
     return build_auto_inference(elr_no, stem, page_items, symbol_items, reocr_map)

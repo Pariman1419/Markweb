@@ -209,7 +209,7 @@ message HealthReply { string status = 1; string ocr_device = 2; string symbol_de
   - **Check from this dev machine (`10.151.97.18`):** Health works with the key, and gives `UNAUTHENTICATED` without it.
   - **Other callers:** later, the production API on `10.153.90.17` and the Airflow worker on `10.151.28.3` call the same address.
   - **[USER] Only if the user later wants an IP allow-list:** the server admin adds `DOCKER-USER` iptables rules for 50051.
-- [ ] **Step 7:** Commit `feat(inference): mark-inference image and A100 deploy notes`, then push and wait for a green Jenkins build.
+- [x] **Step 7:** Commit `feat(inference): mark-inference image and A100 deploy notes`, then push and wait for a green Jenkins build.
 
 ### Task 5: Prove it matches the run-19 cache
 
@@ -225,14 +225,14 @@ message HealthReply { string status = 1; string ocr_device = 2; string symbol_de
   - compare legend `Rec` with `reocr.csv`: key and text equal.
 - **Output:** `summary.json` (counts) and `diffs.csv` (image sha256, kind, field). **No OCR text in the output.**
 
-- [ ] **Step 1:** Write the test, then the script.
-- [ ] **Step 2: CPU run.** Restart only `mark-inference` with `MARK_INF_FORCE_DEVICE=cpu`, then run the compare. **Expected: 0 diffs**, because the cache's OCR was made on CPU with the same code.
-- [ ] **Step 3: GPU run.** Restart `mark-inference` without the force, check that `Health` says `gpu`, then run the compare. Record the diff counts.
-- [ ] **Step 4: Engine level.** Run:
+- [x] **Step 1:** Write the test, then the script.
+- [x] **Step 2: CPU run.** Restart only `mark-inference` with `MARK_INF_FORCE_DEVICE=cpu`, then run the compare. **Expected: 0 diffs**, because the cache's OCR was made on CPU with the same code.
+- [x] **Step 3: GPU run.** Restart `mark-inference` without the force, check that `Health` says `gpu`, then run the compare. Record the diff counts.
+- [x] **Step 4: Engine level.** Run:
   `PYTHONPATH=. python scripts/run_blind.py --oracle artifacts/blind-2026h2/oracle --cache artifacts/blind-2026h2/cache --out artifacts/blind-2026h2/run-service --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --allow-unfrozen --workers 3 --inference service`
   Then `python scripts/diff_runs.py --base artifacts/blind-2026h2/run-gates --new artifacts/blind-2026h2/run-service`. **Expected: no job-level changes.**
-- [ ] **Step 5:** Write the counts from Steps 2–4, plus the ELR numbers of any changed job, into QA_LOG and HANDOFF. Commit `test(inference): service vs run-19 cache comparison`, then push and wait for a green Jenkins build.
-- [ ] **Step 6: Switch to the real service [user 2026-11-05: "use the real one"].**
+- [x] **Step 5:** Write the counts from Steps 2–4, plus the ELR numbers of any changed job, into QA_LOG and HANDOFF. Commit `test(inference): service vs run-19 cache comparison`, then push and wait for a green Jenkins build.
+- [x] **Step 6: Switch to the real service [user 2026-11-05: "use the real one"].**
   - Set `MARK_INFERENCE=service` in the local `.env`, with the server on GPU, auto-falling back to CPU.
   - Report the GPU diff counts and any changed ELRs from Steps 3–4 to the user **for information**. They do not block the switch.
   - **Exception:** if Step 4 shows an ELR moving from MATCH to an error, or the reverse, list those ELRs in the report.

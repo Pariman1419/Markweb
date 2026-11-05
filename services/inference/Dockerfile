@@ -10,17 +10,22 @@ RUN pip install --default-timeout=1000 --no-cache-dir \
     ultralytics==8.3.40 \
     grpcio==1.85.1 \
     protobuf==7.36.0 \
-    pynvml>=11.5.0
+    pynvml>=11.5.0 \
+    && pip uninstall -y opencv-python opencv-python-headless \
+    && pip install --default-timeout=1000 --no-cache-dir --no-deps --force-reinstall opencv-contrib-python==4.10.0.84
 
 # Required environment flags
 ENV FLAGS_allocator_strategy=auto_growth
 ENV PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
-ENV PADDLE_PDX_CACHE_HOME=/models/paddlex_cache
+ENV PADDLE_PDX_CACHE_HOME=/root/.paddlex
 ENV PYTHONPATH=/app
 
 # Copy inference service and engine modules
 COPY services/inference /app/services/inference
 COPY mark_engine /app/mark_engine
+
+# Override base image HTTP:8000 healthcheck
+HEALTHCHECK NONE
 
 EXPOSE 50051
 

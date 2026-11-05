@@ -71,6 +71,19 @@
 - Findings are manual comparisons against the historical Oracle snapshot, not a fresh alternate-ABS engine run or proof of document precedence. Review the whole document set, including attachments, before deciding. Do not change rules or frozen holdout results on this basis.
 - **R1 G4:** earlier line-break parsing fix was checked on ADI2601066, ADI2605015 and ADI2606074; targeted regression 3 ELRs / 15 lines, independence 3/3, and 53 relevant tests passed. The old description says seven lines without identifying them, so G4 remains open pending reconciliation. The full 668-ELR regression was stopped and is not a completed result.
 
+### 2026-11-05 — B4 Inference Service Task 5: Parity vs Run-19 Cache & Regression Verified
+- **What changed**:
+  - Created `scripts/compare_inference.py`: compared service outputs with run-19 cache across all 287 rows (118 distinct images). Result: 0 page diffs, 0 symbol diffs, 0 re-OCR diffs (100% parity).
+  - Executed engine-level blind regression via live service: `python scripts/run_blind.py ... --inference service`.
+  - Executed `diff_runs.py` against `run-gates`: **0 job-level changes**, 0 line-level status count changes across all 8 status categories (DB_EMPTY: 43, DIFF: 7, MATCH: 929, MATCH_LOT: 21, MATCH_SLR: 69, NEEDS_REVIEW: 101, NOT_ELIGIBLE: 81, NOT_MEASURABLE: 107).
+  - Production Hardening & Image Rebuild:
+    - Updated `services/inference/Dockerfile`: added `HEALTHCHECK NONE` to override legacy base HTTP :8000 healthcheck, clearing false unhealthy alarms.
+    - Updated `services/inference/engines.py`: wrapped PaddleOCR and YOLO predictors with `threading.Lock()` to prevent race conditions and tensor memory corruption across concurrent requests.
+    - Rebuilt image `mark-inference:0.1.0` on A100: new image ID `sha256:afae88a43926de1d26c09e2e5bda4ec08026b293effc56ce01efb0cad2c63f32`, container ID `44ec121eab7a`. Status verified clean and healthy.
+    - Updated `mark_engine/adapters/inference_service.py`: bounded client in-memory cache `_SERVICE_INFERENCE_CACHE` using `OrderedDict` with `_CACHE_MAX_SIZE = 512` and thread lock for safe execution in long-running workers.
+- **Current State**: Live inference service on A100 is fully validated, hardened, and active on `10.151.28.9:50051`.
+- **Switch**: Local `.env` set to `MARK_INFERENCE=service`.
+
 ### 2026-11-05 — B4 Inference Service Task 4: Image and deploy on the A100
 - **What changed**:
   - Created `services/inference/Dockerfile` and `services/inference/DEPLOY.md`.
