@@ -530,3 +530,8 @@
 - The test scope is new logic only. `mark_engine` (306 tests) is not re-tested from the API side.
 - API route tests use an in-memory fake repo. The real-DB check is the Task 4 manual step: dashboard cards must equal `metrics.json` of the same run.
 - Web checks are `tsc` + `vite build` plus the user's walkthrough. There are no UI unit tests.
+- Security / monitoring additions (spec §11–15) are tested only where they are new code:
+  - session expiry, CSRF and the role matrix;
+  - removal of sensitive log fields;
+  - 403 without CSRF, metrics scope, and the request-id echo.
+- The NGINX rate limit is checked by hand at deploy: the sixth rapid login returns 429.

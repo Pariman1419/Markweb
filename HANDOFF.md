@@ -74,6 +74,18 @@
   - Docker Compose on 10.153.90.17.
 - Deferred: B3–B7 (Airflow, inference API, LLM, notification), FREEZE-R2 (next holdout), Redis/Kong.
 - Tests cover only new logic (grouping, approve guard, auth, file path guard, snapshot builder). The engine is not re-tested.
+- Added design spec §11–15:
+  - **Tokens:** opaque session cookie + double-submit CSRF; API tokens for system calls.
+  - **Auth:** argon2id; lock after 5 failures for 15 min; role matrix.
+  - **Rate limits:** NGINX `limit_req` (login 5/min, files 10/s, api 20/s).
+  - **WebSocket:** deferred to B3, using PG LISTEN/NOTIFY.
+  - **gRPC:** deferred to B4, internal Mark ↔ Inference only.
+  - **Keys:**
+    - `mark_app` PK/FK/index, with FKs into `mark_logic.line_result` / `job_result`.
+    - `line_review` uses the full key including `abs_no` and `side`.
+    - `audit_log`, `line_review` and `approval` are append-only.
+  - **Logging:** JSON logs with `request_id` from NGINX; `/api/health`, `/api/ready`, `/api/metrics`; alert thresholds.
+- Facts checked against the DB on 2026-11-05: the `line_result` PK is `(run_id, elr_no, abs_no, side, line_no)`, and line status is in `final_status`.
 
 ### 2026-11-05 — Engine fixes from the run-17 overflow review (post-holdout, not frozen)
 

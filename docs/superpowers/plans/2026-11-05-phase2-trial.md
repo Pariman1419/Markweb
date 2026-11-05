@@ -17,6 +17,7 @@
 - No passwords in the repo. Read everything from `.env` / env vars (`MARK_PG_*`, `MARK_FILES_ROOT`, `MARK_SESSION_HOURS=8`).
 - TOP MARK only in the UI.
 - Customer ABS images stay on the internal network. They are served only from under `MARK_FILES_ROOT`.
+- Out of scope this round: WebSocket (B3) and gRPC (B4). They are designed in spec §13; do not build them now.
 - Do not duplicate `mark_engine` tests. Test only new logic (grouping, approve guard, auth, path guard, snapshot builder), plus one happy-path test per endpoint. For web, `tsc` + `vite build` passing is enough.
 - Every task updates `HANDOFF.md` §4 and `docs/qa/QA_LOG.md` in the same commit (project rule).
 - Commit on branch `phase1/mark-engine` or a new `phase2/trial` branch. Do not push until the user says.
@@ -35,29 +36,34 @@
 
 **Files:**
 - Modify: `mark_engine/version.py` (`ENGINE_VERSION = "0.3.0"`), `pyproject.toml` (`version = "0.3.0"`)
-- Create: `migrations/0005_mark_app_trial.sql`, `scripts/create_app_user.py`
+- Create: `migrations/0005_mark_app_trial.sql`, `scripts/create_app_user.py`, `scripts/create_api_token.py`
 - Modify: `migrations/README.md`, `HANDOFF.md`, `docs/qa/QA_LOG.md`
 
 **Interfaces:**
-- Produces: tables `mark_app.app_user(user_id bigserial pk, username text unique, display_name text, role text check in ('engineer','mark_eng_approver','admin'), password_hash text, active bool default true, failed_count int default 0, locked_until timestamptz)`.
-- Produces: `mark_app.user_session(token_hash text pk, user_id bigint fk, expires_at timestamptz)`.
-- Produces: `mark_app.elr_snapshot(run_id bigint, elr_no text, pk(run_id, elr_no), top_mark_id int, layout_code text, mark_remark text, mark_require text, top_template_remark text, oracle_top_raw jsonb /* list of 5 strings, raw 21 chars */, layout_cells jsonb /* 5×18, null = free cell */, abs_file text, abs_sha256 text, image_path text /* relative to MARK_FILES_ROOT, null if none */, slr_files jsonb, slr_instructions jsonb /* [{line,value,quote}] */, import_date date)`.
-- Produces: `mark_app.line_review(review_id bigserial pk, run_id, elr_no, line_no int, reason text check in ('DB_WRONG','OCR_WRONG','SYMBOL_WRONG','SLR_ECN_CHANGE','RULE_MISSING','LAYOUT_WRONG','OTHER'), note text, corrected_mark text, is_draft bool, reviewer_id fk, created_at timestamptz default now())`.
-- Produces: `mark_app.approval(approval_id bigserial pk, run_id, elr_no, decision text check in ('APPROVED','REJECTED'), user_id fk, created_at)`.
-- Produces: `mark_app.audit_log(audit_id bigserial pk, user_id, action text, run_id, elr_no, line_no, detail jsonb, created_at)`.
-- Grants: `mark_app` role gets usage plus select/insert/update on `mark_app`, and select on `mark_logic`.
+- Produces: the 7 `mark_app` tables exactly as in spec §4 + §14 (PK / FK / unique / check / index columns are listed there).
+  - Column specifics not in the spec:
+    - `elr_snapshot.oracle_top_raw` is jsonb with 5 raw 21-char strings.
+    - `elr_snapshot.layout_cells` is jsonb 5×18; null means a free cell.
+    - `image_path` is relative to `MARK_FILES_ROOT`.
+    - `slr_instructions` is jsonb `[{line,value,quote}]`.
+    - `user_session.csrf_hash`.
+  - Reason values: `'DB_WRONG','OCR_WRONG','SYMBOL_WRONG','SLR_ECN_CHANGE','RULE_MISSING','LAYOUT_WRONG','OTHER'`.
+- Grants: `mark_app` role gets usage on `mark_app` and select on `mark_logic`.
+  - `select, insert` only on `line_review`, `approval`, `audit_log`.
+  - `select, insert, update, delete` on `app_user`, `user_session`, `api_token`, `elr_snapshot`.
+  - `references` on `mark_logic.line_result` / `job_result` goes to the migration owner.
+- Produces: CLI `python scripts/create_api_token.py <name> --scope metrics:read --days 90`. It prints the token once and stores only its sha256.
 - Produces: CLI `python scripts/create_app_user.py <username> --name "<display>" --role engineer` (prompts for the password with `getpass`).
 
 - [ ] **Step 1:** Bump engine version to 0.3.0 and run the full suite: `python -m pytest tests -q`. Expected: 306 passed.
 - [ ] **Step 2:** Commit (`chore: engine 0.3.0 after overflow review fixes`). Then run the replay from the clean tree: `PYTHONPATH=. python scripts/run_blind.py --oracle artifacts/blind-2026h2/oracle --cache artifacts/blind-2026h2/cache --out artifacts/blind-2026h2/run-trial --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --allow-unfrozen`. Expected: `jobs: 402 … failed: 0`.
 - [ ] **Step 3:** Dry-run the load: `python scripts/load_r1_to_pg.py artifacts/blind-2026h2/run-trial --period 2026-07..2026-11-replay --note "debug replay after overflow review, commit <sha>, not a holdout"`. Expected: "rolled back". **[USER]** Then re-run it with `--commit` and record the new run_id.
 - [ ] **Step 4:** Write `0005_mark_app_trial.sql`:
-  - An UP block in `begin…commit` with the tables above.
-  - An index on `line_review(run_id, elr_no, line_no, created_at desc)`.
-  - The grants.
+  - An UP block in `begin…commit` with the tables, keys and indexes of spec §14.
+  - The grants above.
   - A commented DOWN block, as in `0004`.
-- [ ] **Step 5:** Write `scripts/create_app_user.py` using `argon2.PasswordHasher` and psycopg2, with the connection from env.
-- [ ] **Step 6 [USER/DBA]:** Apply the 0005 UP section on `mark_web`, then create your user. Verify: `select count(*) from mark_app.app_user` returns 1, and `select max(run_id) from mark_logic.run` returns the new run.
+- [ ] **Step 5:** Write `scripts/create_app_user.py` (argon2 `PasswordHasher`; reject passwords shorter than 12 characters; `--reset` updates the hash and clears the lock) and `scripts/create_api_token.py`. Both use psycopg2 with the connection from env.
+- [ ] **Step 6 [USER/DBA]:** Apply the 0005 UP section on `mark_web`, then create your user. Verify: `select count(*) from mark_app.app_user` returns 1. Inserting a `line_review` with a non-existent `(run_id, elr_no, abs_no, side, line_no)` fails on the FK. And `select max(run_id) from mark_logic.run` returns the new run.
 - [ ] **Step 7:** Commit (`feat(db): migration 0005 mark_app trial schema; app user script`) with HANDOFF and QA_LOG.
 
 ### Task 2: Snapshot loader (spec T2)
@@ -97,7 +103,7 @@ def test_hold_elr_without_image_has_null_image_path(tmp_path):
 ### Task 3: API core logic (pure functions)
 
 **Files:**
-- Create: `services/api/mark_api/__init__.py`, `grouping.py`, `workflow.py`, `auth.py`, `files.py`
+- Create: `services/api/mark_api/__init__.py`, `grouping.py`, `workflow.py`, `auth.py`, `files.py`, `logging.py`
 - Test: `tests/unit/test_api_core.py`
 
 **Interfaces:**
@@ -112,7 +118,14 @@ def test_hold_elr_without_image_has_null_image_path(tmp_path):
   - `monthly`: `[{month 'YYYY-MM' from elr_no ADIyymm, TRUE, WARNING, ERROR}]`.
   - `error_causes`, `hold_causes`: `[{cause, count}]`. Cause = `detail`, or `hold_reason` up to the first ':'.
 - Produces: `approve_blockers(lines: list[dict], latest_reviews: dict[int, dict]) -> list[int]`. Returns the line numbers classified ERROR that have no non-draft review with both `reason` and `corrected_mark`.
-- Produces: `hash_password(p: str) -> str`, `verify_password(h: str, p: str) -> bool`, and `login_state(user: dict, now) -> Literal['OK','LOCKED','INACTIVE']`. The lock rule is 5 failures, then 15 minutes.
+- Produces auth helpers:
+  - `hash_password(p: str) -> str`, `verify_password(h: str, p: str) -> bool`.
+  - `login_state(user: dict, now) -> Literal['OK','LOCKED','INACTIVE']`. Lock rule: 5 failures, then 15 minutes.
+  - `new_token() -> tuple[str, str]`: (raw, sha256 hex), using `secrets.token_urlsafe(32)`.
+  - `session_valid(session: dict, now) -> bool`: false once past `expires_at` (8 h) or `last_seen_at` + 60 min.
+  - `csrf_ok(cookie: str | None, header: str | None) -> bool`: both present, compared with `hmac.compare_digest`.
+  - `can(role: str, action: Literal['read','review','approve','metrics']) -> bool`: the spec §11 matrix.
+- Produces: `services/api/mark_api/logging.py` with `log_event(event: str, **fields)`, which writes one JSON line to stdout with `ts, level, service='mark-api', request_id, event` + fields. It drops any field named `password`, `token`, `mark`, `slr_text` or `image_path`.
 - Produces: `safe_file(root: Path, relative: str) -> Path | None`. It returns None if the resolved path is outside `root` or does not exist.
 
 - [ ] **Step 1: Write failing tests**
@@ -143,6 +156,23 @@ def test_lock_after_five_failures():
     now = datetime(2026, 11, 5, tzinfo=timezone.utc)
     assert login_state({'active': True, 'locked_until': now + timedelta(minutes=15)}, now) == 'LOCKED'
 
+def test_session_idle_and_absolute_expiry():
+    now = datetime(2026, 11, 5, 12, tzinfo=timezone.utc)
+    assert session_valid({'expires_at': now + timedelta(hours=1), 'last_seen_at': now - timedelta(minutes=59)}, now)
+    assert not session_valid({'expires_at': now + timedelta(hours=1), 'last_seen_at': now - timedelta(minutes=61)}, now)
+    assert not session_valid({'expires_at': now - timedelta(seconds=1), 'last_seen_at': now}, now)
+
+def test_csrf_and_roles():
+    assert csrf_ok('a', 'a') and not csrf_ok('a', None) and not csrf_ok(None, None)
+    assert can('engineer', 'approve') and not can('engineer', 'metrics')
+    assert can('admin', 'metrics') and not can('admin', 'approve')
+
+def test_log_event_drops_sensitive_fields(capsys):
+    log_event('auth.login_failed', user_id=None, password='x', token='y', elr_no='ADI2607001')
+    line = json.loads(capsys.readouterr().out)
+    assert line['event'] == 'auth.login_failed' and line['elr_no'] == 'ADI2607001'
+    assert 'password' not in line and 'token' not in line
+
 def test_safe_file_rejects_traversal(tmp_path):
     (tmp_path / 'abs').mkdir(); (tmp_path / 'abs' / 'a.png').write_bytes(b'x')
     assert safe_file(tmp_path, 'abs/a.png') is not None
@@ -150,7 +180,7 @@ def test_safe_file_rejects_traversal(tmp_path):
 ```
 
 - [ ] **Step 2:** Run `python -m pytest tests/unit/test_api_core.py -q`. Expected: FAIL.
-- [ ] **Step 3:** Implement the four modules. Add to `pyproject.toml` an optional extra `api = ["fastapi", "uvicorn[standard]", "psycopg2-binary", "argon2-cffi"]` and `services/api` to the setuptools package include.
+- [ ] **Step 3:** Implement the five modules. Add to `pyproject.toml` an optional extra `api = ["fastapi", "uvicorn[standard]", "psycopg2-binary", "argon2-cffi"]` and `services/api` to the setuptools package include.
 - [ ] **Step 4:** Run the tests. Expected: PASS.
 - [ ] **Step 5:** Commit (`feat(api): grouping, approve guard, auth and file guard`) with HANDOFF and QA_LOG.
 
@@ -170,9 +200,17 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `add_review(...)`, `add_approval(...)`, `latest_approval(run_id, elr)`
   - `audit(user_id, action, run_id, elr, line_no, detail)`
   - `user_by_name`, `record_login(user_id, ok)`, `create_session`, `session_user(token_hash)`, `delete_session`
-- Produces: `get_repo()` and `current_user()` dependencies. The session uses an HttpOnly cookie `mark_session`; the DB stores only its sha256.
+- Produces: dependencies `get_repo()`, `current_user()` and `require(action)`.
+  - Session cookie `mark_session` and CSRF cookie `mark_csrf`, as in spec §11.
+  - Every unsafe method checks `csrf_ok` and `Origin`.
+  - `current_user` also accepts `Authorization: Bearer` API tokens, for the metrics scope only.
+- Produces: request middleware that:
+  - reads or creates `X-Request-ID` and echoes it back;
+  - logs `http.request` with `route` set to the path template;
+  - feeds an in-process `Metrics` object (counts per status class, p50/p95 per route, login ok/failed/locked counters).
+- Repo wraps each query with a timer that logs `db.slow_query` when over 500 ms, and `db.error` on exceptions.
 - Endpoints (prefix `/api`):
-  - `GET /health`
+  - `GET /health`, `GET /ready` (DB `select 1` with a 2 s timeout plus `MARK_FILES_ROOT` readable → 200/503), `GET /metrics` (`require('metrics')`)
   - `POST /auth/login {username, password}` → 200 / 401 / 423
   - `POST /auth/logout`, `GET /auth/me`
   - `GET /runs`
@@ -191,8 +229,11 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `test_approve_blocked_then_allowed`: 409 `{blocked_lines:[2]}`; then POST a non-draft review; then 200.
   - `test_latest_decision_wins_and_all_audited`: approve, then reject, then approve. `latest_approval.decision == 'APPROVED'`, and the fake audit has 3 approval rows.
   - `test_file_traversal_404`: snapshot `image_path='../x'` → 404.
+  - `test_post_without_csrf_403`: logged in, `POST /api/reviews` without `X-CSRF-Token` → 403.
+  - `test_engineer_cannot_read_metrics`: engineer → 403 on `/api/metrics`; a fake API token with `metrics:read` → 200 with key `requests`.
+  - `test_request_id_echoed`: the response has an `X-Request-ID` header.
 - [ ] **Step 2:** Run `python -m pytest tests/unit/test_api_routes.py -q`. Expected: FAIL.
-- [ ] **Step 3:** Implement the repository SQL and the routers. `lines()` joins nothing from Oracle and reads `mark_logic.line_result` for `side='TOP'`.
+- [ ] **Step 3:** Implement the repository SQL and the routers. `lines()` reads `mark_logic.line_result` for `side='TOP'` and returns `final_status` as `status` (spec §14).
 - [ ] **Step 4:** Run the tests and the full suite. Expected: PASS. **[USER]** Run `uvicorn services.api.mark_api.app:app --port 8000` against the DB, then log in and open `/api/dashboard?run=<new>`. The card counts must equal the line statuses in `run-trial/metrics.json`.
 - [ ] **Step 5:** Commit (`feat(api): auth, mark, validation, workflow routers`) with HANDOFF and QA_LOG.
 
@@ -234,8 +275,11 @@ def test_safe_file_rejects_traversal(tmp_path):
 - Consumes: Tasks 4–5.
 - Produces:
   - Compose services `api` (uvicorn :8000, `.env` via `env_file`, `MARK_FILES_ROOT` mounted read-only) and `web` (NGINX :80 serving `dist/`).
-  - `location /api/ { proxy_pass http://api:8000; }` and an SPA fallback `try_files $uri /index.html`.
+  - `location /api/ { proxy_pass http://api:8000; proxy_set_header X-Request-ID $request_id; }` and an SPA fallback `try_files $uri /index.html`.
+  - The three `limit_req_zone` zones of spec §12 (`login` 5r/m burst 5, `files` 10r/s burst 20, `api` 20r/s burst 40), returning `limit_req_status 429`, plus `client_max_body_size 1m`.
+  - `log_format json` with `request_id, status, request_time, upstream_response_time, uri`.
+  - Compose `logging: {driver: json-file, options: {max-size: 20m, max-file: '10'}}` on both services.
 
 - [ ] **Step 1:** Write the Dockerfiles, `nginx.conf` and compose file. Build locally with `docker compose build`. Expected: both images build.
-- [ ] **Step 2 [USER/ops]:** On 10.153.90.17, copy the repo (without `artifacts/` or `.env`), create `.env`, mount the files root, then run `docker compose up -d`. Verify: `curl http://10.153.90.17/api/health` returns `{"status":"ok"}`, and the login page loads from a workstation browser.
+- [ ] **Step 2 [USER/ops]:** On 10.153.90.17, copy the repo (without `artifacts/` or `.env`), create `.env`, mount the files root, then run `docker compose up -d`. Verify: `curl http://10.153.90.17/api/ready` returns 200, and the login page loads from a workstation browser. Six rapid wrong logins: the sixth returns 429 from NGINX, and `docker compose logs web` shows the JSON line for it.
 - [ ] **Step 3:** Commit (`chore(deploy): docker compose for phase 2 trial`) with HANDOFF and QA_LOG.
