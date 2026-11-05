@@ -63,6 +63,12 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — B4 plan updated with user decisions
+- **`ic-marking-ocr` is retired.** It gets removed after `mark-inference` is healthy (Task 4 Step 5).
+- **Prune is allowed:** `docker image prune -a` and `docker builder prune`. Volumes and networks are never touched.
+- **Network:** `ufw` is inactive on the A100, so there is no firewall change and the API key guards port 50051. The callers are this dev PC `10.151.97.18`, later `10.153.90.17`, and Airflow `10.151.28.3`.
+- **Task 5:** switch to `MARK_INFERENCE=service` (GPU with CPU fallback) after the comparison. Diffs are reported but don't block the switch.
+
 ### 2026-11-05 — B4 Inference Service plan (for the other agent)
 - **Plan:** `docs/superpowers/plans/2026-11-05-b4-inference-service.md` (Tasks 1–5).
   1. gRPC contract with Health/Page/Symbols/Rec and an API key.
