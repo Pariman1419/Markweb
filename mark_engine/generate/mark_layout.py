@@ -76,7 +76,11 @@ def fill_line_with_conflicts(layout: MarkLayout, row: int, generated: str) -> tu
             add(' ', pos)
         else:
             add(cell, pos)
-            if cell != ' ' and pos < len(text):
+            if cell == ' ' and pos < len(text) and text[pos] == ' ':
+                # The generator's separator space lands on a reserved blank instead of
+                # taking a free cell (MARK_ID 23706 '@* ____' + '@* YYWW').
+                add(cell, pos + 1, 2)
+            elif cell != ' ' and pos < len(text):
                 same = text[pos] == cell
                 graphic = cell in symbols and text[pos] in symbols
                 if same or graphic or not has_free:

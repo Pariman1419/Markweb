@@ -34,6 +34,45 @@ MARKING_KEYWORDS_RE = re.compile(
 SAME_DATE_CODE_NOTE_RE = re.compile(r"^\s*same\s+date\s*code\s+(?:as|with)\b[\s:]*(?:SLR\d{6}[\s,;&]*(?:and\s+)?)+\.?\s*$", re.I)
 
 
+_NL = ""  # private-use char; str.split() does not treat it as whitespace
+
+
+_ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
+_BRAND_WORD = r"(?:marking|brand(?:\s+content)?)"
+# "Second line of brand content / marking: 'GL3G'" (Glacier / multi-project wafer SLRs).
+ORDINAL_LINE_RE = re.compile(
+    rf"\b(first|second|third|fourth|fifth)\s+line\s+of\s+(?:the\s+)?{_BRAND_WORD}(?:\s*/\s*{_BRAND_WORD})?\s*:\s*",
+    re.IGNORECASE,
+)
+# Sentences that only point to the line instructions in the same SLR. Unresolved only when the
+# SLR gives no line instruction at all (24755: "*Ignore Brand on ABS. Brand as indicated below.").
+POINTER_SENTENCE_RE = re.compile(
+    r"^\*?\s*(?:ignore\s+(?:the\s+)?brand(?:ing)?\s+on\s+(?:the\s+)?abs"
+    r"|brand(?:ing)?\s+as\s+indicated\s+below"
+    r"|use\s+the\s+attached\s+abs\s+and\s+markings?\s+below)\.?$",
+    re.IGNORECASE,
+)
+
+
+def _ordinal_value(text: str) -> str:
+    """Quoted value when quoted ('GL3G', "LSNv00"), else the leading mark tokens."""
+    quoted = re.match(r"""\s*['"‘’“”]([^'"‘’“”]+)['"‘’“”]""", text)
+    if quoted:
+        return quoted.group(1).strip()
+    toks: list[str] = []
+    for word in text.split():
+        if SLR_STOP.match(word) or re.match(r"^[a-z]", word):
+            break
+        toks.append(word.rstrip(".,;"))
+        if word.endswith((".", ";")):
+            break
+    return " ".join(t for t in toks if t)
+
+
+def _without_breaks(sentence: str) -> str:
+    return re.sub(r"\s+", " ", sentence.replace(_NL, " ")).strip()
+
+
 def parse_slr(text: str) -> SlrFacts:
     """Parse SLR text for special instructions, line markings, scheduled lots, qual lot, and coverage."""
     norm_text = re.sub(r"[\u2010-\u2015\u2212]", "-", text)
@@ -74,19 +113,32 @@ def parse_slr(text: str) -> SlrFacts:
         else:
             section_raw = norm_text
 
-    # Multiple whitespace -> single space
-    section_norm = re.sub(r"\s+", " ", section_raw).strip()
+    # Multiple whitespace -> single space; text-line breaks survive as a marker word so a line
+    # value stops at the end of its PDF text line ("line 5 - TNOE\nBalance of the wafer ...").
+    section_norm = re.sub(r"\s*\n\s*", f" {_NL} ", section_raw.strip())
+    section_norm = re.sub(r"\s+", " ", section_norm).strip()
 
     # 4. Split section into sentences ((?<=[.;])\s+)
     sentences = [s.strip() for s in re.split(r"(?<=[.;])\s+", section_norm) if s.strip()]
 
     raw_instructions: dict[tuple[Side, int], list[tuple[str, str]]] = {}
     unresolved: list[str] = []
+    pointer_sentences: list[str] = []
     current_side = Side.TOP
 
     for sentence in sentences:
+        broken = sentence
+        sentence = _without_breaks(sentence)
+        if not sentence:
+            continue
         produced_instruction = False
-        matches = list(LINE_HEADER_RE.finditer(sentence))
+        for om in ORDINAL_LINE_RE.finditer(broken):
+            value = _ordinal_value(broken[om.end():].split(_NL)[0])
+            if value:
+                quote = f"{om.group(0).strip()} {value}"
+                raw_instructions.setdefault((current_side, _ORDINALS[om.group(1).lower()]), []).append((value, quote))
+                produced_instruction = True
+        matches = list(LINE_HEADER_RE.finditer(broken))
         i = 0
         while i < len(matches):
             m = matches[i]
@@ -96,7 +148,9 @@ def parse_slr(text: str) -> SlrFacts:
                 continue
 
             line_no = int(m.group(2))
-            rest = sentence[m.end():]
+            rest = broken[m.end():]
+            while rest.lstrip().startswith(_NL):
+                rest = rest.lstrip()[1:]
 
             # If rest immediately starts with another line instruction or 'as follows'
             if re.match(r"^\s*(?:as follows:?|line\s*\d)", rest, re.IGNORECASE) or not rest.strip():
@@ -105,6 +159,10 @@ def parse_slr(text: str) -> SlrFacts:
 
             toks: list[str] = []
             for word in rest.split():
+                if word == _NL:
+                    if toks:
+                        break
+                    continue
                 if SLR_STOP.match(word) or re.match(r"^[a-z]", word):
                     break
                 cleaned = word.rstrip(".,;")
@@ -125,6 +183,9 @@ def parse_slr(text: str) -> SlrFacts:
         if not produced_instruction:
             if SAME_DATE_CODE_NOTE_RE.match(sentence):
                 continue
+            if POINTER_SENTENCE_RE.match(sentence):
+                pointer_sentences.append(sentence)
+                continue
             if MARKING_KEYWORDS_RE.search(sentence):
                 # Sentence is marking-related; check if it is only a qual-lot announcement
                 without_qual = re.sub(
@@ -133,6 +194,9 @@ def parse_slr(text: str) -> SlrFacts:
                 if MARKING_KEYWORDS_RE.search(without_qual):
                     if sentence not in unresolved:
                         unresolved.append(sentence)
+
+    if not raw_instructions:
+        unresolved.extend(s for s in pointer_sentences if s not in unresolved)
 
     instructions: list[SlrInstruction] = []
     for (side, line_no), val_quotes in raw_instructions.items():

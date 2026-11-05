@@ -24,6 +24,11 @@ def _load_adi1039_csv() -> list[dict[str, str]]:
     return _CSV_TOKENS
 
 
+def _date_code(tokens: list[ExpectedToken]) -> str:
+    tokens.append(ExpectedToken(text="YYWW", rule_id="R07-ADI1039", source="ADI1039", lot_slice=None))
+    return "YYWW"
+
+
 def apply_adi1039(text: str, doc_type: DocType) -> tuple[str, tuple[ExpectedToken, ...]]:
     """Apply ADI1039 abbreviation mappings and standard rules.
 
@@ -37,6 +42,13 @@ def apply_adi1039(text: str, doc_type: DocType) -> tuple[str, tuple[ExpectedToke
 
     tokens: list[ExpectedToken] = []
     current = text
+
+    # 0. Underscore-joined field names ("ASSEMBLY_LOT_NUMBER", "COUNTRY_OF_ORIGIN" in SLRs): read the
+    # underscore as the space step 6 would make it, before the field patterns below are matched.
+    current = re.sub(r"(?<=[A-Za-z])_(?=[A-Za-z])", " ", current)
+    if doc_type == DocType.SLR:
+        # "#DATE_CODE" in an SLR line value is the 4-digit date code (ADI2607034 Oracle U1#YYWW).
+        current = re.sub(r"\bDATE\s+CODE\b", lambda m: _date_code(tokens), current, flags=re.IGNORECASE)
 
     # 1. ASSEMBLY LOT NUMBER / {Lot-Full} -> XXXXXXXXX (R07-ADI1039-LOT)
     def _repl_lot_full(m: re.Match[str]) -> str:

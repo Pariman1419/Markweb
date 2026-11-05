@@ -63,6 +63,35 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Engine fixes from the run-17 overflow review (post-holdout, not frozen)
+
+- Source: user review CSV of 25/141 overflow ELRs (`run17-overflow-review.csv`). Fixes applied to every ELR showing the same pattern, including unreviewed ones:
+  - **Line overflow no longer fails the ELR** (review: "แจ้งเป็น warning เพราะมีส่วนที่ถูก"). The line keeps its unplaced text, becomes `NEEDS_REVIEW` with warning `LAYOUT_OVERFLOW: …`, and the other lines are compared. Missing layout still returns `FAILED`. This revises D-10.
+  - **SLR value stops at the PDF text-line break** (`mark_engine/slr/parse.py`). Before this fix, the next line's text was appended to the value: "TNOE Balance", "TCE-2-W9 HOLD BALANCE OF THE", "ENGBU1Q Expedite", "ENGA 3065 (Pre-Probe Qty)…", "*Return". A value that starts on the next text line is still read.
+  - **SLR underscore field names are encoded** (`adi1039.py`). `ASSEMBLY_LOT_NUMBER` becomes XXXXXXXXX and `COUNTRY_OF_ORIGIN` becomes the country. `DATE_CODE`/`DATE CODE` becomes YYWW, for SLR only (MARK_ID 24755).
+  - **Reserved blank cells absorb the generator's separator space** (`mark_layout.py`; MARK_ID 23706 `@* ____`, 23274, 24350).
+  - **Country name shortened when THAILAND does not fit.** The pipeline places THAI, the most common short form in ACTL history: ADI ELRs 2019–2026 read-only query gave THAILAND 537, THAI 304, THAIL 40, TH 2, THAILA 2. Warning `LAYOUT_COO_ABBREVIATED`; compare still reads any Oracle prefix (THAIL…) as `COO_ABBREVIATED`.
+- Verification (local, not loaded to DB):
+  - **Jan–Jun without layout vs run 14:** only 3 lines changed, all `NEEDS_REVIEW` → `MATCH_SLR` ("ENGBU1Q 7ADC44285… -" → ENGBU1Q).
+  - **Jan–Jun with layout vs `regression-r1-layout-frozen`:** 107 failed jobs → 0. Coverage 274 → 381 ELR. Agreement 1,051/1,184 → 1,378/1,610. Independence 381/381. The 274 previously completed jobs are unchanged.
+  - **Blind Jul–Nov (`artifacts/blind-2026h2/run-overflowfix`, UNFROZEN) vs run 17:** 141 failed → 0. ELR coverage 113 → 254 of 402. Line coverage 504 → 1,127. Agreement 459/504 → 897/1,127. Independence 254/254. The 227 previously completed and HOLD jobs are unchanged. 140 lines remain `LAYOUT_OVERFLOW` for review.
+  - 300 unit tests pass.
+- Not a holdout result: the July–November set has now been used for debugging. The engine changed after FREEZE-R1, so a new freeze and fresh data (full November/December) are needed before reporting accuracy. `services/engine/overflow_review.py` checks the run-17 archived engine and will refuse to run on the changed engine.
+- Round 2, from the user's decisions plus pattern analysis of the Jan–Nov results, SLRs and Oracle:
+  - **ABS drafting note dropped** (`generator.py`, `R07-ABS-NOTE`): "NO BRAND/MARK ON THIS LINE" is removed and the line keeps its graphics only. Oracle is '@%' on all 92 such lines.
+  - **Case-only difference is a match with warning** (`compare/engine.py`, detail `CASE_DIFF`), e.g. "Bajau TC" vs "BAJAU TC". 31 of 36 such Oracle lines were all uppercase.
+  - **Trailing literal after the last ABS `{token}` is dropped, only when the row overflows** (22801 `{ADI-PARTIAL-LOGO}{YW}X` → `%  YW`, user). Warning `LAYOUT_TRAILING_LITERAL_DROPPED`.
+  - **Pin-only first row reflow** (`pipeline._reflow_pin_row`): the layout row 1 holds only `@` and row 2 starts with `%`, so "@% XXX" splits into '@' / '%XXX' and the lines below move down one row. Warning `LAYOUT_REFLOW`. Applies to MARK_ID 25203, 24711, 22686.
+  - **SLR "Second line of brand content / marking: 'GL3G'" read as a line-2 instruction**, quoted value. Before this fix the sentence was always `SLR_UNRESOLVED`; the existing test asserting that was moved to a positive test.
+  - **SLR pointer sentences**: "*Ignore Brand on ABS", "Brand as indicated below", "Use the attached ABS and markings below" are no longer `SLR_UNRESOLVED` when the SLR gives line instructions.
+- Round-2 results (round 1 → round 2):
+  - **Blind:** agreement 897 → 1,019/1,127 (90.4%); DIFF 22 → 7; NEEDS_REVIEW 208 → 101; `LAYOUT_OVERFLOW` lines 140 → 0.
+  - **Jan–Jun with layout:** agreement 1,378 → 1,435/1,610; DIFF 5 → 1; overflow lines 46 → 14.
+  - **Jan–Jun without layout:** agreement 1,377 → 1,424; DIFF 49 → 22.
+  - Independence unchanged at 100%. 306 unit tests pass.
+  - One expected value changed without a status change: ADI2602074 line 2, LSNv11 → LSNv011. Its SLR on NAS literally says "LSNv011" while ABS and Oracle say LSNv11. It stays NEEDS_REVIEW (RULE_CONFLICT).
+- Still review-gated on blind: the 25203/24711 lines now equal Oracle but keep `RULE_CONFLICT`/`SLR_UNRESOLVED`, because the SLR points to an attached "Glacier MPW instructions" document. Round-1 outputs are kept in `*.v1` folders.
+
 ### 2026-11-05 — Run 17 overflow comparison page
 
 - Built `artifacts/blind-2026h2/overflow-review/index.html` from the frozen run-17 inputs, replaying only failed jobs without modifying the DB or original result. All 141 recorded errors reproduced; checking all five TOP rows found 188 rows with layout-placement errors. Additional errors are labeled as replay findings, not original per-job counts.

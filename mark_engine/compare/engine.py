@@ -27,6 +27,7 @@ def nospace(s: str | None) -> str:
 
 
 _COO_FULL = "THAILAND"
+_COO_LAYOUT_SHORT = "THAI"  # most common ACTL short form, used when THAILAND does not fit
 _COO_MIN_ABBR = 2  # Mark Eng 2026-11-04 (09 Q1): TH, THA, THAI, THAIL... all read as THAILAND
 
 
@@ -34,10 +35,12 @@ def _coo_abbreviation(exp_text: str, ora_text: str) -> str | None:
     """Oracle's short form when it equals expected with THAILAND shortened to a prefix of >= 2 chars."""
     exp_ns = nospace(exp_text).upper()
     ora_ns = nospace(ora_text).upper()
-    if _COO_FULL not in exp_ns:
+    # Expected carries THAILAND, or THAI when the layout had no room for it (pipeline).
+    written = _COO_FULL if _COO_FULL in exp_ns else _COO_LAYOUT_SHORT if _COO_LAYOUT_SHORT in exp_ns else None
+    if written is None:
         return None
-    for k in range(_COO_MIN_ABBR, len(_COO_FULL)):
-        if exp_ns.replace(_COO_FULL, _COO_FULL[:k]) == ora_ns:
+    for k in range(_COO_MIN_ABBR, len(_COO_FULL) + 1):
+        if _COO_FULL[:k] != written and exp_ns.replace(written, _COO_FULL[:k]) == ora_ns:
             return _COO_FULL[:k]
     return None
 
@@ -155,6 +158,25 @@ def compare(
                             detail="",
                         )
                     )
+                continue
+
+            # 3a. Letters equal but case differs ("Bajau TC" vs Oracle "BAJAU TC"). The laser marks
+            # what Oracle holds; 31 of 36 such lines Jan-Nov 2026 had an all-uppercase Oracle. Counted
+            # as a match, shown as a warning (overflow review 2026-11-05: "Warning เตือนเรื่องขนาด").
+            if exp_text is not None and nospace(exp_text).upper() == nospace(ora_text).upper():
+                slr = exp_line is not None and Flag.SLR_OVERRIDE in exp_line.flags
+                comparisons.append(
+                    LineComparison(
+                        side=side,
+                        line_no=line_no,
+                        expected=exp_text,
+                        oracle=ora_text,
+                        status=LineStatus.MATCH_SLR if slr else LineStatus.MATCH,
+                        compare_rules=("R04-SLR-LINE",) if slr else ("CASE_INSENSITIVE",),
+                        detail="CASE_DIFF",
+                        warning=f"CASE_DIFF: expected {exp_text.strip()}, Oracle {ora_text.strip()}",
+                    )
+                )
                 continue
 
             # 3b. COO abbreviation (R07-ADI1039-COO, ADI1039 5.5.3: full name only "when space

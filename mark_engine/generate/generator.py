@@ -28,6 +28,7 @@ _CARET_LOGO_PATTERN = re.compile(r"\^\s*[:=]\s*ADI\s*L", re.IGNORECASE)
 _DECL_PATTERN = re.compile(r"([@%^*{<!#?])\s*[:=]")
 _ADI_LOGO_PATTERN = re.compile(r"ADI\s*LOGO", re.IGNORECASE)
 _LOGO_PATTERN = re.compile(r"LOGO", re.IGNORECASE)
+_ABS_NOTE_PATTERN = re.compile(r"\bNO\s+(?:BRAND|MARK(?:ING)?)\s+ON\s+THIS\s+LINE\b", re.IGNORECASE)
 
 
 def _remark_declares_logo(remark: str | None, require: str | None) -> bool:
@@ -115,6 +116,13 @@ def generate_expected(
 
         raw_text = inf_line.text if inf_line is not None else ""
         raw_graphics = inf_line.graphics if inf_line is not None else ""
+
+        # Step 0: drafting notes written in a mark line are not mark content. "@% NO BRAND ON THIS
+        # LINE" means the line carries only its graphics (Oracle '@%' on all 92 such lines,
+        # Jan-Nov 2026; overflow review 2026-11-05).
+        if raw_text and _ABS_NOTE_PATTERN.search(raw_text):
+            raw_text = _ABS_NOTE_PATTERN.sub(" ", raw_text).strip()
+            applied_rules.add("R07-ABS-NOTE")
 
         # Step 1: ABS text from inference LayoutLine
         if inf_line is not None and raw_text:

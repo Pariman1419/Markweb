@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
@@ -13,6 +14,7 @@ from mark_engine.domain.models import (
     ElrMeta,
     ExpectedLine,
     ExpectedToken,
+    Flag,
     InferenceResult,
     JobResult,
     LineComparison,
@@ -28,6 +30,78 @@ from mark_engine.generate.generator import generate_expected
 from mark_engine.generate.mark_layout import LayoutError, MarkLayout, fill_line_with_conflicts
 from mark_engine.rules.ruleset import RuleSet
 from mark_engine.slr.parse import parse_slr
+
+
+_COO_SHORT_FORMS = ('THAI', 'THAILAN', 'THAILA', 'THAIL', 'THA', 'TH')
+_LAYOUT_SYMBOLS = frozenset('@%^*{<!#?')
+
+
+def _place_line(layout: MarkLayout, row: int, generated: str, raw_abs: str, line: ExpectedLine | None):
+    """Fill one layout row; on overflow try the reviewed fallbacks. Returns (text, conflicts, warning)."""
+    try:
+        return (*fill_line_with_conflicts(layout, row, generated), '')
+    except LayoutError as first:
+        error = first
+    # No room for the full country name (ADI1039 5.5.3: full name only when space allows). Use
+    # the short form ACTL history uses most (ADI ELRs 2019-2026: THAI 304, THAIL 40, TH 2,
+    # THAILA 2; queried 2026-11-05), then any other prefix. Compare reads every prefix as THAILAND.
+    if re.search(r'\bTHAILAND\b', generated):
+        for short in _COO_SHORT_FORMS:
+            try:
+                return (*fill_line_with_conflicts(layout, row, re.sub(r'\bTHAILAND\b', short, generated)),
+                        'LAYOUT_COO_ABBREVIATED: THAILAND does not fit the layout')
+            except LayoutError:
+                continue
+    # A literal character drawn after the last {token} on the ABS ("{ADI-PARTIAL-LOGO}{YW}X",
+    # MARK_ID 22801): the reviewer reads the mark as the braced tokens only.
+    from_abs = line is not None and Flag.SLR_OVERRIDE not in line.flags
+    tail = re.search(r'\}([A-Za-z0-9])\s*$', raw_abs or '')
+    if from_abs and tail and generated.rstrip().endswith(tail.group(1)):
+        try:
+            return (*fill_line_with_conflicts(layout, row, generated.rstrip()[:-1]),
+                    f'LAYOUT_TRAILING_LITERAL_DROPPED: {tail.group(1)} after the last ABS token')
+        except LayoutError:
+            pass
+    raise error
+
+
+def _fits(layout: MarkLayout, row: int, text: str) -> bool:
+    try:
+        fill_line_with_conflicts(layout, row, text)
+        return True
+    except LayoutError:
+        return False
+
+
+def _reflow_pin_row(layout: MarkLayout, rows):
+    """Split a line whose second part the layout starts on the next row with a fixed symbol.
+
+    MARK_ID 25203/24711/22686: layout row 1 holds only '@' and row 2 starts with '%', but the ABS
+    draws '@% XXX' on one line. Oracle writes '@' / '%XXX' / next line. Lines below shift down one
+    row. Applied only when every resulting row fits and nothing is pushed past row 5.
+    """
+    for row in range(1, 5):
+        line, generated, source_no = rows[row]
+        if line is None or _fits(layout, row, generated):
+            continue
+        symbol = layout.cells.get((row + 1, 1))
+        if symbol not in _LAYOUT_SYMBOLS:
+            return None
+        cut = generated.find(symbol)
+        if cut <= 0:
+            return None
+        head, tail = generated[:cut].rstrip(), generated[cut:]
+        if rows[5][0] is not None and rows[5][1].strip():
+            return None
+        new = dict(rows)
+        new[row] = (line, head, source_no)
+        new[row + 1] = (replace(line, line_no=row + 1, text=tail), tail, -1)
+        for number in range(row + 1, 5):
+            new[number + 1] = rows[number]
+        if all(_fits(layout, n, new[n][1]) for n in range(row, 6)):
+            return new, tuple(range(row, 6))
+        return None
+    return None
 
 
 def position_differs(expected: str, raw_oracle: str) -> bool:
@@ -238,13 +312,15 @@ def process_elr(
         inference_validator(meta.elr_no, Path(resolution.abs.path), resolution.abs.sha256)
 
     layout_conflicts = {}
+    layout_overflows: dict[int, str] = {}
+    layout_notes: dict[int, list[str]] = {}
     if layouts is not None:
         try:
             layout = layouts.get(meta.top_mark_id)
             if layout is None:
                 raise LayoutError(f'MARK_ID {meta.top_mark_id}: layout missing')
             top_lines = {line.line_no: line for line in expected.lines if line.side == Side.TOP}
-            formatted = []
+            rows: dict[int, tuple[ExpectedLine | None, str, int]] = {}
             for number in range(1, 6):
                 line = top_lines.get(number)
                 generated = line.text or '' if line else ''
@@ -252,7 +328,29 @@ def process_elr(
                     prefix = ''.join(token.text for token in line.tokens if token.source == 'REMARK')
                     if prefix and generated.startswith(prefix + ' '):
                         generated = prefix + generated[len(prefix) + 1:]
-                text, conflicts = fill_line_with_conflicts(layout, number, generated)
+                rows[number] = (line, generated, number)
+            reflowed = _reflow_pin_row(layout, rows)
+            if reflowed is not None:
+                rows, moved = reflowed
+                for number in moved:
+                    layout_notes.setdefault(number, []).append('LAYOUT_REFLOW: line split to fit the layout rows')
+            raw_abs = {item.line_no: item.text or '' for item in inference.lines if item.side == Side.TOP}
+            formatted = []
+            for number in range(1, 6):
+                line, generated, source_no = rows[number]
+                if line is not None and line.line_no != number:
+                    line = replace(line, line_no=number)
+                try:
+                    text, conflicts, note = _place_line(layout, number, generated, raw_abs.get(source_no, ''), line)
+                    if note:
+                        layout_notes.setdefault(number, []).append(note)
+                except LayoutError as exc:
+                    # One line that cannot be placed is a review item; the other lines are still
+                    # compared (overflow review 2026-11-05: "แจ้งเป็น warning เพราะมีส่วนที่ถูก").
+                    layout_overflows[number] = str(exc)
+                    if line is not None:
+                        formatted.append(line)
+                    continue
                 if conflicts:
                     layout_conflicts[number] = conflicts
                 fixed_tokens = tuple(ExpectedToken(text=value, rule_id=f'LAYOUT:{layout.mark_id}:{number}:{col}',
@@ -291,6 +389,19 @@ def process_elr(
                 'LAYOUT_FIXED_CONFLICT: ' + ', '.join(
                     f'col {col}: {old} -> {new}' for col, old, new in layout_conflicts[item.line_no])])) )
             if item.side == Side.TOP and item.line_no in layout_conflicts else item
+            for item in comparisons
+        )
+    if layout_notes:
+        comparisons = tuple(
+            replace(item, warning='; '.join(filter(None, [item.warning, *layout_notes[item.line_no]])))
+            if item.side == Side.TOP and item.line_no in layout_notes else item
+            for item in comparisons
+        )
+    if layout_overflows:
+        comparisons = tuple(
+            replace(item, status=LineStatus.NEEDS_REVIEW,
+                    warning='; '.join(filter(None, [item.warning, f'LAYOUT_OVERFLOW: {layout_overflows[item.line_no]}'])))
+            if item.side == Side.TOP and item.line_no in layout_overflows else item
             for item in comparisons
         )
 

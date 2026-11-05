@@ -450,3 +450,73 @@
 ### Prevention / Rules Learned
 - Distinguish the first error recorded for each ELR from additional row errors discovered during diagnostic replay. Never present an inferred overflow substring as an engine result.
 
+
+---
+
+## [2026-11-05] Run-17 layout overflow: root causes and engine fixes
+
+### Context & Symptom
+- 141/402 blind ELRs failed with `LAYOUT_ERROR … overflow`, and coverage was 28.11%. The user reviewed 25 of them in the local overflow page and exported `run17-overflow-review.csv`.
+
+### Root Cause
+- `parse_slr` collapsed all whitespace, including PDF line breaks, so a line value continued into the next text line ("line 5 - TNOE\nBalance of the wafer" → "TNOE Balance"). This covered 25005, 24586, 18178, 25119 and the "*Return" text in 24755.
+- ADI1039 matched `ASSEMBLY LOT NUMBER` and `COUNTRY OF ORIGIN` before turning `_` into spaces, so the SLR forms `ASSEMBLY_LOT_NUMBER`, `COUNTRY_OF_ORIGIN` and `DATE_CODE` stayed literal.
+- `fill_line_with_conflicts` never let a reserved blank cell consume a space in the generated text, so "@* YYWW" in layout "@* ____" pushed one character past the free cells. This covered 23706, 23274 and 24350.
+- Any single line that could not be placed failed the whole ELR, discarding lines that were correct. Reviewer: "แจ้งเป็น warning เพราะมีส่วนที่ถูก".
+
+### Resolution & Code Fix
+- `mark_engine/slr/parse.py`: keeps a private-use marker for line breaks, and a value stops at the first break after it has started.
+- `mark_engine/encode/adi1039.py`:
+  - Underscores between letters become spaces before field matching.
+  - SLR `DATE CODE` becomes YYWW.
+- `mark_engine/generate/mark_layout.py`: a reserved blank cell can absorb a generated space.
+- `mark_engine/pipeline.py`:
+  - A line overflow becomes line `NEEDS_REVIEW` with warning `LAYOUT_OVERFLOW`, and the ELR stays DONE.
+  - When THAILAND does not fit, the line uses THAI, the most frequent ACTL short form (THAI 304, THAIL 40, TH 2, THAILA 2 from a read-only query), then other prefixes. Warning `LAYOUT_COO_ABBREVIATED`.
+- `mark_engine/compare/engine.py`: COO abbreviation also accepts expected THAI against other Oracle prefixes.
+- Tests: `tests/unit/test_overflow_fixes.py`; 300 passed.
+- Regression:
+  - **Jan–Jun without layout:** 3 lines changed, all improvements.
+  - **Jan–Jun with layout:** failed jobs 107 → 0, agreement 1,378/1,610, independence 381/381, previously completed jobs unchanged.
+  - **Blind replay (UNFROZEN, local only):** coverage 113 → 254 ELR, agreement 897/1,127, independence 254/254.
+
+### Prevention / Rules Learned
+- Keep PDF line structure when reading SLR line values. Normalise field-name separators before pattern matching.
+- Report a layout problem at line level. Never discard a whole ELR because one line cannot be placed.
+- Debugging on the July–November set ends its use as a holdout. Re-freeze and evaluate on unseen data before quoting accuracy.
+
+---
+
+## [2026-11-05] Overflow review round 2: ABS notes, letter case, pin-only rows, ordinal SLR lines
+
+### Context & Symptom
+- After round 1, blind replay still had 140 `LAYOUT_OVERFLOW` lines and 22 DIFF lines. The user decided:
+  - "NO BRAND ON THIS LINE" is a note: ignore it.
+  - 22801 is only the braced `{YW}`.
+  - "Bajau TC" vs "BAJAU TC" is a case warning.
+- The user asked to analyse the remaining patterns against Oracle history.
+
+### Root Cause
+- The ABS drafting note text was treated as mark content. Oracle was '@%' on all 92 such lines.
+- Layouts 25203/24711/22686 reserve row 1 for the pin mark only, and the ABS draws the pin and logo on one line.
+- The SLR form "Second line of brand content / marking: 'X'" had no parser. Parser coverage left it `SLR_UNRESOLVED` in 57 SLRs, the largest unresolved group.
+- Pointer sentences ("Ignore Brand on ABS", "Brand as indicated below") were flagged unresolved even when line instructions followed.
+
+### Resolution & Code Fix
+- `generator.py`: `R07-ABS-NOTE` removes "NO BRAND/MARK ON THIS LINE".
+- `compare/engine.py`: a case-only difference is MATCH (or MATCH_SLR) with `CASE_DIFF`.
+- `pipeline.py`:
+  - `_place_line` holds the fallbacks applied on overflow: country short form, then a trailing literal after the last ABS `}`.
+  - `_reflow_pin_row` splits at the next row's leading fixed symbol, and only when every row fits.
+- `slr/parse.py`:
+  - `ORDINAL_LINE_RE` reads ordinal brand lines, with quoted values.
+  - `POINTER_SENTENCE_RE` sentences are unresolved only if the SLR has no line instruction.
+- Results (round 1 → round 2):
+  - **Blind:** agreement 897 → 1,019/1,127, DIFF 22 → 7, overflow lines 140 → 0.
+  - **Jan–Jun with layout:** agreement 1,378 → 1,435/1,610.
+  - **Jan–Jun without layout:** agreement 1,377 → 1,424, DIFF 49 → 22.
+  - Independence 100%. 306 tests pass.
+
+### Prevention / Rules Learned
+- Check a candidate rule against Oracle history before applying it: 92/92 for the ABS note, 31/36 uppercase for case, ACTL COO frequency for the short form.
+- A reflow or trim is applied only on overflow and only when every resulting row fits. It is always shown as a warning.

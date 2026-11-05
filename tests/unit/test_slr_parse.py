@@ -123,7 +123,6 @@ def test_logistics_lot_sentences_not_unresolved(sentence: str) -> None:
     [
         # "Same date code with: SLR..." moved out (user 2026-11-04, ADI2601023): it ties the date VALUE,
         # not the mark format -> see test_same_date_code_note_is_not_unresolved
-        'Second line of brand content / marking: "LS1234v00" BEF Promis notes: 7.1 is costing off.',
         "See attachment for further instructions.",
         "Laser mark lot number on top side.",
     ],
@@ -148,3 +147,10 @@ def test_same_date_code_note_is_not_unresolved():
 def test_other_date_code_sentence_still_unresolved():
     f = parse_slr("SPECIAL INSTRUCTIONS\nBranding: F for Fast, {DC-1} for 1-digit date code.\n")
     assert f.unresolved
+
+
+def test_ordinal_brand_line_is_an_instruction():
+    # Was asserted unresolved; read as line 2 since the 2026-11-05 overflow review (ADI2602044, 2608018, 2610052)
+    facts = parse_slr('Second line of brand content / marking: "LS1234v00" BEF Promis notes: 7.1 is costing off.')
+    assert [(i.line_no, i.value) for i in facts.instructions] == [(2, "LS1234v00")]
+    assert facts.unresolved == ()
