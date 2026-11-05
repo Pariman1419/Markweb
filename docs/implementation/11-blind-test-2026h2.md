@@ -39,7 +39,7 @@ The `jobs.csv` artifact and the review page's processing-error panel contain ELR
 
 - Migration 0004 was applied, then a dry-run was rolled back. The frozen results were loaded as **run 17**, with 723 line records and 402 job records: 227 DONE, 141 FAILED and 34 HOLD. Runs 1–14 were retained.
 - Local review: `artifacts/blind-2026h2/run/review.html`; metrics and CSVs are beside it. Generate or regenerate it through `python -m services.engine.build_review`: the wrapper assigns a run-specific local storage key and disables cloud storage, so earlier review decisions cannot be reused. The underlying frozen generator still uses a shared key; do not call it directly for the holdout page. Customer-containing artifacts are Git-ignored and must not be published.
-- Local team lists: `artifacts/blind-2026h2/team-lists/`; the confirmed DB-wrong list has 0 rows, the pending list has 76 rows, and the rule-approval list covers D-22–D-29.
+- Local team lists: `artifacts/blind-2026h2/team-lists/`; the confirmed DB-wrong list has 0 rows, the pending list has 76 rows, and the rule-approval list covers D-22–D-29. The list's `effect_lines_run14` values have not been measured and are blank.
 - The source bundle that reproduces run 17 is archived in `artifacts/release-run17/` (evaluation hash prefix `ca52fd3932d2`). Separate delivery bundles and hashes are in `artifacts/release-phase1/` (delivery hash prefix `3eb7df875ba6`); these include a post-evaluation loader wording correction and therefore have a different source freeze. Engine and rule logic are unchanged; the delivery freeze did not produce run 17. See `services/README.md`. Neither bundle contains customer images, model weights or `.env`.
 
 ## Interpretation and remaining work
