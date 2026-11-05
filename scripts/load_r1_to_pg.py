@@ -73,6 +73,17 @@ def validate_blind_commit(directory: Path, metrics: dict) -> None:
             raise ValueError(f'Blind output checksum mismatch: {name}')
 
 
+def provenance_note(metrics: dict, bugs: int | None, note: str, is_blind: bool) -> str:
+    provenance = ('Uses Oracle MARK_ID_LAYOUT; expected independent of TOP/BACK_MARK:' if is_blind
+                  else 'Expected independent of Oracle mark values:')
+    return (f"R1 mark_engine (RV-2026-11-04-R0). {provenance} "
+            f"independence {metrics['independence']:.0%} measured on "
+            f"{metrics.get('independence_denom', metrics['total_jobs'])} ELR; "
+            f"NEEDS_REVIEW {metrics['needs_review_lines']}; hold {metrics['hold_count']}; "
+            f"parity BUG {bugs if bugs is not None else 'not measured'}. {note} "
+            "Not comparable 1:1 with runs 1-3.")
+
+
 def main() -> None:
     from mark_engine.adapters.env import load_env
     load_env()
@@ -104,12 +115,7 @@ def main() -> None:
     keys = [x[:4] for x in rows]
     assert len(keys) == len(set(keys)), "duplicate primary key"
 
-    note = (
-        "R1 mark_engine independent generate (RV-2026-11-04-R0 + R1 fixes, docs 01 s7). Not Oracle-conditioned: "
-        f"independence {m['independence']:.0%} measured on {m.get('independence_denom', m['total_jobs'])} ELR; NEEDS_REVIEW {m['needs_review_lines']}; "
-        f"hold {m['hold_count']}; parity BUG {bugs if bugs is not None else 'not measured'}. "
-        f"{args.note} Not comparable 1:1 with runs 1-3."
-    )
+    note = provenance_note(m, bugs, args.note, is_blind)
 
     conn = psycopg2.connect(host=args.host, port=5432, dbname=args.db, user=args.user,
                             password=os.environ["MARK_PG_PASSWORD"], connect_timeout=8)

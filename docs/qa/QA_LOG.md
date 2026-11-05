@@ -411,3 +411,22 @@
 - Added a preflight requirement for every source ABS fingerprint and rechecked the suite (277 passed). On resumption the NAS hostname failed DNS and Oracle, PostgreSQL and AI-server connections timed out; the live run is still pending network recovery.
 - Once internal connectivity returned, resumed the source-fingerprinted image index. Updated the engine and wheel package versions from 0.1.0 to 0.2.0 as required for the changed behavior, and verified 277 tests pass. Freeze and release bundle need regeneration before inference.
 
+---
+
+## [2026-11-05] Frozen holdout and isolated review
+
+### Context & Symptom
+- Phase 1 needed a new DB run, separated deployable source bundles and a review screen. The shared review template used a run-14 local-storage key and could connect to external review storage.
+
+### Root Cause
+- The frozen generator originally targeted the historical review. Reusing its storage namespace could carry prior review choices into the holdout review.
+
+### Resolution & Code Fix
+- Ran the frozen 0.2.0 engine, validated source ABS and inference hashes, and loaded 402 jobs / 723 lines as run 17. Independence was 113/113 evaluable jobs; 141 jobs failed with layout overflow and 34 were held. Runs 1–14 remained intact.
+- Added a separate engine-host review wrapper outside the frozen engine/rules that generates run-specific local storage and disables cloud storage. The local-only page and separate pending/confirmed lists remain in ignored `artifacts/`.
+- Disclosed that an aggregate layout check included holdout months after freeze and that the November snapshot is partial; the result is a frozen holdout, not an analyst-blind experiment.
+
+### Prevention / Rules Learned
+- Never share review state across runs or activate external storage for local customer-data reviews. Report denominators, excluded jobs and failed jobs alongside agreement; do not claim production readiness from compared-line agreement alone.
+- After run 17 was recorded, corrected its note: expected uses Oracle `MARK_ID_LAYOUT` while remaining independent of TOP/BACK mark values. The loader was corrected for future runs; this post-evaluation delivery patch does not change the engine or the recorded run-17 result.
+

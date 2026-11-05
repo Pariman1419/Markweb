@@ -6,6 +6,7 @@ Run this unit on the application host with read-only Oracle and NAS access. Depl
 2. Extract images with `python -m scripts.blind_extract_images --snapshot <private-oracle-dir>/elr_meta.json --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --out <private-cache-dir>`.
 3. Transfer only the extracted image batch to the AI worker. Return its OCR/YOLO output and model provenance to the private cache. Run re-OCR using the recognizer endpoint and validate the complete cache.
 4. Only after review and freeze, run `python -m scripts.run_blind --oracle <private-oracle-dir> --cache <private-cache-dir> --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --out <private-run-dir>`.
+5. Generate a local-only isolated page with `python -m services.engine.build_review --in <private-run-dir> --snapshot <private-oracle-dir>/elr_meta.json --title "Frozen holdout" --out <private-run-dir>/review.html`. Use this wrapper, not the underlying frozen page generator directly, to prevent sharing review storage with prior runs.
 
 `run_blind` checks the freeze, month paths, image hashes, cache completeness and inference-output provenance. `--allow-unfrozen` is for diagnostics and labels its results UNFROZEN. The batch is not yet ready for an official run until the remaining freeze, model and historical-review gates are complete.
 

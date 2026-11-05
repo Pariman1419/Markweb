@@ -63,6 +63,14 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Frozen holdout completed; review required
+
+- Loaded the July–November snapshot results as PostgreSQL **run 17**: 402 jobs (227 DONE, 141 FAILED, 34 HOLD) and 723 line rows. Independent SELECT confirmed the counts and preservation of runs 1–14.
+- Coverage 113/402 ELRs, line coverage 504/1,313, agreement 459/504 compared lines, independence 113/113 evaluable jobs with 289 excluded. All 141 failures were layout overflow. These figures are not production acceptance.
+- The snapshot was taken on Nov 5 Bangkok time; November is incomplete. After freeze, an aggregate layout-fit check inadvertently included the holdout months, so the evaluation is a frozen holdout, not an analyst-blind experiment. See `docs/implementation/11-blind-test-2026h2.md`.
+- Run-specific local review and team lists are in ignored `artifacts/blind-2026h2/`. Generate review HTML through `services.engine.build_review` so it cannot reuse run-14 storage or connect to external review storage. Debug and human review remain open.
+- Corrected run 17's DB note to distinguish allowed Oracle layout input from excluded TOP/BACK mark values. A post-evaluation loader wording fix and isolated-review wrapper are delivery changes; run 17 remains tied to frozen code commit `9a9bd92` and its archived bundle under `artifacts/release-run17/`.
+
 ### 2026-11-05 — Phase 1 closeout in progress
 
 - Revised D-10: `MARK_ID_LAYOUT` is allowed in expected generation; Oracle TOP/BACK mark values remain excluded. Missing layout and overflow return `FAILED` for the ELR. FIX takes precedence and graphic conflicts are reported.

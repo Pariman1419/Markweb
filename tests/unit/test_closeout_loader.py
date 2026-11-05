@@ -1,5 +1,5 @@
 import pytest
-from scripts.load_r1_to_pg import MONTH, line_row, job_row, validate_blind_commit
+from scripts.load_r1_to_pg import MONTH, line_row, job_row, validate_blind_commit, provenance_note
 
 
 def test_line_row_preserves_system_and_review_status():
@@ -24,3 +24,10 @@ def test_job_row_preserves_layout_error_without_comparison_lines():
 def test_unfrozen_blind_result_cannot_be_committed(tmp_path):
     with pytest.raises(ValueError, match='official frozen'):
         validate_blind_commit(tmp_path, {'freeze': {'freeze_id': 'UNFROZEN'}})
+
+
+def test_blind_provenance_describes_allowed_oracle_layout():
+    note = provenance_note({'independence': 1.0, 'independence_denom': 2, 'total_jobs': 3,
+                            'needs_review_lines': 0, 'hold_count': 1}, None, 'holdout', True)
+    assert 'MARK_ID_LAYOUT' in note and 'TOP/BACK_MARK' in note
+    assert 'Not Oracle-conditioned' not in note

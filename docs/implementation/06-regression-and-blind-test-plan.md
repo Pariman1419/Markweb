@@ -161,3 +161,7 @@ BUG 13 บรรทัดสุดท้าย — triage แล้ว (BUG = 0)
 บรรทัดที่เคยถูกซ่อนด้วย flag เผย `{e3}` ที่ remark ประกาศเป็น `e3` (แก้ในข้อ 7) และ MATCH_LOT 23 บรรทัดที่ตรวจกับ SLR ได้จริง
 
 ยังต้องดูต่อ: NEEDS_REVIEW 210 = `RULE_CONFLICT` 112 (`REVISION_NAME_MISMATCH` — ABS ฉบับเดียวแต่ชื่อ revision ไม่ตรง Oracle), `SLR_UNRESOLVED` 86, `ORACLE_VALUE_IN_SLR` 5, `GRAPHIC_REMARK_CONFLICT` 4; 179/210 มีค่าเท่า Oracle
+
+## Frozen holdout result (2026-11-05)
+
+See [11-blind-test-2026h2.md](11-blind-test-2026h2.md) for run 17, measured denominators, 141 layout overflows, snapshot cutoff and analyst-blindness limitation.

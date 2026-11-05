@@ -103,3 +103,7 @@
 | `08-database-tables.md` | ตาราง `mark_web.mark_logic`, ประวัติ run 1–14 |
 | `09-mark-eng-confirmation.md` | คำถาม/คำตอบ Mark Eng (Q1 COO, Q2 revision) |
 | `10-r1-logic-review-and-next-phase.md` | **logic R1 ปัจจุบันทั้งหมด, True/Warning/Error, งาน debug ค้าง, เตรียม phase ถัดไป** |
+
+## Phase 1 closeout update (2026-11-05)
+
+See [11-blind-test-2026h2.md](11-blind-test-2026h2.md) for the frozen holdout, run 17, its coverage and limitations. This later result supersedes the prospective Phase 0 plan above.
