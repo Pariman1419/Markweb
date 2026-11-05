@@ -63,6 +63,24 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Design: Auto Review Flow (B3 + B4)
+- **Spec:** `docs/superpowers/specs/2026-11-05-auto-review-flow-design.md`, derived from the user's TO-BE Marking Process diagram.
+- **Gaps between the engine and the diagram:**
+  - Oracle selection doesn't filter `CURRENT_STEP`.
+  - There is no Cust Assy `TBD` gate.
+  - There is no gate for more than 5 lines.
+  - SLR is chosen from `CUST_REQ_NO`, while the diagram uses the Marking Comment.
+  - There is no Notify.
+- **Gaps in the diagram:** no branch for missing NAS documents (the engine HOLDs), and no Skip Mark.
+- **Design:**
+  - Two ways in: an Airflow DAG every 15 min, and a user re-check button.
+  - Gates G0–G5, ordered cheap to expensive.
+  - An `mark_app.scan` / `work_item` queue (Postgres `SKIP LOCKED`) with a worker container.
+  - B4 Inference Service over gRPC, which must match the batch cache on run 19.
+  - Results go to a daily `mark_logic` run.
+  - UI-only notifications and WebSocket.
+- **Open:** 5 design calls in spec §10 await user confirmation. No code yet. Not deployed to .17.
+
 ### 2026-11-05 — E2E walkthrough PASS 12/12 on localhost:8088 (plan Task 5, run by script for the user)
 - **Result:** `scripts/e2e_walkthrough.py --run 19` against deployed `a42a483` → **PASS 12/12**.
   - **Engineer flow:** login → Dashboard (50 ELR rows on page 1) → search `ADI2607010` → Preview (ABS image decoded, Oracle grid). Approve before review → 409. Review lines 4 and 5 → 200 each. Approve → 200 (`Current: APPROVED`).

@@ -815,3 +815,10 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 - **Result:** `scripts/e2e_walkthrough.py --run 19` against deployed `a42a483` passed 12/12. Steps: login, dashboard (50 rows), search/open, preview (image plus grid), approve blocked (409), review ×2 (200), approve (200), admin login, admin events. It then cleaned up its rows (2 reviews, 1 approval).
 - **Timings via NGINX:** `/api/elrs` page 1 0.16 s, `/api/dashboard` 0.06 s, `/api/runs` 0.05 s. The dashboard table fills in under 1 s with no console errors.
 - **Gap:** admin events show no ELR or run column.
+
+## 2026-11-05 — Flow check: TO-BE diagram vs engine
+- **Matches:** layout gate (Type E, not ZY), ADI1039 and Symbol decode, compare with TOP_MARK1–5.
+- **Missing in the engine:** CURRENT_STEP filter, Cust Assy TBD gate, line-count gate (more than 5), notify.
+- **Rule differs:** SLR selection (Marking Comment vs CUST_REQ_NO).
+- **Engine-only, absent from the diagram:** document HOLD reasons and Skip Mark.
+- Any new gate must be regressed on run 19 before merge (spec §7).
