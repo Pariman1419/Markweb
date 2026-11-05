@@ -63,6 +63,15 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Fix(Worker): Page Extraction, Per-Item Error Handling, Cycle Result
+- **Commit**: `fix(worker): page extraction, per-item errors, cycle result`
+- **Key Changes**:
+  1. `extract_marking_image(abs_path, dest_dir, expected_source_sha256)` in `mark_engine/abs/brand_page.py` extracts marking page image from ABS into `<sha256>.png`. Updated `scripts/blind_extract_images.py`.
+  2. `load_service_inference_for_image` in `mark_engine/adapters/inference_service.py` allows direct invocation with image file without `images_index.csv`.
+  3. Worker per-item try/except boundary: rolls back dirty transaction on unexpected error, calls `fail_with_backoff` on queue, commits, and prevents worker process crash.
+  4. `CycleResult` enum (`NO_ITEM`, `PROCESSED`, `SKIPPED`) ensures `--once` mode loops until `CycleResult.NO_ITEM` is reached.
+- **Verification**: 30 tests in `tests/unit/test_worker.py` passed. Full unit test suite: 459 passed.
+
 ### 2026-11-06 — B3 Task 5: Scan, Lookup, Oracle-Check, Recheck, and Notification API
 - **Implemented**: `services/api/mark_api/routers/scans.py`, updated `app.py`, `deps.py`, `repo.py`.
 - **Endpoints**:

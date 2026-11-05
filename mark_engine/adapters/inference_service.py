@@ -96,26 +96,18 @@ _CACHE_MAX_SIZE = 512
 _CACHE_LOCK = threading.Lock()
 
 
-def load_service_inference(
+def load_service_inference_for_image(
     client: InferenceClient,
-    images_dir: Path,
-    index_csv: Path,
+    image_path: Path,
     elr_no: str,
     abs_stem: str,
 ) -> InferenceResult:
-    """Load inference results via live gRPC service, matching cache format and re-OCR behavior."""
-    matching = [
-        row for row in _load_csv_cached(str(index_csv))
-        if row.get("elr", "").upper() == elr_no.upper()
-        and row.get("abs_file", "").upper() == abs_stem.upper()
-    ]
-    if len(matching) > 1:
-        raise ValueError(f"{elr_no}: duplicate inference index entries")
-    if not matching:
-        raise ValueError(f"{elr_no}: no inference index for resolved ABS {abs_stem}")
+    """Run inference against a marking page image via the gRPC service."""
+    if not image_path.is_file():
+        raise FileNotFoundError(f"Inference image missing: {image_path}")
 
-    name = matching[0]["image"]
-    stem = Path(name).stem
+    name = image_path.name
+    stem = image_path.stem
 
     with _CACHE_LOCK:
         cached = _SERVICE_INFERENCE_CACHE.get(name)
@@ -125,10 +117,6 @@ def load_service_inference(
     if cached is not None:
         page_items, symbol_items, reocr_map = cached
         return build_auto_inference(elr_no, stem, page_items, symbol_items, reocr_map)
-
-    image_path = images_dir / name
-    if not image_path.is_file():
-        raise FileNotFoundError(f"Inference image missing: {image_path}")
 
     png_bytes = image_path.read_bytes()
     page_items = client.page(name, png_bytes)
@@ -168,3 +156,26 @@ def load_service_inference(
             _SERVICE_INFERENCE_CACHE.popitem(last=False)
 
     return build_auto_inference(elr_no, stem, page_items, symbol_items, reocr_map)
+
+
+def load_service_inference(
+    client: InferenceClient,
+    images_dir: Path,
+    index_csv: Path,
+    elr_no: str,
+    abs_stem: str,
+) -> InferenceResult:
+    """Load inference results via live gRPC service using an index CSV (blind batch compatibility)."""
+    matching = [
+        row for row in _load_csv_cached(str(index_csv))
+        if row.get("elr", "").upper() == elr_no.upper()
+        and row.get("abs_file", "").upper() == abs_stem.upper()
+    ]
+    if len(matching) > 1:
+        raise ValueError(f"{elr_no}: duplicate inference index entries")
+    if not matching:
+        raise ValueError(f"{elr_no}: no inference index for resolved ABS {abs_stem}")
+
+    name = matching[0]["image"]
+    image_path = images_dir / name
+    return load_service_inference_for_image(client, image_path, elr_no, abs_stem)

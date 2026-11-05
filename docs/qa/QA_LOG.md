@@ -1,5 +1,30 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Fix(Worker): Page Extraction, Per-Item Error Handling, Cycle Result
+
+### Context & Implementation
+- **(A) ABS Page Image Extraction**:
+  - Factored out `extract_marking_image(abs_path: Path, dest_dir: Path, expected_source_sha256: str | None = None) -> tuple[Path, str]` in `mark_engine/abs/brand_page.py` from `scripts/blind_extract_images.py`.
+  - Saves marking page image as `<sha256>.png` in `dest_dir` with hash integrity verification.
+  - Added `load_service_inference_for_image(client: InferenceClient, image_path: Path, elr_no: str, abs_stem: str) -> InferenceResult` in `mark_engine/adapters/inference_service.py` with LRU 512 caching.
+  - Worker automatically extracts marking image from resolved ABS and passes image path directly to `load_service_inference_for_image`, eliminating reliance on `images_index.csv`.
+- **(B) Per-Item Error Boundary & Rollback**:
+  - Wrapped each work item execution in `try ... except Exception as exc:`.
+  - On unexpected error: rolls back any partial uncommitted dirty changes on `conn_pg`, logs full stack trace, then calls `fail_with_backoff(cur_queue, item.item_id, item.attempts, str(exc))` and commits so the worker survives without crashing.
+- **(C) CycleResult & Worker Once Mode**:
+  - Introduced `CycleResult(str, Enum)` with values `NO_ITEM`, `PROCESSED`, and `SKIPPED`.
+  - `run_worker_cycle` returns `CycleResult.NO_ITEM` when queue is idle, `CycleResult.SKIPPED` on eligibility or cheap/post-resolve skips, and `CycleResult.PROCESSED` on completed checks or handled errors.
+  - `main()` `--once` flag only terminates when receiving `CycleResult.NO_ITEM`, properly processing multiple items across skipped and executed cycles.
+
+### Verification
+- 30 unit tests in `tests/unit/test_worker.py` passed:
+  - `test_extract_marking_image_creates_hashed_png`
+  - `test_worker_extracts_marking_image_without_images_index_csv`
+  - `test_worker_recovers_from_unhandled_item_exception`
+  - `test_worker_once_mode_loops_until_no_item`
+  - All existing worker loop, gate, fingerprint, and queue recovery tests updated to `CycleResult`.
+- Full unit test suite: 459 passed.
+
 ## [2026-11-06] B3 Task 5: Scan, Lookup, Oracle-Check, Recheck, and Notification API
 
 ### Context & Implementation

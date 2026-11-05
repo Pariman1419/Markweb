@@ -1,4 +1,5 @@
 """Extract the Brand/Marking page using the R0 image selection rule."""
+import hashlib
 from pathlib import Path
 import pymupdf
 
@@ -29,3 +30,29 @@ def extract_brand_image(pdf: Path) -> tuple[bytes, str, int]:
         if pixmap.n - pixmap.alpha >= 4:
             pixmap = pymupdf.Pixmap(pymupdf.csRGB, pixmap)
         return pixmap.tobytes('png'), 'raster', page.number + 1
+
+
+def extract_marking_image(
+    abs_path: Path,
+    dest_dir: Path,
+    expected_source_sha256: str | None = None,
+) -> tuple[Path, str]:
+    """Extract marking page image from ABS document.
+
+    Returns (image_file_path, sha256_digest).
+    Image is saved as <dest_dir>/<sha256>.png.
+    """
+    if expected_source_sha256 is not None:
+        source_digest = hashlib.sha256(abs_path.read_bytes()).hexdigest()
+        if source_digest != expected_source_sha256:
+            raise ValueError("ABS changed during image extraction")
+    data, method, page = extract_brand_image(abs_path)
+    digest = hashlib.sha256(data).hexdigest()
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    image_path = dest_dir / f"{digest}.png"
+    if not image_path.exists():
+        image_path.write_bytes(data)
+    elif hashlib.sha256(image_path.read_bytes()).hexdigest() != digest:
+        raise RuntimeError(f"Image hash mismatch: {image_path}")
+    return image_path, digest
+

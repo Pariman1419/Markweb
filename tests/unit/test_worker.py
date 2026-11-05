@@ -313,11 +313,14 @@ from services.worker.results import (
     job_row,
     line_row,
 )
-from services.worker.main import run_worker_cycle
+from services.worker.main import CycleResult, run_worker_cycle
 
 
 class FakePgCursor:
     def __init__(self):
+        self.connection = self
+        self.rolled_back = False
+        self.committed = False
         self.executed: list[tuple[str, tuple]] = []
         self.runs: dict[int, dict[str, Any]] = {}
         self.job_results: list[dict[str, Any]] = []
@@ -328,6 +331,21 @@ class FakePgCursor:
         self.approvals: list[dict[str, Any]] = []
         self._next_run_id = 100
         self._last_fetch = None
+
+    def rollback(self):
+        self.rolled_back = True
+
+    def commit(self):
+        self.committed = True
+
+    def cursor(self):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
 
     def execute(self, sql: str, params: tuple = ()):
         self.executed.append((sql, params))
@@ -512,7 +530,7 @@ def test_same_as_old_revision_creates_nothing():
         worker_id="worker-test",
     )
     # If same as revision 1, no new revision created
-    assert executed_check is False
+    assert executed_check == CycleResult.SKIPPED
     assert len(cur.revisions) == prev_rev_count
 
 
@@ -542,7 +560,7 @@ def test_oracle_reverted_to_old_rev_after_docs_resolved_creates_nothing():
         resolved_docs_fp="dfp1",
         worker_id="worker-test",
     )
-    assert executed is False
+    assert executed == CycleResult.SKIPPED
     assert len(cur.revisions) == prev_rev_count
 
 
@@ -640,7 +658,7 @@ def test_step8_invokes_real_process_elr(monkeypatch):
         resolved_docs_fp="dfp_test",
         worker_id="worker-test",
     )
-    assert res is True
+    assert res == CycleResult.PROCESSED
     assert len(recorded_calls) == 1
     call = recorded_calls[0]
     assert call["meta"].elr_no == "ADI2601001"
@@ -681,7 +699,7 @@ def test_docs_probe_captured_and_saved(tmp_path, monkeypatch):
 
     oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A", "CURRENT_STEP": "6"}
     ok = run_worker_cycle(cur, q_cur, oracle_row=oracle_row)
-    assert ok is True
+    assert ok == CycleResult.PROCESSED
     assert len(cur.revisions) == 1
     rev = cur.revisions[0]
     assert rev["docs_fp"] != "none"
@@ -722,7 +740,7 @@ def test_cheap_first_docs_probe_skips_when_files_unchanged_and_runs_when_changed
 
     # Case A: File untouched -> docs_probe matches -> skips without resolve_documents
     ok = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, force_oracle_fp="ofp_same")
-    assert ok is False
+    assert ok == CycleResult.SKIPPED
     assert len(resolve_called) == 0
     assert len(cur.revisions) == 1
 
@@ -747,7 +765,7 @@ def test_cheap_first_docs_probe_skips_when_files_unchanged_and_runs_when_changed
     )
 
     ok2 = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, force_oracle_fp="ofp_same")
-    assert ok2 is True
+    assert ok2 == CycleResult.PROCESSED
     assert len(cur.revisions) == 2
     assert cur.revisions[1]["changed"] == "docs"
 
@@ -764,14 +782,14 @@ def test_g0_pending_reason_skips_ineligible(monkeypatch):
     # Current step is 5 (not review step 6)
     oracle_row = {"ELR_NO": "ADI2601001", "STATUS": "A", "CURRENT_STEP": "5"}
     ok = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, resolved_docs_fp="dfp")
-    assert ok is False
+    assert ok == CycleResult.SKIPPED
     assert len(cur.revisions) == 0
 
     # Status C (closed)
     enqueue(q_cur, 1, "ADI2601002", "scan")
     oracle_row_c = {"ELR_NO": "ADI2601002", "STATUS": "C", "CURRENT_STEP": "6"}
     ok_c = run_worker_cycle(cur, q_cur, oracle_row=oracle_row_c, resolved_docs_fp="dfp")
-    assert ok_c is False
+    assert ok_c == CycleResult.SKIPPED
     assert len(cur.revisions) == 0
 
 
@@ -809,7 +827,7 @@ def test_manual_recheck_reason_forces_execution(monkeypatch):
         force_oracle_fp="ofp1",
         resolved_docs_fp="dfp1",
     )
-    assert ok is True
+    assert ok == CycleResult.PROCESSED
     assert len(cur.revisions) == 2
     assert cur.revisions[1]["changed"] == "manual"
 
@@ -827,13 +845,18 @@ def test_approval_query_matches_real_schema():
     if not password:
         pytest.skip("MARK_WORKER_PG_PASSWORD not in environment, skipping live DB query test")
 
-    conn = psycopg2.connect(
-        host=os.getenv("PGHOST", "10.151.28.2"),
-        port=int(os.getenv("PGPORT", 5432)),
-        dbname=os.getenv("PGDATABASE", "mark_web"),
-        user=os.getenv("MARK_WORKER_PG_USER", "mark_worker"),
-        password=password,
-    )
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("PGHOST", "10.151.28.2"),
+            port=int(os.getenv("PGPORT", 5432)),
+            dbname=os.getenv("PGDATABASE", "mark_web"),
+            user=os.getenv("MARK_WORKER_PG_USER", "mark_worker"),
+            password=password,
+            connect_timeout=3,
+        )
+    except psycopg2.OperationalError as exc:
+        pytest.skip(f"Live DB unreachable: {exc}")
+
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM mark_app.approval WHERE elr_no = 'NONEXISTENT' AND run_id = -1 AND decision = 'APPROVED';")
@@ -873,7 +896,7 @@ def test_inference_unavailable_fail_with_backoff_and_hold_inference_failed(monke
 
     # Attempt 1 -> retry
     ok1 = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, resolved_docs_fp="dfp")
-    assert ok1 is False
+    assert ok1 == CycleResult.PROCESSED
     assert len(cur.revisions) == 0
 
     # Simulate fast-forwarding attempts to 3 (exhausting backoff)
@@ -883,7 +906,7 @@ def test_inference_unavailable_fail_with_backoff_and_hold_inference_failed(monke
 
     # Attempt 4 -> fails with backoff returns "failed" -> writes HOLD INFERENCE_FAILED & notifies
     ok4 = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, resolved_docs_fp="dfp")
-    assert ok4 is True
+    assert ok4 == CycleResult.PROCESSED
     assert len(cur.revisions) == 1
     assert len(cur.notifications) == 1
     assert cur.notifications[0]["kind"] == "hold"
@@ -929,7 +952,7 @@ def test_changed_fields_uses_changed_oracle_fields_from_elr_snapshot(monkeypatch
         oracle_row=new_oracle_row,
         resolved_docs_fp="dfp1",
     )
-    assert ok is True
+    assert ok == CycleResult.PROCESSED
     assert len(cur.revisions) == 2
     rev2 = cur.revisions[1]
     assert rev2["changed"] == "oracle"
@@ -960,12 +983,141 @@ def test_main_connects_as_mark_worker_and_runs_once(monkeypatch):
 
     monkeypatch.setattr("psycopg2.connect", mock_pg_connect)
     monkeypatch.setattr("services.worker.main.connect_actl", lambda: MockPgConn())
-    monkeypatch.setattr("services.worker.main.run_worker_cycle", lambda *args, **kwargs: False)
+    monkeypatch.setattr("services.worker.main.run_worker_cycle", lambda *args, **kwargs: CycleResult.NO_ITEM)
     monkeypatch.setattr("sys.argv", ["main.py", "--once"])
 
     main()
 
     assert pg_connect_args["user"] == "mark_worker"
     assert pg_connect_args["password"] == "secret"
+
+
+def test_extract_marking_image_creates_hashed_png(tmp_path):
+    """(A) extract_marking_image creates <sha256>.png directly from ABS document."""
+    from mark_engine.abs.brand_page import extract_marking_image
+    import fitz
+
+    # Create dummy single-page PDF with an image
+    pdf_path = tmp_path / "dummy_abs.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=200, height=200)
+    # Insert a 10x10 pixmap
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 10, 10), 0)
+    pix.set_rect(fitz.IRect(0, 0, 10, 10), (255, 0, 0))
+    page.insert_image(fitz.Rect(10, 10, 50, 50), pixmap=pix)
+    doc.save(str(pdf_path))
+    doc.close()
+
+    dest_dir = tmp_path / "extracted_images"
+    img_path, digest = extract_marking_image(pdf_path, dest_dir)
+    assert img_path.is_file()
+    assert img_path.name == f"{digest}.png"
+    assert len(digest) == 64
+
+
+def test_worker_extracts_marking_image_without_images_index_csv(tmp_path, monkeypatch):
+    """(A) Worker extracts marking page image directly and passes path to service loader."""
+    import services.worker.main as w_main
+
+    cur = FakePgCursor()
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    abs_file = tmp_path / "ABS065001.pdf"
+    abs_file.write_bytes(b"dummy abs content")
+
+    dummy_res = DocumentResolution(
+        elr_no="ADI2601001",
+        decision="RESOLVED",
+        abs=DocumentRef(path=str(abs_file), sha256="sha_abs", doc_type=DocType.ABS),
+    )
+    monkeypatch.setattr("services.worker.main.resolve_documents", lambda *a, **kw: dummy_res)
+
+    extracted_img = tmp_path / "work" / "images" / "fake_img_sha.png"
+    extracted_img.parent.mkdir(parents=True, exist_ok=True)
+    extracted_img.write_bytes(b"dummy png bytes")
+    monkeypatch.setattr(
+        "services.worker.main.extract_marking_image",
+        lambda p, dest: (extracted_img, "fake_img_sha"),
+    )
+
+    captured_loader = []
+    def mock_process_elr(meta, oracle, root, months, work_dir, rules, loader, **kwargs):
+        captured_loader.append(loader)
+        return JobResult(
+            elr_no="ADI2601001",
+            processing_status=ProcessingStatus.DONE,
+            verification_status=VerificationStatus.MATCH_ALL,
+        )
+
+    monkeypatch.setattr("services.worker.main.process_elr", mock_process_elr)
+    monkeypatch.setenv("MARK_INFERENCE", "service")
+
+    oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A", "CURRENT_STEP": "6"}
+    res = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, work_dir=tmp_path / "work")
+    assert res == CycleResult.PROCESSED
+    assert len(captured_loader) == 1
+    loader = captured_loader[0]
+    # Check that loader is bound to load_service_inference_for_image with extracted_img
+    assert loader.func.__name__ == "load_service_inference_for_image"
+    assert loader.args[1] == extracted_img
+
+
+def test_worker_recovers_from_unhandled_item_exception(monkeypatch):
+    """(B) Unexpected error during ELR processing: rollback dirty tx, fail_with_backoff, worker survives."""
+    cur = FakePgCursor()
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    def mock_exploding_process_elr(*args, **kwargs):
+        # Insert dirty partial result into cur before blowing up
+        cur.job_results.append({"run_id": 999, "elr_no": "ADI2601001"})
+        raise RuntimeError("Unexpected pipeline crash!")
+
+    monkeypatch.setattr("services.worker.main.process_elr", mock_exploding_process_elr)
+
+    oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A", "CURRENT_STEP": "6"}
+    res = run_worker_cycle(
+        cur,
+        q_cur,
+        oracle_row=oracle_row,
+        resolved_docs_fp="dfp_test",
+        worker_id="worker-test",
+    )
+    # Worker returns PROCESSED (item claimed & handled), cur rolled back, item set to retry
+    assert res == CycleResult.PROCESSED
+    assert cur.rolled_back is True
+    item = queue_store.items[1]
+    assert item["state"] == "retry"
+    assert "Unexpected pipeline crash!" in item["error"]
+
+
+def test_worker_once_mode_loops_until_no_item(monkeypatch):
+    """(C) --once terminates only when CycleResult.NO_ITEM is returned."""
+    from services.worker.main import main
+
+    cycle_returns = [
+        CycleResult.PROCESSED,
+        CycleResult.SKIPPED,
+        CycleResult.NO_ITEM,
+    ]
+    calls = []
+
+    def mock_run_cycle(*args, **kwargs):
+        ret = cycle_returns.pop(0)
+        calls.append(ret)
+        return ret
+
+    monkeypatch.setattr("services.worker.main.run_worker_cycle", mock_run_cycle)
+    monkeypatch.setattr("psycopg2.connect", lambda **kw: FakePgCursor())
+    monkeypatch.setattr("services.worker.main.connect_actl", lambda: FakePgCursor())
+    monkeypatch.setattr("sys.argv", ["main.py", "--once"])
+
+    main()
+
+    assert calls == [CycleResult.PROCESSED, CycleResult.SKIPPED, CycleResult.NO_ITEM]
+
 
 

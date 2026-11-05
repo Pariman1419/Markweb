@@ -5,7 +5,7 @@ import hashlib
 import os
 from pathlib import Path
 
-from mark_engine.abs.brand_page import extract_brand_image
+from mark_engine.abs.brand_page import extract_brand_image, extract_marking_image
 from mark_engine.adapters.env import load_env
 from mark_engine.adapters.snapshot import load_elr_snapshot
 from mark_engine.documents.resolve import resolve_documents
@@ -34,18 +34,9 @@ def main():
             if resolution.decision != 'RESOLVED' or resolution.abs is None:
                 skipped.append({'elr': elr_no, 'reason': resolution.hold_reason or 'NO_ABS'})
                 continue
-            data, method, page = extract_brand_image(Path(resolution.abs.path))
-            if hashlib.sha256(Path(resolution.abs.path).read_bytes()).hexdigest() != resolution.abs.sha256:
-                raise ValueError('ABS changed during image extraction')
-            digest = hashlib.sha256(data).hexdigest()
-            name = digest + '.png'
-            destination = images / name
-            if not destination.exists():
-                destination.write_bytes(data)
-            elif hashlib.sha256(destination.read_bytes()).hexdigest() != digest:
-                raise RuntimeError(f'Image hash mismatch: {destination}')
+            destination, digest = extract_marking_image(Path(resolution.abs.path), images, expected_source_sha256=resolution.abs.sha256)
             rows.append({'elr': elr_no, 'abs_file': Path(resolution.abs.path).stem,
-                         'image': name, 'method': method, 'page': page, 'sha256': digest,
+                         'image': destination.name, 'method': 'raster', 'page': 1, 'sha256': digest,
                          'source_sha256': resolution.abs.sha256})
         except Exception as exc:
             skipped.append({'elr': elr_no, 'reason': f'EXTRACT_ERROR: {type(exc).__name__}: {exc}'})
