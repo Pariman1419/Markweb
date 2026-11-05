@@ -63,6 +63,17 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — B3 plan: history, queue, worker, scan API (for the other agent)
+- **Plan:** `docs/superpowers/plans/2026-11-05-b3-history-queue-worker-api.md` (spec §9 step 3). Its tasks:
+  1. Migration 0007 (tables `scan`, `elr_revision`, `work_item`, `notification`; view `latest_job_result`; role `mark_worker`). Applying it to the real DB is a **[USER]** step.
+  2. Fingerprints and the re-check decision table (spec §4).
+  3. Oracle source and the SKIP LOCKED queue.
+  4. Results writer into the daily `auto-YYYY-MM-DD` run (insert only) and the worker loop.
+  5. Scan, lookup, oracle-check, recheck and notification API.
+  6. Dev end-to-end on 10.151.97.18.
+- **Not in this plan:** the Airflow DAGs (step 4) and the WebSocket/web UI (step 5).
+- **Status:** B4 is finished at `611aff4` (Jenkins 391 green). The service gives the same output as the run-19 cache (287/287 images; `run-service` byte-identical to `run-gates`). `.env` is set to `MARK_INFERENCE=service`.
+
 ### 2026-11-05 — R1 multi-ABS review deferred until the web is finished
 - **User decision:** wait until the web is finished before reviewing or changing R1 G1–G9. All nine remain open. R1 G1 (date-code `Q`) and G5 (`FS91004B`/`ADW91004B`) are not engine gates G1 (TBD) and G5 (ROW_OVER_5).
 - **R1 G5:** ADI2605053/054 and ADI2606014/015 have both ABS065681-ENG-1 (Oracle-selected) and ABS065288-ENG-2 (named by SLR). Manual inspection of the latter's marking diagram agrees with the Oracle snapshot in all five rows at the format/placeholder level. Confirm the applicable document with Mark Eng before changing selection logic.
