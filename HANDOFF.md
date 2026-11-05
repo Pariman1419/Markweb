@@ -63,6 +63,15 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Fix(API): Scan Lock and Watermark Integrity
+- **Commit**: `fix(api): scan lock and watermark integrity`
+- **Key Changes**:
+  1. `hold_scan_lock()` context manager on `Repo` holds PostgreSQL advisory lock (`pg_try_advisory_lock` / `pg_advisory_unlock`) on a single connection throughout the scan and cleanly releases on the same connection in `finally`.
+  2. Single scan row lifecycle: inserted with `finished_at = null` via `Repo.create_scan()`. On success, updated via `finish_scan()` with `counts` and `finished_at`. On failure, updated via `fail_scan()` with `error` and `finished_at`, preventing watermark advancement on failed scans.
+  3. `counts` dictionary strictly standardized to keys: `found`, `queued`, `unchanged`, `skipped`, `same_as_rev`.
+  4. `last_successful_scan()` unified to query `source in ('airflow', 'initial') and finished_at is not null and error is null`.
+- **Verification**: 13 unit tests in `tests/unit/test_scans_api.py` passed. Full unit test suite: 464 passed.
+
 ### 2026-11-06 — Fix(Worker): Page Extraction, Per-Item Error Handling, Cycle Result
 - **Commit**: `fix(worker): page extraction, per-item errors, cycle result`
 - **Key Changes**:

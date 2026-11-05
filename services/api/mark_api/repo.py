@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
+import logging
 import os
 import time
 from typing import Any
@@ -12,6 +13,13 @@ from psycopg2.pool import ThreadedConnectionPool
 
 from mark_api.logging import log_event
 from mark_engine.adapters.env import load_env
+
+logger = logging.getLogger("mark_api.repo")
+
+
+class ScanLockConflict(Exception):
+    """Raised when an advisory lock for scan cannot be acquired."""
+    pass
 
 
 class Repo:
@@ -418,6 +426,27 @@ class Repo:
         rows = self._execute(q, (date_from, date_to, user_id, user_id, action, action, offset), fetch_all=True)
         return rows if isinstance(rows, list) else []
 
+    @contextmanager
+    def hold_scan_lock(self):
+        """Borrow one connection from the pool, acquire session advisory lock, yield conn, unlock on SAME conn, return to pool."""
+        conn = self.pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("select pg_try_advisory_lock(hashtext('mark_scan_lock')) as locked;")
+                row = cur.fetchone()
+                locked = bool(row and (row[0] if isinstance(row, (tuple, list)) else row.get("locked")))
+            if not locked:
+                raise ScanLockConflict("A scan is already running")
+            yield conn
+        finally:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("select pg_advisory_unlock(hashtext('mark_scan_lock'));")
+                conn.commit()
+            except Exception as exc:
+                logger.warning("Error releasing scan advisory lock: %s", exc)
+            self.pool.putconn(conn)
+
     def try_scan_lock(self) -> bool:
         row = self._execute("select pg_try_advisory_lock(hashtext('mark_scan_lock')) as locked", fetch_one=True)
         return bool(row and row.get("locked"))
@@ -425,26 +454,78 @@ class Repo:
     def release_scan_lock(self) -> None:
         self._execute("select pg_advisory_unlock(hashtext('mark_scan_lock'))", commit=True)
 
-    def last_successful_scan(self, source: str = "airflow") -> dict[str, Any] | None:
-        return self._execute(
-            "select * from mark_app.scan where source = %s and finished_at is not null and error is null order by started_at desc limit 1",
-            (source,),
+    def last_successful_scan(self, source: str | None = None) -> dict[str, Any] | None:
+        """Fetch the most recent successful scan with finished_at not null and error null.
+
+        Requirement (4): queries source in ('airflow', 'initial').
+        """
+        if source:
+            q = """
+            select * from mark_app.scan
+            where source = %s and finished_at is not null and error is null
+            order by started_at desc limit 1;
+            """
+            return self._execute(q, (source,), fetch_one=True)
+        else:
+            q = """
+            select * from mark_app.scan
+            where source in ('airflow', 'initial') and finished_at is not null and error is null
+            order by started_at desc limit 1;
+            """
+            return self._execute(q, fetch_one=True)
+
+    def create_scan(self, source: str, requested_by: str | None, from_ts: datetime | None,
+                    to_ts: datetime | None) -> int:
+        """Requirement (2): Create single scan row at start with finished_at=null and error=null."""
+        row = self._execute(
+            """
+            insert into mark_app.scan (source, requested_by, from_ts, to_ts, started_at, finished_at, error, counts)
+            values (%s, %s, %s, %s, now(), null, null, null)
+            returning scan_id;
+            """,
+            (source, requested_by, from_ts, to_ts),
             fetch_one=True,
+            commit=True,
+        )
+        return row["scan_id"] if isinstance(row, dict) else row[0]
+
+    def finish_scan(self, scan_id: int, counts: dict[str, Any]) -> None:
+        """Requirement (2): On completion, update finished_at and counts."""
+        self._execute(
+            """
+            update mark_app.scan
+            set finished_at = now(),
+                counts = %s
+            where scan_id = %s;
+            """,
+            (json.dumps(counts), scan_id),
+            commit=True,
+        )
+
+    def fail_scan(self, scan_id: int, error: str, counts: dict[str, Any] | None = None) -> None:
+        """Requirement (2): On error, update finished_at and error."""
+        counts_json = json.dumps(counts) if counts is not None else None
+        self._execute(
+            """
+            update mark_app.scan
+            set finished_at = now(),
+                error = %s,
+                counts = coalesce(%s, counts)
+            where scan_id = %s;
+            """,
+            (error, counts_json, scan_id),
+            commit=True,
         )
 
     def record_scan(self, source: str, requested_by: str | None, from_ts: datetime | None,
                     to_ts: datetime | None, counts: dict[str, Any], error: str | None = None) -> int:
-        row = self._execute(
-            """
-            insert into mark_app.scan (source, requested_by, from_ts, to_ts, counts, finished_at, error)
-            values (%s, %s, %s, %s, %s, case when %s is null then now() else null end, %s)
-            returning scan_id;
-            """,
-            (source, requested_by, from_ts, to_ts, json.dumps(counts), error, error),
-            fetch_one=True,
-            commit=True,
-        )
-        return row["scan_id"]
+        # Backward compatibility helper
+        scan_id = self.create_scan(source, requested_by, from_ts, to_ts)
+        if error:
+            self.fail_scan(scan_id, error, counts=counts)
+        else:
+            self.finish_scan(scan_id, counts)
+        return scan_id
 
     def enqueue_work_item(self, scan_id: int | None, elr_no: str, reason: str) -> bool:
         with self._conn() as conn:

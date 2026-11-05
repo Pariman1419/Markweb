@@ -1,5 +1,32 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Fix(API): Scan Lock and Watermark Integrity
+
+### Context & Implementation
+- **(1) Single Connection Advisory Lock**:
+  - Implemented `Repo.hold_scan_lock()` context manager borrowing a single connection from the pool, acquiring session advisory lock (`pg_try_advisory_lock(hashtext('mark_scan_lock'))`), yielding the connection to run scan operations, releasing the lock (`pg_advisory_unlock`) on the exact same connection, committing, and returning the connection to the pool in `finally`.
+  - Added `ScanLockConflict` exception mapping to HTTP 409 Conflict.
+  - Fixes connection pool contamination where advisory locks acquired on one connection were previously leaked when released on another connection.
+- **(2) Single Row Lifecycle & Watermark Integrity**:
+  - Replaced multiple insert pattern with single scan row created at scan start (`Repo.create_scan`) with `finished_at = null` and `error = null`.
+  - On successful completion: `Repo.finish_scan(scan_id, counts)` updates `finished_at = now()` and `counts`.
+  - On scan failure: `Repo.fail_scan(scan_id, error, counts)` updates `finished_at = now()` and `error`.
+  - Because failed scans have `error is not null`, `last_successful_scan` skips them, preventing the watermark from advancing when an error occurs.
+- **(3) Standardized Scan Counts**:
+  - Counts dictionary strictly conforms to plan keys: `found`, `queued`, `unchanged`, `skipped`, `same_as_rev`.
+- **(4) Unified Watermark Source Lookup**:
+  - `last_successful_scan` inspects `source in ('airflow', 'initial') and finished_at is not null and error is null order by started_at desc limit 1`, allowing `initial` scans to serve as the baseline watermark for subsequent `airflow` scans.
+
+### Verification
+- 13 unit tests in `tests/unit/test_scans_api.py` passed:
+  - `test_two_consecutive_scans_both_return_201`
+  - `test_failed_scan_updates_error_and_does_not_advance_watermark`
+  - `test_counts_conforms_to_plan_keys`
+  - `test_last_successful_scan_considers_both_airflow_and_initial`
+  - `test_repo_hold_scan_lock_uses_single_connection_and_releases_in_finally`
+  - Scope check, watermark window, lookup, oracle check, recheck, notification tests.
+- Entire unit test suite: 464 passed.
+
 ## [2026-11-06] Fix(Worker): Page Extraction, Per-Item Error Handling, Cycle Result
 
 ### Context & Implementation

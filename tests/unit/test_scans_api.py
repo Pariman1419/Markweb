@@ -16,6 +16,8 @@ if str(API_DIR) not in sys.path:
 from mark_api.app import app
 from mark_api.deps import get_repo
 from mark_api.auth import hash_password, new_token
+from mark_api.repo import Repo, ScanLockConflict
+from mark_engine.history.decide import RevisionKey
 
 
 class FakeScansRepo:
@@ -85,6 +87,18 @@ class FakeScansRepo:
             "detail": detail,
         })
 
+    from contextlib import contextmanager
+
+    @contextmanager
+    def hold_scan_lock(self):
+        if self.locked_scan:
+            raise ScanLockConflict("A scan is already running")
+        self.locked_scan = True
+        try:
+            yield
+        finally:
+            self.locked_scan = False
+
     def try_scan_lock(self) -> bool:
         if self.locked_scan:
             return False
@@ -94,12 +108,17 @@ class FakeScansRepo:
     def release_scan_lock(self) -> None:
         self.locked_scan = False
 
-    def last_successful_scan(self, source: str = "airflow") -> dict[str, Any] | None:
-        matching = [s for s in self.scans if s.get("source") == source and s.get("finished_at")]
+    def last_successful_scan(self, source: str | None = None) -> dict[str, Any] | None:
+        matching = [
+            s for s in self.scans
+            if (s.get("source") == source if source else s.get("source") in ("airflow", "initial"))
+            and s.get("finished_at")
+            and not s.get("error")
+        ]
         return matching[-1] if matching else None
 
-    def record_scan(self, source: str, requested_by: str | None, from_ts: datetime | None,
-                    to_ts: datetime | None, counts: dict[str, Any], error: str | None = None) -> int:
+    def create_scan(self, source: str, requested_by: str | None, from_ts: datetime | None,
+                    to_ts: datetime | None) -> int:
         scan_id = len(self.scans) + 1
         now = datetime.now(timezone.utc)
         self.scans.append({
@@ -108,11 +127,36 @@ class FakeScansRepo:
             "requested_by": requested_by,
             "from_ts": from_ts,
             "to_ts": to_ts,
-            "counts": counts,
+            "counts": None,
             "started_at": now,
-            "finished_at": now if not error else None,
-            "error": error,
+            "finished_at": None,
+            "error": None,
         })
+        return scan_id
+
+    def finish_scan(self, scan_id: int, counts: dict[str, Any]) -> None:
+        for s in self.scans:
+            if s["scan_id"] == scan_id:
+                s["finished_at"] = datetime.now(timezone.utc)
+                s["counts"] = counts
+                break
+
+    def fail_scan(self, scan_id: int, error: str, counts: dict[str, Any] | None = None) -> None:
+        for s in self.scans:
+            if s["scan_id"] == scan_id:
+                s["finished_at"] = datetime.now(timezone.utc)
+                s["error"] = error
+                if counts is not None:
+                    s["counts"] = counts
+                break
+
+    def record_scan(self, source: str, requested_by: str | None, from_ts: datetime | None,
+                    to_ts: datetime | None, counts: dict[str, Any], error: str | None = None) -> int:
+        scan_id = self.create_scan(source, requested_by, from_ts, to_ts)
+        if error:
+            self.fail_scan(scan_id, error, counts=counts)
+        else:
+            self.finish_scan(scan_id, counts)
         return scan_id
 
     def enqueue_work_item(self, scan_id: int | None, elr_no: str, reason: str) -> bool:
@@ -131,6 +175,14 @@ class FakeScansRepo:
             "created_at": now,
         })
         return True
+
+    def get_previous_revisions(self, elr_no: str) -> list[RevisionKey]:
+        matched = [r for r in self.revisions if r.get("elr_no") == elr_no]
+        sorted_revs = sorted(matched, key=lambda r: r.get("revision", 0))
+        return [
+            RevisionKey(r["revision"], r.get("oracle_fp", ""), r.get("docs_fp", ""))
+            for r in sorted_revs
+        ]
 
     def get_elr_history(self, elr_no: str) -> dict[str, Any]:
         revs = [r for r in self.revisions if r["elr_no"] == elr_no]
@@ -358,3 +410,153 @@ def test_notifications_read_is_per_user(client, repo):
     resp2 = client.get("/api/notifications?unread=1", cookies=u2_cookies)
     assert len(resp2.json()) == 1
     assert resp2.json()[0]["id"] == notif_id
+
+
+def test_two_consecutive_scans_both_return_201(client, repo, monkeypatch):
+    """(1) Advisory lock on single connection: two consecutive scans both return 201 (not 409)."""
+    repo.add_token("scan_tok", ["scan:write"], "token_scan_123")
+    monkeypatch.setattr("mark_api.routers.scans.connect_actl", lambda: None)
+    monkeypatch.setattr("mark_api.routers.scans.fetch_window", lambda *args, **kwargs: [])
+
+    headers = {"Authorization": "Bearer token_scan_123"}
+    resp1 = client.post("/api/scans", json={"source": "airflow"}, headers=headers)
+    assert resp1.status_code == 201
+
+    resp2 = client.post("/api/scans", json={"source": "airflow"}, headers=headers)
+    assert resp2.status_code == 201
+
+
+def test_failed_scan_updates_error_and_does_not_advance_watermark(client, repo, monkeypatch):
+    """(2) Failed scan creates 1 row, updates error, and does NOT advance watermark."""
+    repo.add_token("scan_tok", ["scan:write"], "token_scan_123")
+    headers = {"Authorization": "Bearer token_scan_123"}
+
+    t0 = datetime(2026, 11, 5, 10, 0, 0, tzinfo=timezone.utc)
+    # Successful prior scan ending at t0
+    repo.create_scan("airflow", "job", t0 - timedelta(hours=1), t0)
+    repo.finish_scan(1, {"found": 5, "queued": 5, "unchanged": 0, "skipped": 0, "same_as_rev": 0})
+
+    # Second scan simulates failure during processing
+    call_count = [0]
+    def mock_failing_fetch_window(conn, from_ts, to_ts):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            raise RuntimeError("Oracle connection lost!")
+        return []
+
+    monkeypatch.setattr("mark_api.routers.scans.connect_actl", lambda: object())
+    monkeypatch.setattr("mark_api.routers.scans.fetch_window", mock_failing_fetch_window)
+
+    # Trigger scan -> fails with 500 or raises RuntimeError
+    try:
+        resp = client.post("/api/scans", json={"source": "airflow"}, headers=headers)
+        assert resp.status_code == 500
+    except RuntimeError:
+        pass
+
+    # Verify only 2 scans exist in total (1 prior + 1 failed, not multiple rows for the failed one)
+    assert len(repo.scans) == 2
+    failed_scan = repo.scans[1]
+    assert failed_scan["scan_id"] == 2
+    assert failed_scan["error"] == "Oracle connection lost!"
+    assert failed_scan["finished_at"] is not None
+
+    # Next airflow scan must NOT advance watermark to scan 2's to_ts! It must still use scan 1's to_ts - 5m
+    recorded_windows = []
+    def mock_fetch_window(conn, from_ts, to_ts):
+        recorded_windows.append((from_ts, to_ts))
+        return []
+
+    monkeypatch.setattr("mark_api.routers.scans.fetch_window", mock_fetch_window)
+    resp = client.post("/api/scans", json={"source": "airflow"}, headers=headers)
+    assert resp.status_code == 201
+    assert len(recorded_windows) == 1
+    used_from, _ = recorded_windows[0]
+    expected_from = t0 - timedelta(minutes=5)
+    assert abs((used_from - expected_from).total_seconds()) < 1.0
+
+
+def test_counts_conforms_to_plan_keys(client, repo, monkeypatch):
+    """(3) counts strictly uses keys: found, queued, unchanged, skipped, same_as_rev."""
+    repo.add_token("scan_tok", ["scan:write"], "token_scan_123")
+    headers = {"Authorization": "Bearer token_scan_123"}
+
+    mock_row1 = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "P1", "STATUS": "A", "CURRENT_STEP": "6"}
+    mock_row2 = {"ELR_NO": "ADI2601002", "PRODUCT_NO": "P2", "STATUS": "C", "CURRENT_STEP": "6"}
+    monkeypatch.setattr("mark_api.routers.scans.connect_actl", lambda: object())
+    monkeypatch.setattr("mark_api.routers.scans.fetch_window", lambda *a, **kw: [mock_row1, mock_row2])
+
+    resp = client.post("/api/scans", json={"source": "airflow"}, headers=headers)
+    assert resp.status_code == 201
+    counts = resp.json()["counts"]
+    assert set(counts.keys()) == {"found", "queued", "unchanged", "skipped", "same_as_rev"}
+    assert counts["found"] == 2
+    assert counts["queued"] == 1
+    assert counts["skipped"] == 1
+
+
+def test_last_successful_scan_considers_both_airflow_and_initial(repo):
+    """(4) last_successful_scan inspects source in ('airflow', 'initial')."""
+    # 1. Initially empty
+    assert repo.last_successful_scan() is None
+
+    # 2. Add an initial scan
+    t_init = datetime(2026, 11, 4, 12, 0, 0, tzinfo=timezone.utc)
+    s1_id = repo.create_scan("initial", "admin", None, t_init)
+    repo.finish_scan(s1_id, {"found": 10, "queued": 10, "unchanged": 0, "skipped": 0, "same_as_rev": 0})
+
+    last = repo.last_successful_scan()
+    assert last is not None
+    assert last["source"] == "initial"
+    assert last["to_ts"] == t_init
+
+    # 3. Add an airflow scan later
+    t_air = datetime(2026, 11, 4, 13, 0, 0, tzinfo=timezone.utc)
+    s2_id = repo.create_scan("airflow", "cron", t_init - timedelta(minutes=5), t_air)
+    repo.finish_scan(s2_id, {"found": 1, "queued": 1, "unchanged": 0, "skipped": 0, "same_as_rev": 0})
+
+    last2 = repo.last_successful_scan()
+    assert last2 is not None
+    assert last2["source"] == "airflow"
+    assert last2["to_ts"] == t_air
+
+
+def test_repo_hold_scan_lock_uses_single_connection_and_releases_in_finally():
+    """(1) Repo.hold_scan_lock borrows 1 conn, locks, yields, unlocks on SAME conn, returns to pool."""
+    from unittest.mock import MagicMock
+    from mark_api.repo import Repo, ScanLockConflict
+
+    mock_pool = MagicMock()
+    mock_conn = MagicMock()
+    mock_cur = MagicMock()
+
+    mock_pool.getconn.return_value = mock_conn
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+    mock_cur.fetchone.return_value = (True,)  # lock acquired
+
+    repo = Repo.__new__(Repo)
+    repo.pool = mock_pool
+
+    executed_sqls = []
+    def mock_execute(sql):
+        executed_sqls.append(sql)
+
+    mock_cur.execute.side_effect = mock_execute
+
+    with repo.hold_scan_lock() as conn:
+        assert conn is mock_conn
+        assert "pg_try_advisory_lock" in executed_sqls[0]
+
+    # After with block: pg_advisory_unlock called on same cursor, commit called, putconn called
+    assert "pg_advisory_unlock" in executed_sqls[1]
+    assert mock_conn.commit.called
+    mock_pool.putconn.assert_called_once_with(mock_conn)
+
+    # When lock is already held: raises ScanLockConflict and returns conn
+    mock_cur.fetchone.return_value = (False,)
+    mock_pool.reset_mock()
+    with pytest.raises(ScanLockConflict):
+        with repo.hold_scan_lock():
+            pass
+    mock_pool.putconn.assert_called_once_with(mock_conn)
+

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
 from mark_api.deps import current_user, get_repo, require_any_role, require_scope, safe_audit
-from mark_api.repo import Repo
+from mark_api.repo import Repo, ScanLockConflict
 from mark_engine.adapters.oracle_client import connect_actl
 from mark_engine.history.decide import decide
 from mark_engine.history.fingerprint import oracle_fp
@@ -41,113 +41,104 @@ def trigger_scan(
     repo: Repo = Depends(get_repo),
 ) -> dict[str, Any]:
     """Trigger an airflow or initial scan for new/changed ELRs."""
-    # 1. Enforce single active scan via Postgres advisory lock
-    if not repo.try_scan_lock():
+    # 1. Enforce single active scan via single connection advisory lock
+    try:
+        with repo.hold_scan_lock():
+            review_step = os.environ.get("MARK_REVIEW_STEP", "6")
+            now = datetime.now(timezone.utc)
+            from_ts = req.from_ts
+            to_ts = req.to_ts
+
+            if req.source == "airflow":
+                if from_ts is None:
+                    # Requirement (4): looks at source in ('airflow', 'initial')
+                    last_scan = repo.last_successful_scan()
+                    if last_scan and last_scan.get("to_ts"):
+                        t_val = last_scan["to_ts"]
+                        if t_val.tzinfo is None:
+                            t_val = t_val.replace(tzinfo=timezone.utc)
+                        from_ts = t_val - timedelta(minutes=5)
+                    else:
+                        from_ts = now - timedelta(days=1)
+                if to_ts is None:
+                    to_ts = now
+            else:  # initial
+                to_ts = now
+
+            # Requirement (2): Create single scan row at start with finished_at=null
+            scan_id = repo.create_scan(
+                source=req.source,
+                requested_by=user.get("username", "api_token"),
+                from_ts=from_ts,
+                to_ts=to_ts,
+            )
+
+            counts = {
+                "found": 0,
+                "queued": 0,
+                "unchanged": 0,
+                "skipped": 0,
+                "same_as_rev": 0,
+            }
+
+            conn_oracle = connect_actl()
+            try:
+                try:
+                    if req.source == "airflow":
+                        rows = fetch_window(conn_oracle, from_ts, to_ts) if conn_oracle is not None else []
+                    else:  # initial
+                        rows = fetch_pending_step(conn_oracle, review_step) if conn_oracle is not None else []
+                finally:
+                    if hasattr(conn_oracle, "close"):
+                        try:
+                            conn_oracle.close()
+                        except Exception:
+                            pass
+
+                counts["found"] = len(rows)
+
+                for row in rows:
+                    meta, _, _ = to_engine(row)
+                    elr_no = meta.elr_no
+                    p_reason = pending_reason(meta, review_step)
+                    ofp = oracle_fp(row)
+
+                    prev_keys = repo.get_previous_revisions(elr_no)
+                    dec = decide(p_reason, prev_keys, ofp, docs_fp=None, manual=False)
+
+                    if dec.action == "skip_not_eligible":
+                        counts["skipped"] += 1
+                    elif dec.action == "skip_unchanged":
+                        counts["unchanged"] += 1
+                    elif dec.action == "skip_same_as_rev":
+                        counts["same_as_rev"] += 1
+                    elif dec.action == "check":
+                        if repo.enqueue_work_item(scan_id, elr_no, reason="scan"):
+                            counts["queued"] += 1
+
+                # Requirement (2): On completion, UPDATE finished_at and counts
+                repo.finish_scan(scan_id, counts)
+
+                safe_audit(
+                    repo,
+                    user.get("user_id"),
+                    "scan.started",
+                    request,
+                    detail={"source": req.source, "scan_id": scan_id, "counts": counts},
+                )
+
+                return {"scan_id": scan_id, "counts": counts}
+
+            except Exception as scan_exc:
+                logger.exception("Scan failed: %s", scan_exc)
+                repo.fail_scan(scan_id, str(scan_exc), counts=counts)
+                raise
+
+    except ScanLockConflict:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="A scan is already running",
         )
-
-    review_step = os.environ.get("MARK_REVIEW_STEP", "6")
-    now = datetime.now(timezone.utc)
-    from_ts = req.from_ts
-    to_ts = req.to_ts
-
-    counts = {
-        "total": 0,
-        "eligible": 0,
-        "queued": 0,
-        "skipped_not_eligible": 0,
-        "skipped_unchanged": 0,
-    }
-
-    try:
-        conn_oracle = connect_actl()
-
-        if req.source == "airflow":
-            if from_ts is None:
-                last_scan = repo.last_successful_scan("airflow")
-                if last_scan and last_scan.get("to_ts"):
-                    t_val = last_scan["to_ts"]
-                    if t_val.tzinfo is None:
-                        t_val = t_val.replace(tzinfo=timezone.utc)
-                    from_ts = t_val - timedelta(minutes=5)
-                else:
-                    from_ts = now - timedelta(days=1)
-            if to_ts is None:
-                to_ts = now
-
-            rows = fetch_window(conn_oracle, from_ts, to_ts) if conn_oracle is not None else []
-        else:  # initial
-            to_ts = now
-            rows = fetch_pending_step(conn_oracle, review_step) if conn_oracle is not None else []
-
-        counts["total"] = len(rows)
-
-        # Record scan start
-        scan_id = repo.record_scan(
-            source=req.source,
-            requested_by=user.get("username", "api_token"),
-            from_ts=from_ts,
-            to_ts=to_ts,
-            counts=counts,
-        )
-
-        for row in rows:
-            meta, _, _ = to_engine(row)
-            elr_no = meta.elr_no
-            p_reason = pending_reason(meta, review_step)
-            ofp = oracle_fp(row)
-
-            prev_keys = repo.get_previous_revisions(elr_no)
-            dec = decide(p_reason, prev_keys, ofp, docs_fp=None, manual=False)
-
-            if dec.action == "skip_not_eligible":
-                counts["skipped_not_eligible"] += 1
-            elif dec.action == "skip_unchanged":
-                counts["skipped_unchanged"] += 1
-            elif dec.action == "check":
-                counts["eligible"] += 1
-                if repo.enqueue_work_item(scan_id, elr_no, reason="scan"):
-                    counts["queued"] += 1
-
-        # Update scan with final counts
-        repo.record_scan(
-            source=req.source,
-            requested_by=user.get("username", "api_token"),
-            from_ts=from_ts,
-            to_ts=to_ts,
-            counts=counts,
-        )
-
-        safe_audit(
-            repo,
-            user.get("user_id"),
-            "scan.started",
-            request,
-            detail={"source": req.source, "scan_id": scan_id, "counts": counts},
-        )
-
-        return {"scan_id": scan_id, "counts": counts}
-
-    except Exception as exc:
-        logger.exception("Scan failed: %s", exc)
-        repo.record_scan(
-            source=req.source,
-            requested_by=user.get("username", "api_token"),
-            from_ts=from_ts,
-            to_ts=to_ts,
-            counts=counts,
-            error=str(exc),
-        )
-        raise
-    finally:
-        repo.release_scan_lock()
-        if hasattr(conn_oracle, "close"):
-            try:
-                conn_oracle.close()
-            except Exception:
-                pass
 
 
 @router.post("/scans/retry")
