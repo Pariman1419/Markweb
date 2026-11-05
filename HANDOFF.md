@@ -83,6 +83,19 @@
 - **Validation**: Tested UP/DOWN migration idempotency on throwaway schema `t0007_20261106` on `10.151.28.2:5432/mark_web`. UP succeeded, DOWN removed all objects cleanly, second UP verified clean re-execution, and all 16 historical runs (IDs 1–19) in `mark_logic.run` were verified untouched.
 - **[USER] Step**: Migration 0007 is ready for DBA execution on real database (`mark_app` schema). In parallel, proceeding with Task 2 (Fingerprints and Decision Table).
 
+### 2026-11-06 — Airflow DAG plan for Codex (branch `phase2/airflow`)
+- **Plan:** `docs/superpowers/plans/2026-11-06-airflow-dags.md`. Codex works in worktree `D:\CIM Project\mark-web-airflow` on branch `phase2/airflow`; agy keeps `phase2/trial` for B3.
+- **DAGs:**
+  - `mark_elr_polling`: every 15 min, calls `POST /api/scans`.
+  - `mark_pending_job_retry`: every 10 min, calls `POST /api/scans/retry`.
+  - `mark_initial_load`: manual trigger.
+- **How they run:**
+  - All three call the API on the dev PC `http://10.151.97.18:8088` through the Airflow Connection `mark_api`.
+  - The token lives only in that Connection and in `.env`.
+  - The DAGs are deployed paused; unpausing is a user step.
+- **Deploy:** waits for B3 Task 5 and migration 0007. Enabling the schedule waits for B3 Task 6 and the initial load.
+- **Access:** SSH to 10.151.28.3 as `itadmin` uses key auth only. The user installs the key once with a script.
+
 ### 2026-11-05 — B3 plan: history, queue, worker, scan API (for the other agent)
 - **Plan:** `docs/superpowers/plans/2026-11-05-b3-history-queue-worker-api.md` (spec §9 step 3). Its tasks:
   1. Migration 0007 (tables `scan`, `elr_revision`, `work_item`, `notification`; view `latest_job_result`; role `mark_worker`). Applying it to the real DB is a **[USER]** step.
