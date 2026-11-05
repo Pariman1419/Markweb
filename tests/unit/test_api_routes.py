@@ -808,3 +808,18 @@ def test_metrics_counts_logins(client, fake_repo):
     assert body["login_failed"] == before + 1 and body["login_ok"] >= 1
     assert "active_sessions" in body and "rate_limited" not in body
 
+
+
+def test_review_uses_line_key_not_snapshot_abs(client, fake_repo):
+    # Real DB: job/snapshot abs is "ABS071169-ENG-2" while line_result.abs_no is "ABS071169";
+    # line_review's FK is (run_id, elr_no, abs_no, side, line_no) -> line_result.
+    fake_repo.snapshots_data[(18, "ADI2607001")]["abs_file"] = "ABS071290-ENG-2"
+    csrf = _login(client)
+    body = {"run_id": 18, "elr_no": "ADI2607001", "reason": "OTHER", "corrected_mark": "MARK1"}
+    r = client.post("/api/reviews", json=dict(body, line_no=1), headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200
+    saved = fake_repo.reviews_data[-1]
+    assert (saved["abs_no"], saved["side"], saved["line_no"]) == ("ABS071290", "TOP", 1)
+    n = len(fake_repo.reviews_data)
+    r = client.post("/api/reviews", json=dict(body, line_no=99), headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 404 and len(fake_repo.reviews_data) == n

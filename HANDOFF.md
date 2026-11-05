@@ -63,6 +63,18 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Fix: line review always failed on the real DB; E2E walkthrough script (Task 5)
+- **Bug (found by the new E2E script):** `POST /api/reviews` returned 500 on run 19 for every line, so engineers could not save any review. That also meant no ELR with an ERROR line could ever be approved.
+  - **Cause:** the router took `abs_no` from the job snapshot (`abs_file`, e.g. `ABS071169-ENG-2`) and hard-coded `side='TOP'`. But `line_review`'s FK `(run_id, elr_no, abs_no, side, line_no)` points to `mark_logic.line_result`, whose `abs_no` is the base number (`ABS071169`). On run 19, 1358/1358 lines differ.
+  - **Why tests missed it:** FakeRepo uses the same value on both sides and has no FK.
+  - **Fix:** take `abs_no` and `side` from the line row (`lines_for_elr`). An unknown `line_no` → 404, and nothing is written.
+  - **New test:** `test_review_uses_line_key_not_snapshot_abs`.
+- **New script `scripts/e2e_walkthrough.py`:** a browser walkthrough through NGINX using system Chrome and Playwright, run manually and not in CI.
+  - **Flow:** engineer login → Dashboard ELR table → search → Preview (ABS image decoded, Oracle grid) → Approve blocked (409) while ERROR lines are unreviewed → review each ERROR line → Approve → admin login → events list `review.saved` and `approval.saved`.
+  - **Cleanup:** the review and approval rows it created (`qa_engineer`, this run, since start) are deleted at the end. `audit_log` is kept. `--keep` skips the cleanup.
+  - **Screenshots:** saved to `reports/e2e/`, which is git-ignored. They contain customer data.
+- **Status:** not deployed to 10.153.90.17 yet (user's call). Everything runs on localhost:8088.
+
 ### 2026-11-05 — Acceptance Task 3: /api/metrics per spec §15
 - **What changed**:
   - Created `services/api/mark_api/metrics.py` extracting `InProcessMetrics` singleton out of `app.py`.

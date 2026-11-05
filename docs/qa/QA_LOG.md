@@ -789,3 +789,11 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 - `test_metrics_percentiles_and_cap` verified nearest-rank calculation, p50/p95, and 1000-sample deque cap.
 - `test_metrics_counts_logins` verified login failure and success counters, presence of `active_sessions`, and absence of `rate_limited`.
 - Full suite: 355 unit tests passed.
+
+## 2026-11-05 — E2E walkthrough found review FK bug
+- `scripts/e2e_walkthrough.py`, run against localhost:8088 on run 19:
+  - **Passed:** login, dashboard, search/open, preview (ABS image plus Oracle grid), approve-blocked (409).
+  - **Failed:** `review_line_4` returned 500 (`ForeignKeyViolation line_review_run_id_elr_no_abs_no_side_line_no_fkey`).
+- **Cause:** the review used the snapshot abs (`-ENG-2` suffix) and not `line_result.abs_no`. All 1358 run-19 lines are affected.
+- **Fix:** take `abs_no`/`side` from the line row; unknown line → 404.
+- **Tests:** 356 unit tests pass. The E2E re-run after deploy is recorded in the next entry.

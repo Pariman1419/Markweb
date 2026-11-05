@@ -70,3 +70,14 @@ Parameters:
 - `MARK_WEB_PORT`: 8088 on the workstation (IIS uses 80, Jenkins uses 8080); 80 on 10.153.90.17.
 - `MARK_FILES_HOST_DIR`: the folder with the ABS images, which are not in git.
 - `PYTHON_EXE`: full path if `python` is not on the service PATH.
+
+## Browser walkthrough (manual, not in CI)
+
+`python scripts/e2e_walkthrough.py --run 19` runs the full trial flow in system Chrome against http://localhost:8088:
+
+- **Flow:** login, Dashboard, Preview, review the ERROR lines, Approve, then check the admin events.
+- **Accounts:** it signs in as the `.env` test accounts `MARK_TEST_ENGINEER_*` and `MARK_TEST_ADMIN_*`.
+- **Cleanup:** it deletes the review and approval rows it created; pass `--keep` to keep them.
+- **Setup:** it needs `pip install "playwright>=1.45,<2"`. No browser download is needed, because it uses the installed Chrome.
+- **Output:** screenshots go to `reports/e2e/`, which is git-ignored and contains customer data. Keep them internal.
+- **Exit code:** 0 when every step passes.

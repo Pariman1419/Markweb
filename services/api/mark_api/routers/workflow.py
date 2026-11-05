@@ -32,14 +32,17 @@ class ApprovalRequest(BaseModel):
 
 @router.post("/reviews")
 def add_review(req: ReviewRequest, request: Request, user: dict[str, Any] = Depends(require("review")), repo: Repo = Depends(get_repo)):
-    snapshot = repo.snapshot(req.run_id, req.elr_no)
-    abs_no = snapshot.get("abs_file", "") if snapshot else ""
+    # line_review's FK is (run_id, elr_no, abs_no, side, line_no) -> mark_logic.line_result, so the key must come
+    # from the line row itself: the job/snapshot abs (e.g. "ABS071169-ENG-2") differs from line_result.abs_no.
+    line = next((l for l in repo.lines_for_elr(req.run_id, req.elr_no) if l.get("line_no") == req.line_no), None)
+    if line is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="line not found")
 
     rev_id = repo.add_review(
         run_id=req.run_id,
         elr_no=req.elr_no,
-        abs_no=abs_no or "ABS",
-        side="TOP",
+        abs_no=line["abs_no"],
+        side=line["side"],
         line_no=req.line_no,
         reason=req.reason or "OTHER",
         note=req.note or "",
