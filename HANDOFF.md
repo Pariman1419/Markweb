@@ -63,6 +63,19 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — B3 Task 5: Scan, Lookup, Oracle-Check, Recheck, and Notification API
+- **Implemented**: `services/api/mark_api/routers/scans.py`, updated `app.py`, `deps.py`, `repo.py`.
+- **Endpoints**:
+  - `POST /api/scans`: Bearer token `scan:write`, advisory lock `pg_try_advisory_lock` (returns 409 on concurrency), computes watermark minus 5m window for airflow scans, applies G0 and cheap decide, enqueues eligible ELRs into `mark_app.work_item`, records scan in `mark_app.scan`.
+  - `POST /api/scans/retry`: Bearer token `scan:write`, re-queues ELRs with HOLD/unapproved latest revision.
+  - `GET /api/elrs/lookup?elr=`: returns history, latest revision, queued status, or `in_system=false`.
+  - `POST /api/elrs/{elr}/oracle-check`: checks Oracle, notifies `not_in_oracle` (404) or `not_eligible` (200), or enqueues `reason=user`.
+  - `POST /api/elrs/{elr}/recheck`: requires role in `(engineer, mark_eng_approver, admin)` and CSRF, enqueues `reason=recheck`.
+  - `GET /api/notifications`: lists notifications, filtered by unread.
+  - `POST /api/notifications/{id}/read`: marks notification as read by current user.
+- **Verification**: Strict TDD Red -> Green. 8 unit tests in `tests/unit/test_scans_api.py`. Full unit test suite: 455 passed. E2E walkthrough: 12/12 passed against `localhost:8088`.
+- **Next immediate action**: Commit & push `feat(api): scans, lookup, oracle-check, recheck, notifications`, wait for Jenkins build to report green, then proceed to Task 6 (Dev End-to-End on 10.151.97.18; Step 2 is [USER]).
+
 ### 2026-11-06 — B3 Task 4: Real Engine Pipeline Integration & Worker Loop
 - **Commit**: `fix(worker): run real engine pipeline`
 - **10 Core Capabilities Wired & Verified**:

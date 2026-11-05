@@ -418,3 +418,145 @@ class Repo:
         rows = self._execute(q, (date_from, date_to, user_id, user_id, action, action, offset), fetch_all=True)
         return rows if isinstance(rows, list) else []
 
+    def try_scan_lock(self) -> bool:
+        row = self._execute("select pg_try_advisory_lock(hashtext('mark_scan_lock')) as locked", fetch_one=True)
+        return bool(row and row.get("locked"))
+
+    def release_scan_lock(self) -> None:
+        self._execute("select pg_advisory_unlock(hashtext('mark_scan_lock'))", commit=True)
+
+    def last_successful_scan(self, source: str = "airflow") -> dict[str, Any] | None:
+        return self._execute(
+            "select * from mark_app.scan where source = %s and finished_at is not null and error is null order by started_at desc limit 1",
+            (source,),
+            fetch_one=True,
+        )
+
+    def record_scan(self, source: str, requested_by: str | None, from_ts: datetime | None,
+                    to_ts: datetime | None, counts: dict[str, Any], error: str | None = None) -> int:
+        row = self._execute(
+            """
+            insert into mark_app.scan (source, requested_by, from_ts, to_ts, counts, finished_at, error)
+            values (%s, %s, %s, %s, %s, case when %s is null then now() else null end, %s)
+            returning scan_id;
+            """,
+            (source, requested_by, from_ts, to_ts, json.dumps(counts), error, error),
+            fetch_one=True,
+            commit=True,
+        )
+        return row["scan_id"]
+
+    def enqueue_work_item(self, scan_id: int | None, elr_no: str, reason: str) -> bool:
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    insert into mark_app.work_item (scan_id, elr_no, reason)
+                    values (%s, %s, %s)
+                    on conflict (elr_no) where state in ('queued', 'running', 'retry') do nothing
+                    returning item_id;
+                    """,
+                    (scan_id, elr_no, reason),
+                )
+                row = cur.fetchone()
+                conn.commit()
+                return row is not None
+
+    def get_elr_history(self, elr_no: str) -> dict[str, Any]:
+        with self._conn() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    select r.revision, r.run_id, r.created_at, r.changed, r.result_unchanged,
+                           j.processing_status, j.verification_status, j.approval_status, j.hold_reason
+                    from mark_app.elr_revision r
+                    left join mark_logic.job_result j on j.run_id = r.run_id and j.elr_no = r.elr_no
+                    where r.elr_no = %s
+                    order by r.revision asc;
+                    """,
+                    (elr_no,),
+                )
+                rev_rows = cur.fetchall()
+
+                cur.execute(
+                    "select 1 from mark_app.work_item where elr_no = %s and state in ('queued', 'running', 'retry') limit 1;",
+                    (elr_no,),
+                )
+                queued = cur.fetchone() is not None
+
+                if not rev_rows:
+                    return {"in_system": False, "latest": None, "revisions": [], "queued": queued}
+
+                latest = rev_rows[-1]
+                return {
+                    "in_system": True,
+                    "latest": {
+                        "run_id": latest["run_id"],
+                        "revision": latest["revision"],
+                        "status": latest.get("processing_status") or "DONE",
+                        "created_at": latest.get("created_at"),
+                    },
+                    "revisions": rev_rows,
+                    "queued": queued,
+                }
+
+    def add_notification(self, elr_no: str, kind: str, message: str = "", run_id: int | None = None, revision: int | None = None) -> None:
+        if not message:
+            message = f"ELR {elr_no}: {kind}"
+        self._execute(
+            """
+            insert into mark_app.notification (elr_no, run_id, revision, kind, message)
+            values (%s, %s, %s, %s, %s)
+            on conflict (elr_no, kind, revision) do nothing;
+            """,
+            (elr_no, run_id, revision, kind, message),
+            commit=True,
+        )
+
+    def list_notifications(self, user_id: int, unread_only: bool = True) -> list[dict[str, Any]]:
+        if unread_only:
+            q = "select * from mark_app.notification where read_at is null order by created_at desc limit 100;"
+            return self._execute(q, fetch_all=True) or []
+        else:
+            q = "select * from mark_app.notification order by created_at desc limit 100;"
+            return self._execute(q, fetch_all=True) or []
+
+    def mark_notification_read(self, notif_id: int, username: str) -> bool:
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "update mark_app.notification set read_by = %s, read_at = now() where notification_id = %s returning notification_id;",
+                    (username, notif_id),
+                )
+                row = cur.fetchone()
+                conn.commit()
+                return row is not None
+
+    def get_previous_revisions(self, elr_no: str) -> list[Any]:
+        from mark_engine.history.decide import RevisionKey
+        rows = self._execute(
+            "select revision, oracle_fp, docs_fp from mark_app.elr_revision where elr_no = %s order by revision asc;",
+            (elr_no,),
+            fetch_all=True,
+        )
+        if not rows:
+            return []
+        return [RevisionKey(r["revision"], r["oracle_fp"], r["docs_fp"]) for r in rows]
+
+    def requeue_unapproved_step6(self) -> int:
+        query = """
+        select distinct on (r.elr_no) r.elr_no, j.processing_status, j.approval_status
+        from mark_app.elr_revision r
+        join mark_logic.job_result j on j.run_id = r.run_id and j.elr_no = r.elr_no
+        order by r.elr_no, r.revision desc;
+        """
+        rows = self._execute(query, fetch_all=True)
+        if not rows:
+            return 0
+        count = 0
+        for r in rows:
+            if r["processing_status"] == "HOLD" or r.get("approval_status") != "APPROVED":
+                if self.enqueue_work_item(None, r["elr_no"], "retry_docs"):
+                    count += 1
+        return count
+

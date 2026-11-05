@@ -109,3 +109,21 @@ def require(action: str):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Action '{action}' forbidden for role '{role}'")
         return user
     return _require
+
+
+def require_scope(scope: str):
+    def _require_scope(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+        scopes = user.get("scopes", [])
+        if scope not in scopes:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Token missing required scope '{scope}'")
+        return user
+    return _require_scope
+
+
+def require_any_role(roles: list[str]):
+    def _require_roles(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+        role = user.get("role", "")
+        if role not in roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Role '{role}' not in allowed roles")
+        return user
+    return _require_roles

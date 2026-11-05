@@ -1,5 +1,24 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] B3 Task 5: Scan, Lookup, Oracle-Check, Recheck, and Notification API
+
+### Context & Implementation
+- Developed `services/api/mark_api/routers/scans.py` and wired into `app.py`:
+  - `POST /api/scans`: accepts `{source: "airflow" | "initial", from_ts?, to_ts?}` with Bearer API token scope `scan:write`. Enforces concurrency via Postgres advisory lock `pg_try_advisory_lock`. Automatically computes watermark minus 5 minutes for airflow scans. Runs G0 eligibility and cheap Oracle decision, enqueuing work items into `mark_app.work_item` with reason `scan`.
+  - `POST /api/scans/retry`: accepts scope `scan:write` and re-enqueues ELRs whose latest revision is HOLD or unapproved.
+  - `GET /api/elrs/lookup?elr=`: returns revision history, latest run/status, and queued state for an ELR.
+  - `POST /api/elrs/{elr}/oracle-check`: fetches fresh Oracle row, generates notification if not found (404) or not eligible (200), or enqueues with reason `user`.
+  - `POST /api/elrs/{elr}/recheck`: requires role in `(engineer, mark_eng_approver, admin)` and CSRF, enqueues with reason `recheck` to force execution.
+  - `GET /api/notifications`: retrieves user-facing notifications filtered by unread state.
+  - `POST /api/notifications/{id}/read`: records read status per user.
+- Updated `services/api/mark_api/repo.py` with transactional helpers for scan records, advisory locking, history lookups, work item enqueueing, and notification tracking.
+- Updated `services/api/mark_api/deps.py` with `require_scope` and `require_any_role` dependencies.
+
+### Verification
+- 8 unit tests in `tests/unit/test_scans_api.py` covering token scoping, watermark calculation, 409 concurrency lock, not-in-system lookup, oracle check notifications and eligibility, recheck CSRF and role gates, and per-user notification read states.
+- Full unit test suite: 455 passed.
+- E2E walkthrough: 12/12 steps passed against `localhost:8088`.
+
 ## [2026-11-06] B3 Task 4: Real Engine Pipeline Integration & Worker Loop
 
 ### Context & Implementation
