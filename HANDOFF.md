@@ -63,6 +63,18 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — B3 Task 1: Migration 0007 (Auto-Review History, Queue, Notifications, Worker Role)
+- **Implemented**: `migrations/0007_auto_review.sql`, `migrations/0007_auto_review_down.sql`, `migrations/README.md`.
+- **Schema & Grants**:
+  - `mark_app.scan`: tracks scan runs (`scan_id`, `trigger_source`, `status`, `summary`).
+  - `mark_app.elr_revision`: immutable revision audit log linking ELR to `mark_logic.run(run_id)` with fingerprints (`oracle_fp`, `docs_fp`, `version_fp`, `result_fp`), gate status, and trigger reasons.
+  - `mark_app.work_item`: persistent queue with partial unique index `(elr_no) WHERE state IN ('queued', 'running', 'retry')` preventing duplicate active jobs.
+  - `mark_app.notification`: user-facing notification queue with unique constraint `(elr_no, kind, revision)`.
+  - `mark_app.latest_job_result`: view joining `mark_app.elr_revision` with `mark_logic.job_result` to expose current state without full table scans.
+  - Role `mark_worker`: least-privilege worker role granted work item queue control, scan/revision/notification insert, and insert-only on `mark_logic.run`, `mark_logic.job_result`, `mark_logic.line_result`.
+- **Validation**: Tested UP/DOWN migration idempotency on throwaway schema `t0007_20261106` on `10.151.28.2:5432/mark_web`. UP succeeded, DOWN removed all objects cleanly, second UP verified clean re-execution, and all 16 historical runs (IDs 1–19) in `mark_logic.run` were verified untouched.
+- **[USER] Step**: Migration 0007 is ready for DBA execution on real database (`mark_app` schema). In parallel, proceeding with Task 2 (Fingerprints and Decision Table).
+
 ### 2026-11-05 — B3 plan: history, queue, worker, scan API (for the other agent)
 - **Plan:** `docs/superpowers/plans/2026-11-05-b3-history-queue-worker-api.md` (spec §9 step 3). Its tasks:
   1. Migration 0007 (tables `scan`, `elr_revision`, `work_item`, `notification`; view `latest_job_result`; role `mark_worker`). Applying it to the real DB is a **[USER]** step.

@@ -1,5 +1,31 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] B3 Task 1: Migration 0007 (Auto-Review History, Queue, Notifications, Worker Role)
+
+### Context & Objective
+- Provide schema `mark_app` tables (`scan`, `elr_revision`, `work_item`, `notification`), view (`latest_job_result`), and role `mark_worker` with least-privilege grants to support automatic background ELR scanning, historical revision tracking, and notification feeds without touching historical runs 1–19 in `mark_logic`.
+
+### Schema Design & Grants
+- **Tables**:
+  - `mark_app.scan`: tracks scan trigger sessions (`scan_id`, `trigger_source`, `status`, `summary`).
+  - `mark_app.elr_revision`: immutable revision audit log linking ELR to `mark_logic.run(run_id)` with fingerprints (`oracle_fp`, `docs_fp`, `version_fp`, `result_fp`), gate status, and trigger reasons.
+  - `mark_app.work_item`: persistent queue with partial unique index `(elr_no) WHERE state IN ('queued', 'running', 'retry')` preventing duplicate active jobs.
+  - `mark_app.notification`: user-facing notification queue with unique constraint `(elr_no, kind, revision)`.
+- **View**:
+  - `mark_app.latest_job_result`: joins `mark_app.elr_revision` with `mark_logic.job_result` to expose current state without full table scans.
+- **Role & Security**:
+  - `mark_worker`: least-privilege role granted `SELECT, INSERT, UPDATE, DELETE` on `work_item`, `SELECT, INSERT` on `scan`, `elr_revision`, `notification`, `elr_snapshot`, and insert-only on `mark_logic.run`, `mark_logic.job_result`, `mark_logic.line_result`. Strictly read-only on all other tables.
+  - Web role `mark_app`: granted `SELECT` on `latest_job_result`, `elr_revision`, `notification`, `SELECT, INSERT` on `scan`, `work_item`, and `UPDATE (read_by, read_at)` on `notification`.
+
+### Verification & Idempotency
+- **UP / DOWN Validation**: Tested on throwaway schema `t0007_20261106` on PostgreSQL `10.151.28.2:5432/mark_web`:
+  - Applied UP cleanly (all tables and views created).
+  - Applied DOWN cleanly (all objects dropped cleanly).
+  - Re-applied UP to verify clean re-execution.
+  - Dropped throwaway schema.
+  - Verified 16 historical runs (IDs 1–19) in `mark_logic.run` completely untouched.
+
+
 ## [2026-11-05] B4 Task 5: Parity Verification against Run-19 Cache & Regression Comparison
 
 ### Context & Objective
