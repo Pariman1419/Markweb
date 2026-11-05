@@ -63,6 +63,17 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — B4 Inference Service Task 3: Engine client and MARK_INFERENCE switch
+- **What changed**:
+  - In mark_engine/adapters/inference_service.py: implemented InferenceClient (Health, Page, Symbols, Rec with 2x retry on UNAVAILABLE), InferenceUnavailable, and load_service_inference (with trim-logo re-OCR).
+  - In scripts/run_blind.py: added --inference cache|service CLI switch and execute_job_with_fallback mapping InferenceUnavailable to FAILED:INFERENCE_FAILED.
+  - In .env.example: documented MARK_INFERENCE=cache, MARK_INFERENCE_ADDR=10.151.28.9:50051, MARK_INFERENCE_API_KEY=.
+  - In 	ests/unit/test_inference_service.py: added 	est_service_loader_equals_cache_loader, 	est_server_down_raises_inference_unavailable, and 	est_run_blind_service_failure_is_inference_failed.
+- **Verification**:
+  - 	ests/unit/test_inference_service.py: 18 passed.
+  - Full unit suite: 388 passed in 45.60s.
+- **Next immediate action**: Commit Task 3, wait for Jenkins green, tick Step 5, and proceed to Task 4.
+
 ### 2026-11-05 — B4 Inference Service Task 2: Shared engines and GPU→CPU fallback
 - **What changed**:
   - Created services/inference/devices.py: ree_vram_mb() via pynvml, choose_device(free_mb, min_free_mb, force), is_cuda_oom(exc), and with_cpu_fallback(run_gpu, run_cpu).

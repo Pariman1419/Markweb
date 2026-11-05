@@ -992,3 +992,23 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 - `test_inference_service.py`: 15 passed.
 - `test_reocr_batch.py` & `test_adapters_reocr.py`: 2 passed.
 - Full unit suite: 385 passed in 21.46s.
+
+## 2026-11-05 — B4 Inference Service Task 3: Engine client and MARK_INFERENCE switch
+
+### What changed
+- Created `mark_engine/adapters/inference_service.py`:
+  - `InferenceUnavailable`: Custom exception raised on connection failures, non-recoverable gRPC errors, or exhausted retries.
+  - `InferenceClient`: gRPC client for `Health`, `Page`, `Symbols`, and `Rec` endpoints, retrying `UNAVAILABLE` twice with backoff and passing `x-api-key`.
+  - `load_service_inference`: Adapter implementing the inference loading contract (`InferenceResult`), matching `images_index.csv` lookup, calling `page` and `symbols`, building re-OCR with trim-logo enabled, and passing to `build_auto_inference`.
+- Modified `scripts/run_blind.py`:
+  - Added `--inference {cache,service}` argument, defaulting to `os.getenv('MARK_INFERENCE', 'cache')`.
+  - Added `execute_job_with_fallback`: catches `InferenceUnavailable` and maps to `FAILED` with `hold_reason="INFERENCE_FAILED"`.
+- Updated `.env.example` with `MARK_INFERENCE=cache`, `MARK_INFERENCE_ADDR=10.151.28.9:50051`, `MARK_INFERENCE_API_KEY=`.
+- Extended `tests/unit/test_inference_service.py` with:
+  - `test_service_loader_equals_cache_loader`: verified identical `InferenceResult` output between cache and service loaders on matching inputs.
+  - `test_server_down_raises_inference_unavailable`: verified `InferenceUnavailable` raised when service cannot be reached.
+  - `test_run_blind_service_failure_is_inference_failed`: verified `execute_job_with_fallback` maps `InferenceUnavailable` to `FAILED` with `hold_reason="INFERENCE_FAILED"`.
+
+### Verification
+- `test_inference_service.py`: 18 passed.
+- Full unit suite: 388 passed in 45.60s.

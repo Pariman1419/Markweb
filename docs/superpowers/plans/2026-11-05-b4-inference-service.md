@@ -153,7 +153,7 @@ message HealthReply { string status = 1; string ocr_device = 2; string symbol_de
 - [x] **Step 2:** Run them. Expected: FAIL.
 - [x] **Step 3:** Implement. Move the model code; do not copy it. The batch scripts become thin `argparse` wrappers.
 - [x] **Step 4:** Run the unit suite. Expected: all pass, including the existing reocr tests.
-- [ ] **Step 5:** Commit `refactor(inference): shared OCR/YOLO engines with GPU->CPU fallback`, then push and wait for a green Jenkins build.
+- [x] **Step 5:** Commit `refactor(inference): shared OCR/YOLO engines with GPU->CPU fallback`, then push and wait for a green Jenkins build.
 
 ### Task 3: Engine client and the `MARK_INFERENCE` switch
 
@@ -179,9 +179,9 @@ message HealthReply { string status = 1; string ocr_device = 2; string symbol_de
   - `test_service_loader_equals_cache_loader`: the same fixture through `load_cached_inference` and `load_service_inference` gives an equal `InferenceResult`.
   - `test_server_down_raises_inference_unavailable`
   - `test_run_blind_service_failure_is_inference_failed`
-- [ ] **Step 2:** Run them. Expected: FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run the unit suite. Expected: all pass.
+- [x] **Step 2:** Run them. Expected: FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run the unit suite. Expected: all pass.
 - [ ] **Step 5:** Commit `feat(engine): inference service client and MARK_INFERENCE switch`, then push and wait for a green Jenkins build.
 
 ### Task 4: Image and deploy on the A100

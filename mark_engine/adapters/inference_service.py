@@ -1,0 +1,147 @@
+"""gRPC inference service client and service-backed inference loader."""
+import io
+from pathlib import Path
+import time
+from typing import Any
+import grpc
+from PIL import Image
+
+from services.inference import mark_inference_pb2 as pb2
+from services.inference import mark_inference_pb2_grpc as pb2_grpc
+from mark_engine.abs.auto_inference import build_auto_inference
+from mark_engine.abs.layout import layout_lines
+from mark_engine.abs.reocr import legend_candidates, trim_logo
+from mark_engine.adapters.snapshot import _load_csv_cached, REOCR_MIN_SCORE
+from mark_engine.domain.models import InferenceResult
+
+
+class InferenceUnavailable(Exception):
+    """Raised when the inference service is unreachable or encounters an error."""
+    pass
+
+
+class InferenceClient:
+    """Client for communicating with the mark-inference gRPC service."""
+
+    def __init__(self, addr: str, api_key: str, timeout_s: float = 60.0, backoff_s: float = 2.0):
+        self.addr = addr
+        self.api_key = api_key
+        self.timeout_s = timeout_s
+        self.backoff_s = backoff_s
+        self._channel = grpc.insecure_channel(addr)
+        self._stub = pb2_grpc.MarkInferenceStub(self._channel)
+
+    def close(self):
+        self._channel.close()
+
+    def _metadata(self):
+        return (("x-api-key", self.api_key),)
+
+    def _call(self, fn: Any) -> Any:
+        attempts = 0
+        while True:
+            try:
+                return fn()
+            except grpc.RpcError as rpc_err:
+                if rpc_err.code() == grpc.StatusCode.UNAVAILABLE and attempts < 2:
+                    attempts += 1
+                    time.sleep(self.backoff_s)
+                    continue
+                raise InferenceUnavailable(f"RPC error {rpc_err.code()}: {rpc_err.details()}") from rpc_err
+            except Exception as exc:
+                raise InferenceUnavailable(f"Inference error: {exc}") from exc
+
+    def health(self) -> dict:
+        reply = self._call(lambda: self._stub.Health(pb2.HealthRequest(), timeout=self.timeout_s, metadata=self._metadata()))
+        return {
+            "status": reply.status,
+            "ocr_device": reply.ocr_device,
+            "symbol_device": reply.symbol_device,
+            "free_vram_mb": reply.free_vram_mb,
+            "model": {
+                "service_version": reply.model.service_version,
+                "device": reply.model.device,
+                "ocr_rec_sha256": reply.model.ocr_rec_sha256,
+                "detector_sha256": reply.model.detector_sha256,
+                "symbol_sha256": reply.model.symbol_sha256,
+            },
+        }
+
+    def page(self, name: str, png: bytes) -> list[list]:
+        req = pb2.ImageRequest(name=name, png=png)
+        reply = self._call(lambda: self._stub.Page(req, timeout=self.timeout_s, metadata=self._metadata()))
+        return [
+            [item.x0, item.y0, item.x1, item.y1, item.text, item.score]
+            for item in reply.items
+        ]
+
+    def symbols(self, name: str, png: bytes) -> list[list]:
+        req = pb2.ImageRequest(name=name, png=png)
+        reply = self._call(lambda: self._stub.Symbols(req, timeout=self.timeout_s, metadata=self._metadata()))
+        return [
+            [sym.cls, sym.conf, sym.x0, sym.y0, sym.x1, sym.y1]
+            for sym in reply.symbols
+        ]
+
+    def rec(self, crops: list[bytes]) -> list[tuple[str, float]]:
+        req = pb2.RecRequest(crops=crops)
+        reply = self._call(lambda: self._stub.Rec(req, timeout=self.timeout_s, metadata=self._metadata()))
+        return [(res.text, res.score) for res in reply.results]
+
+
+def load_service_inference(
+    client: InferenceClient,
+    images_dir: Path,
+    index_csv: Path,
+    elr_no: str,
+    abs_stem: str,
+) -> InferenceResult:
+    """Load inference results via live gRPC service, matching cache format and re-OCR behavior."""
+    matching = [
+        row for row in _load_csv_cached(str(index_csv))
+        if row.get("elr", "").upper() == elr_no.upper()
+        and row.get("abs_file", "").upper() == abs_stem.upper()
+    ]
+    if len(matching) > 1:
+        raise ValueError(f"{elr_no}: duplicate inference index entries")
+    if not matching:
+        raise ValueError(f"{elr_no}: no inference index for resolved ABS {abs_stem}")
+
+    name = matching[0]["image"]
+    stem = Path(name).stem
+    image_path = images_dir / name
+    if not image_path.is_file():
+        raise FileNotFoundError(f"Inference image missing: {image_path}")
+
+    png_bytes = image_path.read_bytes()
+    page_items = client.page(name, png_bytes)
+    symbol_items = client.symbols(name, png_bytes)
+
+    # Re-OCR with trim-logo on
+    with Image.open(io.BytesIO(png_bytes)) as source:
+        image = source.convert("RGB")
+
+    candidates = legend_candidates(name, page_items)
+    for side, number, text, _, box in layout_lines(page_items):
+        key = f"{stem}|{side.value}|{number}"
+        if box and not any(row["key"] == key for row in candidates):
+            cropped = trim_logo(image.crop(tuple(int(x) for x in box)))
+            if cropped:
+                candidates.append({"key": key, "old": text.strip(), "image": cropped, "method": "trim_logo"})
+
+    reocr_map = {}
+    if candidates:
+        crops = []
+        for candidate in candidates:
+            crop = candidate.get("image") or image.crop(candidate["box"])
+            buf = io.BytesIO()
+            crop.convert("RGB").save(buf, "PNG")
+            crops.append(buf.getvalue())
+        rec_results = client.rec(crops)
+        for candidate, (new_text, score) in zip(candidates, rec_results):
+            old = candidate["old"].strip()
+            new = (new_text or "").strip()
+            if new and new != old and score >= REOCR_MIN_SCORE:
+                reocr_map[candidate["key"]] = (old, new)
+
+    return build_auto_inference(elr_no, stem, page_items, symbol_items, reocr_map)

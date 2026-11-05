@@ -11,9 +11,18 @@ from pathlib import Path
 
 from mark_engine.adapters.env import load_env
 from mark_engine.adapters.inference_cache import load_cached_inference, validate_cached_document
+from mark_engine.adapters.inference_service import InferenceClient, InferenceUnavailable, load_service_inference
 from mark_engine.adapters.snapshot import load_elr_snapshot
 from mark_engine.documents.locate import build_folder_index
-from mark_engine.domain.models import OracleMark, ProcessingStatus
+from mark_engine.domain.models import (
+    ApprovalStatus,
+    JobResult,
+    LineComparison,
+    LineStatus,
+    OracleMark,
+    ProcessingStatus,
+    VerificationStatus,
+)
 from mark_engine.freeze import check_freeze
 from mark_engine.generate.mark_layout import parse_layout
 from mark_engine.pipeline import process_elr
@@ -94,6 +103,33 @@ def preflight(root: Path, months: list[str], cache: Path) -> None:
             raise ValueError(f'Inference output checksum mismatch: {name}')
 
 
+def execute_job_with_fallback(meta, oracle, loader, root=None, months=None, work_dir=None, rules=None, **kwargs):
+    try:
+        return process_elr(meta, oracle, root, months, work_dir, rules, loader, **kwargs)
+    except InferenceUnavailable:
+        return JobResult(
+            elr_no=meta.elr_no,
+            processing_status=ProcessingStatus.FAILED,
+            hold_reason="INFERENCE_FAILED",
+            verification_status=VerificationStatus.NOT_VERIFIABLE,
+            approval_status=ApprovalStatus.NOT_REVIEWED,
+            resolution=None,
+            expected=None,
+            comparisons=tuple(
+                LineComparison(
+                    side=s,
+                    line_no=n,
+                    expected=None,
+                    oracle=text,
+                    status=LineStatus.NOT_MEASURABLE,
+                    compare_rules=(),
+                    detail="INFERENCE_FAILED",
+                )
+                for s, n, text in oracle.lines
+            ),
+        )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--oracle', type=Path, required=True)
@@ -104,6 +140,7 @@ def main():
     parser.add_argument('--freeze', type=Path, default=Path('mark_engine/rules/data/FREEZE-R1.json'))
     parser.add_argument('--allow-unfrozen', action='store_true')
     parser.add_argument('--workers', type=int, default=8)
+    parser.add_argument('--inference', choices=['cache', 'service'], default=os.getenv('MARK_INFERENCE', 'cache'))
     args = parser.parse_args()
     load_env()
     repo = Path(__file__).resolve().parents[1]
@@ -133,15 +170,23 @@ def main():
                for key, rows in data.items()}
     rules = RuleSet.load()
     index = build_folder_index(root, args.months)
-    loader = partial(load_cached_inference, args.cache)
+    if args.inference == 'service':
+        addr = os.getenv('MARK_INFERENCE_ADDR', '10.151.28.9:50051')
+        api_key = os.getenv('MARK_INFERENCE_API_KEY', '')
+        if not api_key:
+            raise ValueError('MARK_INFERENCE_API_KEY environment variable is required for service inference')
+        client = InferenceClient(addr=addr, api_key=api_key)
+        loader = partial(load_service_inference, client, args.cache / 'images', args.cache / 'images_index.csv')
+    else:
+        loader = partial(load_cached_inference, args.cache)
     args.out.mkdir(parents=True, exist_ok=True)
 
     def process(item):
         meta, oracle = item
         kw = dict(layouts=layouts, folder_index=index,
                   inference_validator=partial(validate_cached_document, args.cache))
-        job = process_elr(meta, oracle, root, args.months, args.out / 'work', rules, loader, **kw)
-        blank = process_elr(meta, OracleMark(meta.elr_no), root, args.months, args.out / 'work', rules, loader, **kw)
+        job = execute_job_with_fallback(meta, oracle, loader, root=root, months=args.months, work_dir=args.out / 'work', rules=rules, **kw)
+        blank = execute_job_with_fallback(meta, OracleMark(meta.elr_no), loader, root=root, months=args.months, work_dir=args.out / 'work', rules=rules, **kw)
         return job, blank
 
     with ThreadPoolExecutor(max_workers=args.workers) as executor:

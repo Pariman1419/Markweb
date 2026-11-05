@@ -6,6 +6,13 @@ from services.inference.server import build_server
 from services.inference import mark_inference_pb2 as pb2
 from services.inference import mark_inference_pb2_grpc as pb2_grpc
 from services.inference.devices import choose_device, with_cpu_fallback
+from mark_engine.adapters.inference_service import (
+    InferenceClient,
+    InferenceUnavailable,
+    load_service_inference,
+)
+from mark_engine.adapters.inference_cache import load_cached_inference
+from mark_engine.domain.models import ProcessingStatus
 
 TINY_PNG = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\n\x00\x00\x00\n\x08\x02\x00\x00\x00\x02PX\xea"
@@ -214,4 +221,109 @@ def test_server_reports_cpu_after_fallback():
     finally:
         channel.close()
         server.stop(grace=None)
+
+
+def test_service_loader_equals_cache_loader(tmp_path):
+    import json
+    from mark_engine.domain.models import Side
+
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    images_dir = cache_dir / "images"
+    images_dir.mkdir()
+    (images_dir / "test_img.png").write_bytes(TINY_PNG)
+
+    # images_index.csv
+    (cache_dir / "images_index.csv").write_text(
+        "elr,abs_file,image,source_sha256,sha256\n"
+        "ADI2607001,ABS000001,test_img.png,dummy_src,dummy_sha\n",
+        encoding="utf-8",
+    )
+    # det_rec.json
+    det_rec = {
+        "test_img.png": [
+            [10.0, 20.0, 100.0, 40.0, "LINE 1: ABC", 0.9950],
+            [10.0, 50.0, 100.0, 70.0, "LINE 2: XYZ", 0.9850],
+        ]
+    }
+    (cache_dir / "det_rec.json").write_text(json.dumps(det_rec), encoding="utf-8")
+    # detections.json
+    detections = {
+        "test_img": [
+            ["ADI_LOGO", 0.950, 5.0, 5.0, 15.0, 15.0],
+        ]
+    }
+    (cache_dir / "detections.json").write_text(json.dumps(detections), encoding="utf-8")
+    # reocr.csv
+    (cache_dir / "reocr.csv").write_text(
+        "key,old,new,score,method\n"
+        "test_img|TOP|1,ABC,ABC_NEW,0.9900,legend_value\n",
+        encoding="utf-8",
+    )
+
+    cache_res = load_cached_inference(cache_dir, "ADI2607001", "ABS000001")
+
+    class ReplayOcrEngine:
+        def __init__(self):
+            self.device = "gpu"
+
+        def page(self, png: bytes):
+            return det_rec["test_img.png"]
+
+        def rec(self, crops: list[bytes]):
+            return [("ABC_NEW", 0.9900)]
+
+    class ReplaySymbolEngine:
+        def __init__(self):
+            self.device = "gpu"
+
+        def symbols(self, png: bytes):
+            return detections["test_img"]
+
+    port = find_free_port()
+    api_key = "test-replay-key"
+    server = build_server(ReplayOcrEngine(), ReplaySymbolEngine(), api_key=api_key, port=port)
+    server.start()
+    try:
+        client = InferenceClient(addr=f"127.0.0.1:{port}", api_key=api_key)
+        service_res = load_service_inference(
+            client=client,
+            images_dir=images_dir,
+            index_csv=cache_dir / "images_index.csv",
+            elr_no="ADI2607001",
+            abs_stem="ABS000001",
+        )
+        assert service_res == cache_res
+    finally:
+        server.stop(grace=None)
+
+
+def test_server_down_raises_inference_unavailable():
+    # Non-listening port with short timeout and 0 retries or fast backoff
+    client = InferenceClient(addr="127.0.0.1:59999", api_key="dummy", timeout_s=0.2, backoff_s=0.01)
+    with pytest.raises(InferenceUnavailable):
+        client.health()
+
+
+def test_run_blind_service_failure_is_inference_failed(monkeypatch):
+    from scripts.run_blind import execute_job_with_fallback
+    from mark_engine.domain.models import ElrMeta, OracleMark
+
+    meta = ElrMeta(elr_no="ADI2607999", top_type_code="E", top_layout_code="A", top_mark_id=1)
+    oracle = OracleMark(elr_no="ADI2607999")
+
+    def mock_process_elr(meta, oracle, root, months, work_dir, rules, loader, **kwargs):
+        # Trigger the failing loader as pipeline would during inference loading stage
+        loader(root, meta.elr_no, "dummy_abs")
+
+    def failing_loader(root, elr_no, abs_stem):
+        raise InferenceUnavailable("Connection refused")
+
+    monkeypatch.setattr("scripts.run_blind.process_elr", mock_process_elr)
+    job = execute_job_with_fallback(meta, oracle, failing_loader)
+    assert job.processing_status == ProcessingStatus.FAILED
+    assert job.hold_reason == "INFERENCE_FAILED"
+    assert job.verification_status.name == "NOT_VERIFIABLE"
+
+
 
