@@ -63,6 +63,17 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — B4 Inference Service Task 1: Contract, server skeleton, API key
+- **What changed**:
+  - In `services/inference/proto/mark_inference.proto`: defined package `mark.inference.v1` with RPCs `Health`, `Page`, `Symbols`, `Rec`.
+  - Created `scripts/gen_inference_proto.py`: compiles proto to `services/inference/mark_inference_pb2.py` and `_pb2_grpc.py` with cross-package import compatibility.
+  - In `services/inference/server.py`: implemented `ApiKeyInterceptor` with `hmac.compare_digest` guarding `x-api-key`, PNG validator with `PIL.Image.verify`, `MarkInferenceServicer`, and `build_server()`.
+  - In `pyproject.toml`: added `grpcio==1.85.1`, `grpcio-tools==1.85.1`, `protobuf==7.36.0` to `[project.optional-dependencies] api`.
+  - Created `tests/unit/test_inference_service.py` with in-process server verifying Health, UNAUTHENTICATED on missing/wrong API key, ordered Page items, and INVALID_ARGUMENT survival.
+- **Verification**:
+  - `tests/unit/test_inference_service.py` passed (5/5).
+  - Full unit test suite: 375 passed.
+
 ### 2026-11-05 — B4 plan updated with user decisions
 - **`ic-marking-ocr` is retired.** It gets removed after `mark-inference` is healthy (Task 4 Step 5).
 - **Prune is allowed:** `docker image prune -a` and `docker builder prune`. Volumes and networks are never touched.

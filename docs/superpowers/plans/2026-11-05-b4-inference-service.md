@@ -108,14 +108,14 @@ message HealthReply { string status = 1; string ocr_device = 2; string symbol_de
 - An image that does not decode as a PNG → `INVALID_ARGUMENT`.
 - `main()` reads `MARK_INF_API_KEY`, `MARK_INF_PORT` (default 50051), `MARK_INF_MIN_FREE_MB` and `MARK_INF_FORCE_DEVICE`.
 
-- [ ] **Step 1: Tests.** Use an in-process server on a free port, with fake engines that return fixed items.
+- [x] **Step 1: Tests.** Use an in-process server on a free port, with fake engines that return fixed items.
   - `test_health_reports_devices_and_model`
   - `test_missing_or_wrong_api_key_is_unauthenticated` (parametrize: missing / wrong)
   - `test_page_round_trips_items_in_order`
   - `test_bad_png_is_invalid_argument_and_server_survives`: a bad call, then a good call that succeeds.
-- [ ] **Step 2:** Run `python -m pytest tests/unit/test_inference_service.py -q`. Expected: FAIL (no module).
-- [ ] **Step 3:** Write the proto, the generator script (`python -m grpc_tools.protoc ...` into `services/inference/`), and `server.py`.
-- [ ] **Step 4:** Run `python -m pytest tests/unit -q -p no:cacheprovider`. Expected: all pass.
+- [x] **Step 2:** Run `python -m pytest tests/unit/test_inference_service.py -q`. Expected: FAIL (no module).
+- [x] **Step 3:** Write the proto, the generator script (`python -m grpc_tools.protoc ...` into `services/inference/`), and `server.py`.
+- [x] **Step 4:** Run `python -m pytest tests/unit -q -p no:cacheprovider`. Expected: all pass.
 - [ ] **Step 5:** Commit `feat(inference): gRPC contract and server skeleton with API key`, then push and wait for a green Jenkins build.
 
 ### Task 2: Shared engines and the GPU→CPU fallback
@@ -175,7 +175,7 @@ message HealthReply { string status = 1; string ocr_device = 2; string symbol_de
   - Finally returns `build_auto_inference(...)`.
 - **Mapping in `run_blind.py`:** `InferenceUnavailable` → job `FAILED` with `hold_reason "INFERENCE_FAILED"` (reuse the existing failure path; there is no new status). There is never a silent fallback to the cache.
 
-- [ ] **Step 1: Tests.** Use an in-process server with fake engines that replay a small cache fixture.
+- [x] **Step 1: Tests.** Use an in-process server with fake engines that replay a small cache fixture.
   - `test_service_loader_equals_cache_loader`: the same fixture through `load_cached_inference` and `load_service_inference` gives an equal `InferenceResult`.
   - `test_server_down_raises_inference_unavailable`
   - `test_run_blind_service_failure_is_inference_failed`

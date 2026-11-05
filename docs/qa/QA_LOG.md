@@ -947,3 +947,24 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 - **Host:** 16 CPU, RAM ~21 GB available, disk 89% used (~22 GB free), Docker 27.2, host Python 3.8.
 - **Existing:** `ic-marking-ocr:exp09` (:8095) is healthy. Port 50051 is free.
 - **No changes made on the server.** The only change was the SSH key, which the user installed with their own script.
+
+
+## 2026-11-05 — B4 Inference Service Task 1: Contract, server skeleton, API key
+
+### What changed
+- Created `services/inference/proto/mark_inference.proto` declaring `service MarkInference` with RPCs:
+  - `Health(HealthRequest) -> HealthReply`
+  - `Page(ImageRequest) -> PageReply` (det + rec on PNG)
+  - `Symbols(ImageRequest) -> SymbolsReply` (YOLO on PNG)
+  - `Rec(RecRequest) -> RecReply` (recognition on PNG crops)
+- Created `scripts/gen_inference_proto.py` for automated compilation into `mark_inference_pb2.py` and `_pb2_grpc.py`.
+- Created `services/inference/server.py`:
+  - `ApiKeyInterceptor`: validates metadata header `x-api-key` using `hmac.compare_digest`, rejecting unauthorized requests with `UNAUTHENTICATED`.
+  - PNG image validator: uses `PIL.Image.verify` to abort invalid/corrupted payloads with `INVALID_ARGUMENT`.
+  - `MarkInferenceServicer` and `build_server` with configurable max message size (32MB).
+- Updated `pyproject.toml` with `grpcio==1.85.1`, `grpcio-tools==1.85.1`, and `protobuf==7.36.0` in `[project.optional-dependencies] api`.
+- Created unit tests `tests/unit/test_inference_service.py` with in-process server testing Health, auth rejection, ordered Page results, and server survival on malformed PNGs.
+
+### Verification
+- `test_inference_service.py`: 5 passed.
+- Full unit test suite: 375 passed.

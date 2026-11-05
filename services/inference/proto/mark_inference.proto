@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package mark.inference.v1;
+
+service MarkInference {
+  rpc Health(HealthRequest) returns (HealthReply);
+  rpc Page(ImageRequest) returns (PageReply);       // det + rec on one PNG
+  rpc Symbols(ImageRequest) returns (SymbolsReply); // YOLO on one PNG
+  rpc Rec(RecRequest) returns (RecReply);           // rec on PNG crops, in order
+}
+
+message ImageRequest {
+  string name = 1;
+  bytes png = 2;
+}
+
+message TextItem {
+  float x0 = 1;
+  float y0 = 2;
+  float x1 = 3;
+  float y1 = 4;
+  string text = 5;
+  float score = 6;
+}
+
+message Symbol {
+  string cls = 1;
+  float conf = 2;
+  float x0 = 3;
+  float y0 = 4;
+  float x1 = 5;
+  float y1 = 6;
+}
+
+message ModelInfo {
+  string service_version = 1;
+  string device = 2;
+  string ocr_rec_sha256 = 3;
+  string detector_sha256 = 4;
+  string symbol_sha256 = 5;
+}
+
+message PageReply {
+  repeated TextItem items = 1;
+  ModelInfo model = 2;
+}
+
+message SymbolsReply {
+  repeated Symbol symbols = 1;
+  ModelInfo model = 2;
+}
+
+message RecRequest {
+  repeated bytes crops = 1;
+}
+
+message RecResult {
+  string text = 1;
+  float score = 2;
+}
+
+message RecReply {
+  repeated RecResult results = 1;
+  ModelInfo model = 2;
+}
+
+message HealthRequest {}
+
+message HealthReply {
+  string status = 1;
+  string ocr_device = 2;
+  string symbol_device = 3;
+  int32 free_vram_mb = 4;
+  ModelInfo model = 5;
+}

@@ -24,6 +24,9 @@ api = [
     "uvicorn[standard]>=0.28.0",
     "psycopg2-binary>=2.9.9",
     "argon2-cffi>=23.1.0",
+    "grpcio==1.85.1",
+    "grpcio-tools==1.85.1",
+    "protobuf==7.36.0",
 ]
 
 [tool.setuptools.packages.find]
