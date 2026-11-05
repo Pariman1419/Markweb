@@ -13,7 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from mark_api.auth import csrf_ok
 from mark_api.deps import get_cookie_name, get_repo, require
-from mark_api.logging import log_event
+from mark_api.logging import current_request_id, log_event
 from mark_api.repo import Repo
 from mark_api.routers import auth, mark, validation, workflow
 
@@ -46,10 +46,18 @@ class InProcessMetrics:
 metrics = InProcessMetrics()
 
 
+def _same_origin(origin: str, request: Request) -> bool:
+    """Origin's host:port equals the Host the browser addressed (NGINX and the Vite proxy keep it)."""
+    from urllib.parse import urlsplit
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    return urlsplit(origin).netloc.lower() == host.lower()
+
+
 class RequestContextMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         req_id = request.headers.get("X-Request-ID") or f"req_{secrets.token_hex(8)}"
         request.state.request_id = req_id
+        current_request_id.set(req_id)
 
         # 1. CORS check
         origin = request.headers.get("origin")
@@ -71,6 +79,10 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             path = request.url.path
             auth_header = request.headers.get("authorization", "")
             # Login and Bearer token requests are exempt
+            # spec §11: an unsafe request from a browser must come from this site's own origin.
+            if origin and not _same_origin(origin, request) and origin not in allowed_origins:
+                return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content={"detail": "Origin not allowed"},
+                                    headers={"X-Request-ID": req_id})
             if not path.endswith("/auth/login") and not auth_header.startswith("Bearer "):
                 csrf_header = request.headers.get("x-csrf-token")
                 csrf_cookie_name = get_cookie_name("mark_csrf")
@@ -83,7 +95,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 sess_cookie_name = get_cookie_name("mark_session")
                 sess_token = request.cookies.get(sess_cookie_name) or request.cookies.get("mark_session")
                 if sess_token:
-                    repo = get_repo()
+                    repo = request.app.dependency_overrides.get(get_repo, get_repo)()
                     token_hash = hashlib.sha256(sess_token.encode("utf-8")).hexdigest()
                     res = repo.session_user(token_hash)
                     if res:
@@ -105,8 +117,15 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             response.headers["Access-Control-Allow-Credentials"] = "true"
 
         # Record metrics and log
-        route = request.url.path
+        # spec §15: metrics and logs key on the route template (/api/elrs/{elr}), not the raw path.
+        matched = request.scope.get("route")
+        template = getattr(matched, "path", None)
+        route = (template if template.startswith("/api") else "/api" + template) if template else request.url.path
         metrics.record_request(response.status_code, duration_ms, route)
+        user = getattr(request.state, "user", None) or {}
+        log_event("http.request", method=request.method, route=route, status=response.status_code,
+                  duration_ms=round(duration_ms, 1), client_ip=request.headers.get("x-real-ip") or (request.client.host if request.client else None),
+                  user_id=user.get("user_id"), role=user.get("role"))
 
         return response
 

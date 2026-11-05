@@ -613,3 +613,26 @@
 
 ### Verification
 - Configuration validation: docker compose and NGINX configurations structured per specifications §12, §16, and §18. Ready for deployment on host 10.153.90.17.
+
+## 2026-11-05 — Phase 2 trial review fix-ups
+
+### What changed
+- Same-origin check for unsafe methods.
+- No cookie fallback for Bearer requests.
+- Corrected the secure cookie prefixes.
+- Route-template metrics.
+- `http.request` logging with `request_id`; `username` is no longer logged.
+- NGINX JSON access log and `$http_host`.
+- `.dockerignore` files, root README and configurable web port.
+
+### Tests (6 new, 343 total)
+- `test_cross_origin_post_rejected`
+- `test_invalid_bearer_does_not_fall_back_to_cookie`
+- `test_secure_cookie_names`
+- `test_metrics_key_on_route_template`
+- `test_http_request_logged_with_request_id_and_template`
+- `test_failed_login_log_has_no_username`
+
+### Manual (localhost:8088, docker compose)
+- `/api/ready` 200; security headers present; SPA fallback 200.
+- 7th rapid login returns 429, logged as JSON with `limit_req: REJECTED`.

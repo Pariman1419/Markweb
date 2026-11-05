@@ -63,6 +63,43 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Phase 2 trial: review fix-ups and localhost integration
+- **Reviewed Tasks 1–6 (another agent).** All met the plan, except for the items fixed below.
+- **Security:**
+  - An unsafe request whose `Origin` is not this site's own host (or in `MARK_CORS_ORIGINS`) now gets 403 (spec §11).
+  - A Bearer request with an invalid token now gets 401 instead of falling back to the session cookie (Bearer requests skip CSRF).
+  - Cookie names with `MARK_COOKIE_SECURE=true` are now `__Secure-mark_session` (Path=/api) and `__Host-mark_csrf`. The earlier `__Host-mark_session` would have been rejected by browsers because `__Host-` requires Path=/.
+- **Middleware:**
+  - The CSRF/session check now uses the dependency override, so tests no longer reach the real DB.
+  - Metrics and logs are keyed on the route template (`/api/elrs/{elr}`).
+- **Logging (spec §15):**
+  - The API now writes `http.request` for every request.
+  - Events of one request share a `request_id` taken from NGINX `X-Request-ID`.
+  - `client_ip` comes from `X-Real-IP`.
+  - `username` is no longer logged.
+- **NGINX:**
+  - Added `log_format json` with `access_log /dev/stdout` (the Task 6 entry said JSON logging existed, but it did not).
+  - `proxy_set_header Host $http_host`, which keeps the port so the Origin check works on non-80 ports.
+- **Build:**
+  - Added root and `web/` `.dockerignore`, so `.env`, `artifacts/`, `data/`, `models/` and `node_modules` stay out of build contexts.
+  - Added the root `README.md`; `pyproject.toml` references it, and the API image did not build without it.
+  - Host port is now `MARK_WEB_PORT` (default 80).
+  - Vite proxy uses `changeOrigin: false`.
+  - Removed the template `hero.png`; the page title is now "Mark Review".
+- **Localhost check:** `docker compose up` with `MARK_WEB_PORT=8088` (IIS holds 80 and Jenkins holds 8080 on this workstation).
+  - `/api/ready` returned 200 (DB as role `mark_app`, files root readable).
+  - `/api/*` has `Cache-Control: no-store`, CSP and `X-Frame-Options`.
+  - The SPA fallback returned 200.
+  - Of 8 rapid logins, the 7th and 8th got 429. The NGINX JSON log shows `limit_req: REJECTED`, and the API log shows `http.request` with the same request_id scheme.
+- **Tests:** 343 passed (6 new). `npm run build` passes, with an initial JS of 88 KB gzip.
+- **Notes for the record:**
+  - Run 19's `git_commit` is `829867e`: the agent loaded it before committing the 0.3.0 bump. Its output is byte-identical to `run-overflowfix`.
+  - The agent wrote to the shared DB during Tasks 1–2: run 19, migration 0005, 1 app user, and 402 snapshots.
+  - `mark_app` currently uses the same password as the admin DB user. Set a separate one before using .17.
+- **Not yet done:**
+  - A walkthrough of login → review → approve with the user's own account.
+  - Deploy to 10.153.90.17 (the user will clone and build it there).
+
 ### 2026-11-05 — Task 6: Deploy on 10.153.90.17 (spec T5)
 - Created `services/api/Dockerfile` (Python 3.12-slim, uvicorn with 1 worker).
 - Created `web/Dockerfile` (multi-stage Node 24 alpine build and NGINX alpine runtime).

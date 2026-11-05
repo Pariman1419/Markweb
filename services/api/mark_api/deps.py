@@ -23,10 +23,12 @@ def get_cookie_name(base: str) -> str:
     secure = os.getenv("MARK_COOKIE_SECURE", "false").lower() in ("true", "1")
     if not secure:
         return base
+    # spec §17: __Host- requires Path=/, so only the CSRF cookie (Path=/) can carry it;
+    # the session cookie keeps Path=/api and uses __Secure-.
     if base == "mark_session":
-        return "__Host-mark_session"
+        return "__Secure-mark_session"
     if base == "mark_csrf":
-        return "__Secure-mark_csrf"
+        return "__Host-mark_csrf"
     return base
 
 
@@ -51,6 +53,8 @@ def current_user(request: Request, authorization: str | None = Header(None), rep
             }
             request.state.user = user_info
             return user_info
+        # A Bearer request never falls back to the session cookie (it skips CSRF in the middleware).
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     # 2. Check Session Cookie
     sess_cookie_name = get_cookie_name("mark_session")

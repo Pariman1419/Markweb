@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 import hashlib
 import os
@@ -599,3 +600,53 @@ def test_no_cors_by_default(client):
         assert "access-control-allow-origin" not in resp_evil.headers
     finally:
         del os.environ["MARK_CORS_ORIGINS"]
+
+
+# --- Fix-ups after the Task 1-6 review (2026-11-05) ---
+
+def test_cross_origin_post_rejected(client):
+    csrf = _login(client)
+    body = {"run_id": 18, "elr_no": "ADI2607001", "line_no": 1, "reason": "OTHER", "note": "x",
+            "corrected_mark": "y", "is_draft": True}
+    resp = client.post("/api/reviews", json=body,
+                       headers={"X-CSRF-Token": csrf, "Origin": "http://evil.example"})
+    assert resp.status_code == 403 and resp.json()["detail"] == "Origin not allowed"
+    same = client.post("/api/reviews", json=body,
+                       headers={"X-CSRF-Token": csrf, "Origin": "http://testserver"})
+    assert same.status_code != 403
+
+
+def test_invalid_bearer_does_not_fall_back_to_cookie(client):
+    _login(client)
+    resp = client.get("/api/runs", headers={"Authorization": "Bearer not-a-real-token"})
+    assert resp.status_code == 401
+
+
+def test_secure_cookie_names(monkeypatch):
+    from mark_api.deps import get_cookie_name
+    monkeypatch.setenv("MARK_COOKIE_SECURE", "true")
+    assert get_cookie_name("mark_session") == "__Secure-mark_session"   # Path=/api cannot use __Host-
+    assert get_cookie_name("mark_csrf") == "__Host-mark_csrf"
+
+
+def test_metrics_key_on_route_template(client):
+    from mark_api.app import metrics
+    _login(client)
+    client.get("/api/elrs/ADI2607001", params={"run": 18})
+    assert "/api/elrs/{elr}" in metrics.durations
+    assert not any(k.startswith("/api/elrs/ADI") for k in metrics.durations)
+
+
+def test_http_request_logged_with_request_id_and_template(client, capsys):
+    _login(client)
+    capsys.readouterr()
+    client.get("/api/elrs/ADI2607001", params={"run": 18}, headers={"X-Request-ID": "req_fixed_1"})
+    events = [json.loads(l) for l in capsys.readouterr().out.splitlines() if l.startswith("{")]
+    http = [e for e in events if e["event"] == "http.request"]
+    assert http and http[-1]["route"] == "/api/elrs/{elr}" and http[-1]["request_id"] == "req_fixed_1"
+
+
+def test_failed_login_log_has_no_username(client, capsys):
+    client.post("/api/auth/login", json={"username": "someone_secret", "password": "wrong-password-1"})
+    out = capsys.readouterr().out
+    assert "auth.login_failed" in out and "someone_secret" not in out

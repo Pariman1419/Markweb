@@ -31,6 +31,7 @@ pg_isready -h 10.151.28.2 -p 5432
 # 2. Configure .env with MARK_PG_* and MARK_FILES_ROOT
 # 3. Mount files storage and start containers:
 docker compose up -d --build
+# on a workstation where port 80 is taken: MARK_WEB_PORT=8088 docker compose up -d --build
 ```
 
 ### Verification Endpoints:

@@ -13,7 +13,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
-        changeOrigin: true,
+        // keep the browser's Host so the API's same-origin check (spec §11) matches Origin
+        changeOrigin: false,
       },
     },
   },

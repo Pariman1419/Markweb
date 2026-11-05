@@ -1,0 +1,12 @@
+# Build context for services/api: keep secrets, customer data and large artifacts out.
+.env
+.env.*
+!.env.example
+artifacts/
+data/
+models/
+web/
+.git/
+**/__pycache__/
+**/*.pyc
+.superpowers/
