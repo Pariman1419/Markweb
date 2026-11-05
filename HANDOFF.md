@@ -86,6 +86,11 @@
     - `audit_log`, `line_review` and `approval` are append-only.
   - **Logging:** JSON logs with `request_id` from NGINX; `/api/health`, `/api/ready`, `/api/metrics`; alert thresholds.
 - Added spec §16 on CORS: same-origin only, no CORS middleware unless the `MARK_CORS_ORIGINS` allowlist is set, plus NGINX security headers (CSP, nosniff, frame deny, `no-store` on `/api`).
+- Added spec §17 on cookies:
+  - Two cookies only: `mark_session` (HttpOnly, Path=/api) and `mark_csrf` (Path=/). Both are SameSite=Strict, host-only, 8 h.
+  - Both are rotated on login and cleared with `Max-Age=0`.
+  - All of a user's sessions are deleted on lock or reset.
+  - `Secure` and the `__Host-`/`__Secure-` prefixes switch on via `MARK_COOKIE_SECURE` once HTTPS is in place.
 - Facts checked against the DB on 2026-11-05: the `line_result` PK is `(run_id, elr_no, abs_no, side, line_no)`, and line status is in `final_status`.
 
 ### 2026-11-05 — Engine fixes from the run-17 overflow review (post-holdout, not frozen)

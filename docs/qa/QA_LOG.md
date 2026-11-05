@@ -536,3 +536,4 @@
   - 403 without CSRF, metrics scope, and the request-id echo.
 - The NGINX rate limit is checked by hand at deploy: the sixth rapid login returns 429.
 - CORS has one route test, `test_no_cors_by_default`, which also covers the allowlist case. Security headers are checked by hand at deploy with `curl -I`.
+- Cookies have two route tests: `test_cookie_attributes_and_rotation` and `test_csrf_from_other_session_rejected`.

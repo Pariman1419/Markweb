@@ -247,3 +247,35 @@ NGINX access log ใช้ `log_format json` ด้วยฟิลด์ชุ�
 | `Strict-Transport-Security` | ใส่เมื่อขึ้น HTTPS แล้วเท่านั้น (`max-age=31536000`) |
 | `Cache-Control` | `no-store` สำหรับ `/api/` (ข้อมูลลูกค้า) · ไฟล์ static ที่มี hash ในชื่อ cache ได้ 1 ปี |
 
+## 17. Cookie **[Claude]**
+
+ระบบมี cookie แค่ 2 ตัว · ไม่มี cookie ติดตาม / analytics / third-party · ค่าที่เป็นความชอบส่วนตัวของหน้าเว็บ (filter, run ที่เลือก) เก็บใน `localStorage` ไม่ใช่ cookie
+
+| Cookie | ค่า | HttpOnly | Secure | SameSite | Path | Domain | อายุ |
+|---|---|---|---|---|---|---|---|
+| `mark_session` | random 32 byte (base64url) · DB เก็บ sha256 | ✓ | เมื่อ HTTPS | `Strict` | `/api` | ไม่ใส่ (host-only) | `Max-Age=28800` (8 ชม.) |
+| `mark_csrf` | random 32 byte · DB เก็บ sha256 ใน `user_session.csrf_hash` | ✗ (JS ต้องอ่านเพื่อใส่ header) | เมื่อ HTTPS | `Strict` | `/` (หน้าเว็บอยู่ที่ `/` จึงต้องอ่านได้) | ไม่ใส่ | `Max-Age=28800` |
+
+**วงจรชีวิต**
+- **Login สำเร็จ:**
+  - ออก `mark_session` และ `mark_csrf` ใหม่ทุกครั้ง (กัน session fixation)
+  - ถ้ามี session เดิมที่ browser ส่งมา ให้ลบแถวนั้นก่อน
+- **ทุก request:**
+  - หา session จาก sha256 แล้วตรวจ `session_valid` (8 ชม. / idle 60 นาที)
+  - อัปเดต `last_seen_at` ไม่เกิน 1 ครั้งต่อนาที (ลดการเขียน DB)
+  - ไม่ต่ออายุ cookie
+- **Logout / หมดอายุ / ไม่ผ่าน:**
+  - ลบแถวใน DB
+  - ส่ง `Set-Cookie` ทั้ง 2 ตัวด้วย `Max-Age=0` (path เดิม)
+  - ตอบ 401 แล้วหน้าเว็บพาไป `/login`
+- **บัญชีถูกล็อก, reset รหัส หรือ `active=false`:** ลบ session ทั้งหมดของ user นั้น
+- **CSRF:** cookie `mark_csrf` ต้องตรงกับ header `X-CSRF-Token` และ sha256 ของมันต้องตรงกับ `csrf_hash` ของ session เดียวกัน (ใช้ cookie ของ session อื่นไม่ได้)
+
+**เมื่อขึ้น HTTPS**
+- ใส่ `Secure` ให้ cookie ทั้ง 2 ตัว
+- เปลี่ยนชื่อเป็น `__Host-mark_csrf` (บังคับ Secure, Path=/, ไม่มี Domain)
+- `mark_session` คง `Path=/api` จึงใช้ prefix `__Secure-mark_session`
+- ควบคุมด้วย env `MARK_COOKIE_SECURE=true`; ค่าเริ่มต้น false เพราะรอบทดลองเป็น HTTP ภายใน
+
+**ห้าม:** ใส่ข้อมูลผู้ใช้ / role / ELR ใน cookie, ใช้ cookie แทน API token, ตั้ง `Domain=` ให้ใช้ร่วมกับ subdomain อื่น, log ค่า cookie
+

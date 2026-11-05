@@ -202,7 +202,9 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `audit(user_id, action, run_id, elr, line_no, detail)`
   - `user_by_name`, `record_login(user_id, ok)`, `create_session`, `session_user(token_hash)`, `delete_session`
 - Produces: dependencies `get_repo()`, `current_user()` and `require(action)`.
-  - Session cookie `mark_session` and CSRF cookie `mark_csrf`, as in spec §11.
+  - Session cookie `mark_session` and CSRF cookie `mark_csrf` with exactly the attributes and lifecycle of spec §17 (`MARK_COOKIE_SECURE` env switches on `Secure` and the `__Host-`/`__Secure-` names).
+  - `last_seen_at` is written at most once a minute.
+  - Locking, password reset or deactivating a user deletes all of that user's sessions.
   - Every unsafe method checks `csrf_ok` and `Origin`.
   - `current_user` also accepts `Authorization: Bearer` API tokens, for the metrics scope only.
 - Produces: request middleware that:
@@ -233,6 +235,12 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `test_post_without_csrf_403`: logged in, `POST /api/reviews` without `X-CSRF-Token` → 403.
   - `test_engineer_cannot_read_metrics`: engineer → 403 on `/api/metrics`; a fake API token with `metrics:read` → 200 with key `requests`.
   - `test_request_id_echoed`: the response has an `X-Request-ID` header.
+  - `test_cookie_attributes_and_rotation`:
+    - After login, `Set-Cookie` for `mark_session` contains `HttpOnly`, `SameSite=Strict`, `Path=/api`, `Max-Age=28800` and no `Domain`.
+    - `mark_csrf` has `Path=/` and no `HttpOnly`.
+    - A second login returns a different session value, and the old one gets 401.
+    - Logout sends both cookies with `Max-Age=0`.
+  - `test_csrf_from_other_session_rejected`: session A's cookie with session B's CSRF token → 403.
   - `test_no_cors_by_default`: `OPTIONS /api/runs` with `Origin: http://evil.example` and `Access-Control-Request-Method: GET` → the response has no `access-control-allow-origin` header. With `MARK_CORS_ORIGINS=http://ok.example`, that origin gets it echoed and `evil.example` does not.
 - [ ] **Step 2:** Run `python -m pytest tests/unit/test_api_routes.py -q`. Expected: FAIL.
 - [ ] **Step 3:** Implement the repository SQL and the routers. `lines()` reads `mark_logic.line_result` for `side='TOP'` and returns `final_status` as `status` (spec §14).
