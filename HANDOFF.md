@@ -77,11 +77,12 @@
 - **Service logon failed:** running the service as `TH\41495406` failed with Event 7041, "user has not been granted the requested logon type" (domain policy).
   - The service goes back to LocalSystem.
   - Builds run instead on inbound agent `mark-web-local` (label `mark-web`), started with `scripts/jenkins-agent.bat` under the user's account (JDK 25). `Jenkinsfile` uses `agent { label 'mark-web' }`.
-- **Pending user:**
-  - restore the service to LocalSystem;
-  - create node `mark-web-local` and save its secret to `%USERPROFILE%\.jenkins-agent-secret`;
-  - push `phase2/trial`;
-  - add credentials `mark-web-env` and `github-markweb`.
+- **Done since:**
+  - The service is back on LocalSystem.
+  - Node `mark-web-local` is connected; the secret is in `%USERPROFILE%\.jenkins-agent-secret`.
+  - `phase2/trial` is pushed by the user.
+- **No Jenkins credentials:** the GitHub repo is public, so it is cloned over HTTPS, and Deploy copies `.env` from the agent host (`ENV_FILE`).
+  - **Warning:** because the repo is public, older commits (and `origin/phase0/readiness`) expose the credential mentions, internal IPs and hostnames. Rotate the DB/Oracle passwords (D-13) and consider making the repo private.
 
 ### 2026-11-05 — Phase 2 trial: review fix-ups and localhost integration
 - **Reviewed Tasks 1–6 (another agent).** All met the plan, except for the items fixed below.

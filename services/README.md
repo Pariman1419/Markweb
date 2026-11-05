@@ -48,12 +48,11 @@ One-time setup:
 1. **Agent:** the Jenkins service runs as LocalSystem. The workstation's domain policy denies "Log on as a service" to user accounts, so builds run on an inbound agent started under the user's own account.
    - Manage Jenkins → Nodes → New Node `mark-web-local`: Permanent Agent, label `mark-web`, remote root `D:\jenkins-agent`, launch "by connecting it to the controller".
    - Save the agent secret to `%USERPROFILE%\.jenkins-agent-secret`, then run `scripts\jenkins-agent.bat` and keep it open while builds run.
-2. **Credentials** (Manage Jenkins → Credentials):
-   - `mark-web-env` — *Secret file* holding the `.env`. The Deploy stage copies it into the workspace and deletes it afterwards.
-   - `github-markweb` — *SSH Username with private key*, with read access to `git@github.com:Pariman1419/Markweb.git`.
+2. **No Jenkins credentials are needed.**
+   - The repo is public, so it is cloned over HTTPS.
+   - The Deploy stage copies the `.env` from the agent host (parameter `ENV_FILE`) and deletes the copy afterwards.
 3. **Job:** New Item → *Pipeline* `mark-web`, then Definition *Pipeline script from SCM* with:
-   - Git URL `git@github.com:Pariman1419/Markweb.git`
-   - credentials `github-markweb`
+   - Git URL `https://github.com/Pariman1419/Markweb.git`
    - branch `*/phase2/trial`
    - script path `Jenkinsfile`
    - trigger: *Poll SCM* `H/5 * * * *`

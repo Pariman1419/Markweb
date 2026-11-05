@@ -1,6 +1,7 @@
 // mark-web CI/CD (Windows Jenkins agent).
 // CI: Python tests + web build + Docker images. CD: docker compose on this host, then a smoke test.
-// Secrets: Jenkins "Secret file" credential `mark-web-env` (the .env); never stored in the repo.
+// Secrets: the .env stays on the agent host (ENV_FILE); it is copied into the workspace only for
+// `docker compose up` and deleted afterwards. Never stored in the repo or in Jenkins.
 pipeline {
   // Runs on the agent started under the user's Windows account (Python, Node, Docker Desktop).
   agent { label 'mark-web' }
@@ -15,6 +16,7 @@ pipeline {
     booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Run docker compose up and the smoke test after CI')
     string(name: 'MARK_WEB_PORT', defaultValue: '8088', description: 'Host port for NGINX (80 on 10.153.90.17; 8088 on the workstation)')
     string(name: 'MARK_FILES_HOST_DIR', defaultValue: 'D:/CIM Project/mark-web/data/files', description: 'Host folder with the ABS images (git-ignored; mounted read-only)')
+    string(name: 'ENV_FILE', defaultValue: 'D:/CIM Project/mark-web/.env', description: 'Path of the .env on the agent host')
     string(name: 'PYTHON_EXE', defaultValue: 'python', description: 'Python 3.12 executable (full path if the Jenkins service PATH lacks it)')
   }
 
@@ -23,6 +25,7 @@ pipeline {
     MARK_WEB_PORT = "${params.MARK_WEB_PORT}"
     MARK_FILES_HOST_DIR = "${params.MARK_FILES_HOST_DIR}"
     PIP_DISABLE_PIP_VERSION_CHECK = '1'
+    PYTHON_EXE = "${params.PYTHON_EXE}"
   }
 
   stages {
@@ -33,7 +36,6 @@ pipeline {
     }
 
     stage('Python tests') {
-      environment { PYTHON_EXE = "${params.PYTHON_EXE}" }
       steps {
         bat '"%PYTHON_EXE%" -m venv .venv'
         bat '.venv\\Scripts\\python -m pip install -q -e ".[dev,api]"'
@@ -62,7 +64,8 @@ pipeline {
     stage('Deploy') {
       when { expression { params.DEPLOY } }
       steps {
-        withCredentials([file(credentialsId: 'mark-web-env', variable: 'MARK_ENV_FILE')]) {
+        withEnv(["MARK_ENV_FILE=${params.ENV_FILE}"]) {
+          bat 'if not exist "%MARK_ENV_FILE%" (echo ENV_FILE not found: %MARK_ENV_FILE% & exit /b 1)'
           bat 'copy /Y "%MARK_ENV_FILE%" .env >nul'
           bat 'docker compose up -d --remove-orphans'
         }
