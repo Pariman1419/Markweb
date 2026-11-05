@@ -1,5 +1,27 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] B3 Task 3: Postgres Queue with SKIP LOCKED & Oracle Source Adapter
+
+### Context & Implementation
+- Developed `services/worker/` package implementing Oracle data acquisition and Postgres queue management.
+- **`oracle_snapshot.py` & `scripts/fetch_oracle_snapshot.py`**:
+  - Factored out `ELR_FIELDS` (30 fields) and `BASE_ELR_QUERY` into `mark_engine/adapters/oracle_snapshot.py` to eliminate code duplication between offline tooling and worker runtime.
+- **`oracle_source.py`**:
+  - `fetch_window(conn, from_ts, to_ts)`: parameterized query on `LAST_TRAN` window with read-only transaction assertions.
+  - `fetch_one(conn, elr_no)`: single ELR fetch resolving to latest revision via `rows_to_meta`.
+  - `fetch_pending_step(conn, review_step)`: fetches active lots at review step with `STATUS != 'C'`.
+  - `to_engine(row, layout_rows)`: builds immutable `ElrMeta`, `OracleMark`, and parsed `MarkLayout`.
+- **`queue.py`**:
+  - `enqueue(cur, scan_id, elr_no, reason)`: `ON CONFLICT (elr_no) WHERE state IN ('queued', 'running', 'retry') DO NOTHING RETURNING item_id`. Guarantees exactly one active work item per ELR.
+  - `claim(cur, worker_id)`: auto-recovers abandoned jobs (stuck in `running` > 15 minutes) to `retry`, then claims earliest item via `FOR UPDATE SKIP LOCKED`.
+  - `finish(cur, item_id, revision)`: marks item `done` with revision.
+  - `fail_with_backoff(cur, item_id, attempts, error)`: retries with `RETRY_DELAYS = (1, 5, 15)` minutes; marks `failed` after 3 attempts.
+
+### Verification
+- Added 8 unit tests in `tests/unit/test_worker.py` covering SQL assertions, bind parameters, queue idempotency, concurrency locking, timeout recovery, and retry backoff.
+- Full test suite: 429 passed (0 failures).
+
+
 ## [2026-11-06] B3 Task 1 Fix: 0007 Grants and docs_probe Column
 
 ### Context & Fix Details

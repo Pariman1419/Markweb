@@ -8,21 +8,14 @@ from pathlib import Path
 
 from mark_engine.adapters.env import load_env
 from mark_engine.adapters.oracle_client import connect_actl, select
-from mark_engine.adapters.oracle_snapshot import layout_json, rows_to_meta
+from mark_engine.adapters.oracle_snapshot import (
+    BASE_ELR_QUERY,
+    ELR_FIELDS,
+    layout_json,
+    rows_to_meta,
+)
 
-ELR_FIELDS = ('ELR_NO ELR_REV IMPORT_FILE1 CUST_REQ_NO CUST_BOM_NO CUST_BOM_REVISION '
-              'CUST_ASSY_LOT PRODUCT_NO PACKAGE_CODE CURRENT_STEP STATUS LAST_TRAN MARK_APPROVE '
-              'MARK_NAME IMPORT_DATE TOP_MARK_ID BACK_MARK_ID TOP_MARK1 TOP_MARK2 TOP_MARK3 '
-              'TOP_MARK4 TOP_MARK5 BACK_MARK1 BACK_MARK2 BACK_MARK3 BACK_MARK4 BACK_MARK5 '
-              'MARK_REMARK MARK_REQUIRE TM_LASER BM_LASER').split()
-QUERY = ('SELECT ' + ', '.join('e.' + field for field in ELR_FIELDS) +
-         ', t.TYPE_CODE TOP_TYPE_CODE, t.LAYOUT_CODE TOP_LAYOUT_CODE,'
-         ' t.OPERATION_CODE TOP_OPERATION, t.REMARK TOP_TEMPLATE_REMARK,'
-         ' t.MARK_FILE_REVISION TOP_MARK_FILE_REV, b.TYPE_CODE BACK_TYPE_CODE,'
-         ' b.LAYOUT_CODE BACK_LAYOUT_CODE, b.REMARK BACK_TEMPLATE_REMARK'
-         ' FROM ACTLDBA.ELR e LEFT JOIN ACTLDBA.MARK_ID t ON e.TOP_MARK_ID = t.MARK_ID'
-         ' LEFT JOIN ACTLDBA.MARK_ID b ON e.BACK_MARK_ID = b.MARK_ID'
-         " WHERE e.CUST_CODE = 'ADI' AND e.ELR_NO LIKE :prefix")
+QUERY = BASE_ELR_QUERY + " AND e.ELR_NO LIKE :prefix"
 
 
 def main():

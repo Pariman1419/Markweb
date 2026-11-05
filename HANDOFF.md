@@ -63,6 +63,16 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — B3 Task 3: Postgres Queue with SKIP LOCKED & Oracle Source Adapter
+- **Implemented**: `services/worker/__init__.py`, `services/worker/oracle_source.py`, `services/worker/queue.py`, `tests/unit/test_worker.py`.
+- **Refactored**: Extracted `ELR_FIELDS` and `BASE_ELR_QUERY` into `mark_engine/adapters/oracle_snapshot.py` and updated `scripts/fetch_oracle_snapshot.py`.
+- **Worker Adapters**:
+  - `oracle_source.py`: `fetch_window`, `fetch_one`, `fetch_pending_step`, `to_engine`.
+  - `queue.py`: `enqueue` (partial index idempotency), `claim` (15m stuck job recovery + `FOR UPDATE SKIP LOCKED`), `finish`, `fail`, `fail_with_backoff` (`RETRY_DELAYS = (1, 5, 15)` min).
+- **Verification**: Strict TDD Red -> Green. 8 unit tests in `tests/unit/test_worker.py`. Total test suite: 429 passed.
+- **Next immediate action**: Commit Task 3, push to `origin/phase2/trial`, verify green Jenkins build, then proceed to Task 4 (Worker Engine Execution & Results).
+
+
 ### 2026-11-06 — B3 Task 1 Fix: 0007 Grants and docs_probe Column
 - **Updated Migration 0007**:
   - Added `docs_probe jsonb` column to `mark_app.elr_revision`.
