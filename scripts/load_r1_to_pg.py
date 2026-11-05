@@ -61,6 +61,10 @@ def job_row(run_id: int, row: dict[str, str]) -> tuple:
             row.get('layout_source') or None, row.get('abs_no') or None)
 
 
+def is_blind_run(period: str, metrics: dict) -> bool:
+    return metrics.get('freeze', {}).get('freeze_id') == 'FREEZE-R1' or 'blind' in period.lower()
+
+
 def validate_blind_commit(directory: Path, metrics: dict) -> None:
     from scripts.run_blind import file_hash
     freeze = metrics.get('freeze') or {}
@@ -103,7 +107,7 @@ def main() -> None:
     par = {(r["elr_no"], r["side"], r["line_no"]): r["reason"]
            for r in csv.DictReader(parity_path.open(encoding="utf-8"))} if parity_path.exists() else {}
     m = json.load(open(f"{r1}/metrics.json", encoding="utf-8"))
-    is_blind = 'blind' in args.period.lower() or 'freeze' in m
+    is_blind = is_blind_run(args.period, m)
     if is_blind and args.commit:
         validate_blind_commit(Path(r1), m)
     summary_path = Path(r1) / "parity_summary.json"

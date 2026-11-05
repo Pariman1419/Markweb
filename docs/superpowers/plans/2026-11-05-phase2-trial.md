@@ -96,21 +96,21 @@ Read these first, in this order:
 - Produces: CLI `python scripts/create_api_token.py <name> --scope metrics:read --days 90`. It prints the token once and stores only its sha256.
 - Produces: CLI `python scripts/create_app_user.py <username> --name "<display>" --role engineer` (prompts for the password with `getpass`).
 
-- [ ] **Step 1:** Bump the engine version to 0.3.0 and fix `test_generator.py:255` to compare with `ENGINE_VERSION`.
+- [x] **Step 1:** Bump the engine version to 0.3.0 and fix `test_generator.py:255` to compare with `ENGINE_VERSION`.
   - In `load_r1_to_pg.py`, extract `is_blind_run(period: str, metrics: dict) -> bool` = `metrics.get('freeze', {}).get('freeze_id') == 'FREEZE-R1' or 'blind' in period.lower()`.
   - Write `tests/unit/test_load_r1_blind.py`:
     - `is_blind_run('2026-07..2026-11-replay', {'freeze': {'freeze_id': 'UNFROZEN'}}) is False`
     - `is_blind_run('2026-07..2026-11', {'freeze': {'freeze_id': 'FREEZE-R1'}}) is True`
   - Run `python -m pytest tests -q`. Expected: 307 passed.
-- [ ] **Step 2:** Commit (`chore: engine 0.3.0 after overflow review fixes`). Then run the replay from the clean tree: `PYTHONPATH=. python scripts/run_blind.py --oracle artifacts/blind-2026h2/oracle --cache artifacts/blind-2026h2/cache --out artifacts/blind-2026h2/run-trial --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --allow-unfrozen`. Expected: `jobs: 402 … failed: 0`, and `lines.csv` is identical to `artifacts/blind-2026h2/run-overflowfix/lines.csv` (only the version changed).
-- [ ] **Step 3:** Dry-run the load: `python scripts/load_r1_to_pg.py artifacts/blind-2026h2/run-trial --period 2026-07..2026-11-replay --note "debug replay after overflow review, commit <sha>, not a holdout"`. Expected: "rolled back". **[USER]** Then re-run it with `--commit` and record the new run_id.
-- [ ] **Step 4:** Write `0005_mark_app_trial.sql`:
+- [x] **Step 2:** Commit (`chore: engine 0.3.0 after overflow review fixes`). Then run the replay from the clean tree: `PYTHONPATH=. python scripts/run_blind.py --oracle artifacts/blind-2026h2/oracle --cache artifacts/blind-2026h2/cache --out artifacts/blind-2026h2/run-trial --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --allow-unfrozen`. Expected: `jobs: 402 … failed: 0`, and `lines.csv` is identical to `artifacts/blind-2026h2/run-overflowfix/lines.csv` (only the version changed).
+- [x] **Step 3:** Dry-run the load: `python scripts/load_r1_to_pg.py artifacts/blind-2026h2/run-trial --period 2026-07..2026-11-replay --note "debug replay after overflow review, commit <sha>, not a holdout"`. Expected: "rolled back". **[USER]** Then re-run it with `--commit` and record the new run_id.
+- [x] **Step 4:** Write `0005_mark_app_trial.sql`:
   - An UP block in `begin…commit` with the tables, keys and indexes of spec §14.
   - The grants above.
   - A commented DOWN block, as in `0004`.
-- [ ] **Step 5:** Write `scripts/create_app_user.py` (argon2 `PasswordHasher`; reject passwords shorter than 12 characters; `--reset` updates the hash and clears the lock) and `scripts/create_api_token.py`. Both use psycopg2 with the connection from env.
-- [ ] **Step 6 [USER/DBA]:** Apply the 0005 UP section on `mark_web`, set a password for login role `mark_app` (the API's DB user, `MARK_PG_USER=mark_app` in `.env`), then create your user. Verify: `select count(*) from mark_app.app_user` returns 1. Inserting a `line_review` with a non-existent `(run_id, elr_no, abs_no, side, line_no)` fails on the FK. And `select max(run_id) from mark_logic.run` returns the new run.
-- [ ] **Step 7:** Commit (`feat(db): migration 0005 mark_app trial schema; app user script`) with HANDOFF and QA_LOG.
+- [x] **Step 5:** Write `scripts/create_app_user.py` (argon2 `PasswordHasher`; reject passwords shorter than 12 characters; `--reset` updates the hash and clears the lock) and `scripts/create_api_token.py`. Both use psycopg2 with the connection from env.
+- [x] **Step 6 [USER/DBA]:** Apply the 0005 UP section on `mark_web`, set a password for login role `mark_app` (the API's DB user, `MARK_PG_USER=mark_app` in `.env`), then create your user. Verify: `select count(*) from mark_app.app_user` returns 1. Inserting a `line_review` with a non-existent `(run_id, elr_no, abs_no, side, line_no)` fails on the FK. And `select max(run_id) from mark_logic.run` returns the new run.
+- [x] **Step 7:** Commit (`feat(db): migration 0005 mark_app trial schema; app user script`) with HANDOFF and QA_LOG.
 
 ### Task 2: Snapshot loader (spec T2)
 

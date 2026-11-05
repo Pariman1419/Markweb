@@ -10,6 +10,7 @@ from mark_engine.domain.models import (
 )
 from mark_engine.generate.generator import generate_expected
 from mark_engine.rules.ruleset import RuleSet
+from mark_engine.version import ENGINE_VERSION
 
 
 def _rules() -> RuleSet:
@@ -252,7 +253,7 @@ def test_expected_versions_and_line_ordering():
     expected = generate_expected(meta, docs, slr, inference, rules)
 
     assert expected.rule_version == rules.version
-    assert expected.engine_version == "0.2.0"
+    assert expected.engine_version == ENGINE_VERSION
     assert len(expected.lines) == 3
     # Check sorting: TOP 1, TOP 2, BOTTOM 1
     assert expected.lines[0].side == Side.TOP and expected.lines[0].line_no == 1

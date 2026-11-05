@@ -540,3 +540,18 @@
 - Performance is pinned by 3 cheap route tests: fixed query count for ELR detail, dashboard cache per run, and ELR list paging. Timing targets are checked by hand from `/api/metrics` on real data, with no benchmark suite.
 - Plan analysis added 4 tests for new behaviour: blind detection in the loader, mark-id/line_extra in the snapshot, HOLD cannot be approved, and the five-failure lock via route. The total is 29 new tests; none duplicate engine tests.
 - Added the route test `test_reviews_are_per_run` for the user decision that reviews do not carry over between runs.
+
+## 2026-11-05 — Task 1: Trial run + mark_app schema (spec T0, T1)
+
+### What changed
+- Bumped engine version to 0.3.0 in `mark_engine/version.py` and `pyproject.toml`.
+- Replaced hardcoded "0.2.0" assertion in `tests/unit/test_generator.py:255` with `ENGINE_VERSION`.
+- Refactored `scripts/load_r1_to_pg.py` to isolate `is_blind_run(period, metrics)` and added unit tests in `tests/unit/test_load_r1_blind.py`.
+- Replayed blind dataset into `artifacts/blind-2026h2/run-trial`: 402 jobs, 0 failed, 1,358 lines identical to `run-overflowfix`.
+- Loaded trial run into PostgreSQL (`mark_logic.run` as `run_id = 19`).
+- Created and applied `migrations/0005_mark_app_trial.sql` to establish `mark_app` schema with 7 tables (`app_user`, `user_session`, `api_token`, `elr_snapshot`, `line_review`, `approval`, `audit_log`) and configured least-privilege role permissions for `mark_app`.
+- Implemented user creation CLI `scripts/create_app_user.py` and token creation CLI `scripts/create_api_token.py`.
+
+### Verification
+- `pytest tests -q`: 308 passed in 13.4s.
+- DB checks: verified `mark_app.app_user` contains active user, foreign key constraint on `line_review` rejects nonexistent runs/lines, and latest `run_id` is 19.

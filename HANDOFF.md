@@ -63,6 +63,16 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 1: Trial run + mark_app schema (spec T0, T1)
+- Engine version bumped to 0.3.0 in `mark_engine/version.py` and `pyproject.toml`.
+- Extracted `is_blind_run` in `scripts/load_r1_to_pg.py`; added unit test `tests/unit/test_load_r1_blind.py`. All 308 engine unit tests pass.
+- Executed blind replay `scripts/run_blind.py` for Jul–Nov 2026 into `artifacts/blind-2026h2/run-trial`: 402 jobs, 0 failed, 1,358 lines identical to `run-overflowfix`.
+- Loaded trial run to PostgreSQL as `run_id = 19`.
+- Created and applied `migrations/0005_mark_app_trial.sql`: created `mark_app` schema with 7 tables (`app_user`, `user_session`, `api_token`, `elr_snapshot`, `line_review`, `approval`, `audit_log`), indexes, constraints, and role permissions.
+- Created helper scripts `scripts/create_app_user.py` and `scripts/create_api_token.py`.
+- Verified in DB: user count >= 1, FK integrity on `line_review` rejects invalid references, and max `run_id` is 19.
+
+
 ### 2026-11-05 — Phase 2 trial design and plan
 - The user will trial the web app alone first. Spec: `docs/superpowers/specs/2026-11-05-phase2-trial-design.md`. Plan: `docs/superpowers/plans/2026-11-05-phase2-trial.md` (6 tasks).
 - Scope is B1 + B2 of the earlier Phase 2 design, in this order:
