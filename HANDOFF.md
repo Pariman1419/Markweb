@@ -94,6 +94,20 @@
     - Updated `mark_engine/adapters/inference_service.py`: bounded client in-memory cache `_SERVICE_INFERENCE_CACHE` using `OrderedDict` with `_CACHE_MAX_SIZE = 512` and thread lock for safe execution in long-running workers.
 - **Current State**: Live inference service on A100 is fully validated, hardened, and active on `10.151.28.9:50051`.
 - **Switch**: Local `.env` set to `MARK_INFERENCE=service`.
+- **Bugs found and fixed on the way (Claude review, 2026-11-05):**
+  1. Jenkins failed with `No module named 'PIL'` at 170760a/ddf36a9. Fixed by declaring Pillow and pynvml in `pyproject.toml` (870b449).
+  2. The Paddle in the base image is CPU-only, so Health reported `ocr_device=gpu` falsely. `choose_device(engine="ocr")` now returns `cpu` when `paddle.device.is_compiled_with_cuda()` is False. OCR runs on CPU and YOLO on GPU.
+     - Known minor gap: `force=gpu` still selects GPU for OCR.
+  3. ultralytics pulled in OpenCV 5.0.0, while the cache was made with 4.10.0. Fixed by pinning `opencv-contrib-python==4.10.0.84` in the Dockerfile.
+  4. The first compare had 287 Page `service_error` because the Paddle detection model cache path was missing. Fixed with `ENV PADDLE_PDX_CACHE_HOME=/root/.paddlex`.
+  5. There was no lock around the shared models (the gRPC pool has 10 threads), so concurrent requests changed one result (ADI2607004). Fixed with a per-engine `threading.Lock`.
+  6. The inherited HEALTHCHECK (HTTP :8000) made the container falsely `unhealthy`. Fixed with `HEALTHCHECK NONE`.
+  7. `compare_inference.py` showed 8 false Re-OCR diffs because the filter was applied to the service side only and the script had `except: pass`. Fixed: the same filter is applied to both sides and errors are no longer swallowed.
+- **Still open (as of 2026-11-05):**
+  - **A100 disk:** only 13 GB free (93%), below the 15 GB floor. Dangling images remain. `docker image prune -f` is waiting for the user's OK.
+  - **Admin events:** the table and `/api/admin/events` have no ELR or run column.
+  - **Metrics:** no metrics token in `.env`.
+  - **Worktree:** `wt-review` is not removed yet.
 
 ### 2026-11-05 — B4 Inference Service Task 4: Image and deploy on the A100
 - **What changed**:

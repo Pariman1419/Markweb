@@ -1085,3 +1085,26 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 ### Verification
 - `test_inference_service.py`: 18 passed.
 - Full unit suite: 388 passed in 45.60s.
+
+### 2026-11-05 — B4 review record: bugs found, how they were confirmed, open items (Claude)
+| # | Symptom | Cause | Fix | Confirmed by |
+|---|---|---|---|---|
+| 1 | Jenkins: `No module named 'PIL'` | Pillow/pynvml not declared | `pyproject.toml` (870b449) | Jenkins green, 385 tests |
+| 2 | Health said `ocr_device=gpu` | base-image Paddle is CPU-only | `choose_device(engine="ocr")` uses `is_compiled_with_cuda()` | Health shows `ocr_device=cpu`, `symbol_device=gpu` |
+| 3 | OCR output drift | ultralytics installed cv2 5.0.0; the cache used 4.10.0 | pin `opencv-contrib-python==4.10.0.84` | `cv2.__version__` in the container; compare 287/287 |
+| 4 | 287 Page `service_error` | Paddle model cache path missing | `ENV PADDLE_PDX_CACHE_HOME=/root/.paddlex` | compare Page 0 diffs |
+| 5 | 1 diff (ADI2607004) when requests overlapped | no lock on shared models, 10 gRPC threads | per-engine `threading.Lock` | repeated requests match; regression with 3 workers byte-identical |
+| 6 | Container `unhealthy` | inherited HTTP :8000 HEALTHCHECK | `HEALTHCHECK NONE` | `docker ps` shows `Up`, not unhealthy |
+| 7 | 8 false Re-OCR diffs | compare filtered the service side only, plus `except: pass` | same filter on both sides; no error swallowing | engine-level `load_service_inference == load_cached_inference` on 4 ELRs; compare 0 |
+
+- **Final evidence:**
+  - `run-service` `jobs.csv` and `lines.csv` are byte-identical to `run-gates` (402 ELR, 0 `INFERENCE_FAILED`).
+  - Image `afae88a4…` contains the lock code.
+  - Jenkins `611aff4` green: 391 tests.
+- **Open items:**
+  - A100 disk 13 GB free (< 15 GB floor); prune is waiting for the user.
+  - Admin events have no ELR column.
+  - No metrics token.
+  - `wt-review` worktree not removed.
+  - `force=gpu` with the CPU-only Paddle is not guarded.
+
