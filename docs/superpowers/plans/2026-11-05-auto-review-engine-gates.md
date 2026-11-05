@@ -243,4 +243,4 @@ def test_diff_jobs_groups_changed_elrs():
   - **Any other group is a bug:** stop and report it.
   - Paste the table and groups (ELR numbers only) into QA_LOG and HANDOFF §4.
 - [x] **Step 8: [USER] Review the diff.** The user confirms the changed ELRs are correct, especially the header-less SLR group. **Do not load `run-gates` into the DB, and do not re-freeze.** Both are the user's call after this review.
-- [ ] **Step 9: Commit and push.** Use `git commit -m "test: run-19 regression of engine gates (0.4.0) and diff report"`, then wait for green. The `artifacts/` output is not committed.
+- [x] **Step 9: Commit and push.** Use `git commit -m "test: run-19 regression of engine gates (0.4.0) and diff report"`, then wait for green. The `artifacts/` output is not committed.

@@ -63,6 +63,21 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — G5 Gate Fix: Count placed content beyond TOP row 5 (not raw OCR rows)
+- **What changed**:
+  - In `mark_engine/pipeline.py`: moved G5 check to run after `generate_expected`. Gate checks `[l for l in expected.lines if l.side == Side.TOP and l.line_no > 5 and (l.text or "").strip()]`.
+  - Empty OCR rows beyond row 5 are ignored.
+  - In `tests/unit/test_pipeline.py`: updated `test_row_over_5_gate` to verify 7 rows with empty rows 6-7 does not trigger HOLD, while row 6 with text triggers HOLD.
+  - Unit tests: 370 passed.
+- **Regression (3 workers)**:
+  - Finished: `jobs: 402 independence: 254 / 254 excluded: 148 failed: 0 freeze: UNFROZEN`.
+  - Diff `run-overflowfix` -> `run-gates`:
+    - `DONE:NOT_VERIFIABLE -> HOLD:CUST_ASSY_TBD`: 27 ELRs (`ADI2607009`, `ADI2607028`, `ADI2607029`, `ADI2607050`, `ADI2608007`, `ADI2608080`, `ADI2608081`, `ADI2608082`, `ADI2608083`, `ADI2608084`, `ADI2608085`, `ADI2609004`, `ADI2609005`, `ADI2609093`, `ADI2610014`, `ADI2610018`, `ADI2610033`, `ADI2610064`, `ADI2610068`, `ADI2610069`, `ADI2610070`, `ADI2610071`, `ADI2610072`, `ADI2610073`, `ADI2610074`, `ADI2610095`, `ADI2611004`)
+    - `HOLD:BOM_NOT_FOUND -> HOLD:CUST_ASSY_TBD`: 1 ELR (`ADI2609073`)
+    - Zero `ROW_OVER_5` false positives!
+    - Zero unexpected diff groups.
+    - All non-TBD lines match baseline exactly (delta 0).
+
 ### 2026-11-05 — Empty template rows rule (spec §2.2.1)
 - **Cause, confirmed by the user:** the ABS marking diagram has `LINE 1–7` labels from a template shared with other jobs. OCR reads the labels, and `layout.py` makes one row per label, so 5-line jobs get empty rows 6–7.
 - **Rule:**

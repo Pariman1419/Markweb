@@ -36,11 +36,11 @@ The same rules as the engine-gates plan apply:
 - **Hold result:** `hold_reason "ROW_OVER_5"`, `hold_detail f"{n} TOP rows with content beyond row 5"`. Everything else is unchanged from the current G5 return (resolution kept, `layout_source` set).
 - **Empty OCR rows beyond 5 are ignored.**
 
-- [ ] **Step 1: Extend the test.** Add a case to `test_row_over_5_gate`'s parametrize: **7 TOP rows where rows 6–7 have `text=""` and `graphics=""`** → not held. Keep the existing `(5, 2, False)` case. Change the `(6, 0, True)` case so row 6 has text `"ADW"`; it must still hold. Pass the row texts in through the parametrize.
-- [ ] **Step 2: Run it.** `python -m pytest tests/unit/test_pipeline.py -k row_over_5 -q`. Expected: the new empty-rows case FAILS.
-- [ ] **Step 3: Implement** as described in Interfaces.
-- [ ] **Step 4: Run the unit suite.** `python -m pytest tests/unit -q -p no:cacheprovider`. Expected: all pass.
-- [ ] **Step 5: Regression again.**
+- [x] **Step 1: Extend the test.** Add a case to `test_row_over_5_gate`'s parametrize: **7 TOP rows where rows 6–7 have `text=""` and `graphics=""`** → not held. Keep the existing `(5, 2, False)` case. Change the `(6, 0, True)` case so row 6 has text `"ADW"`; it must still hold. Pass the row texts in through the parametrize.
+- [x] **Step 2: Run it.** `python -m pytest tests/unit/test_pipeline.py -k row_over_5 -q`. Expected: the new empty-rows case FAILS.
+- [x] **Step 3: Implement** as described in Interfaces.
+- [x] **Step 4: Run the unit suite.** `python -m pytest tests/unit -q -p no:cacheprovider`. Expected: all pass.
+- [x] **Step 5: Regression again.**
 
   `PYTHONPATH=. python scripts/run_blind.py --oracle artifacts/blind-2026h2/oracle --cache artifacts/blind-2026h2/cache --out artifacts/blind-2026h2/run-gates --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --allow-unfrozen --workers 3`
 

@@ -377,10 +377,15 @@ def test_slr_without_special_instructions_uses_abs_only(month_tree: Path, tmp_pa
 
 
 
-@pytest.mark.parametrize("top_rows, bottom_rows, expect_hold", [(5, 2, False), (6, 0, True)])
-def test_row_over_5_gate(month_tree: Path, tmp_path: Path, top_rows, bottom_rows, expect_hold):
-    _, meta = _setup_elr(month_tree, f"ADI26010{30 + top_rows}", include_slr=True)
-    lines = tuple(LayoutLine(side=Side.TOP, line_no=i, text="ADW", graphics="") for i in range(1, top_rows + 1)) + \
+@pytest.mark.parametrize("top_texts, bottom_rows, expect_hold", [
+    (["ADW"] * 5, 2, False),
+    (["ADW"] * 6, 0, True),
+    (["ADW"] * 5 + ["", ""], 0, False),
+])
+def test_row_over_5_gate(month_tree: Path, tmp_path: Path, top_texts, bottom_rows, expect_hold):
+    top_rows = len(top_texts)
+    _, meta = _setup_elr(month_tree, f"ADI26010{30 + top_rows}_{int(expect_hold)}", include_slr=True)
+    lines = tuple(LayoutLine(side=Side.TOP, line_no=i, text=txt, graphics="") for i, txt in enumerate(top_texts, start=1)) + \
             tuple(LayoutLine(side=Side.BOTTOM, line_no=i, text="X", graphics="") for i in range(1, bottom_rows + 1))
     oracle = OracleMark(elr_no=meta.elr_no, lines=((Side.TOP, 1, "ADW"),))
     job = process_elr(meta, oracle, month_tree, ["1_JAN"], tmp_path / "work", _rules(),

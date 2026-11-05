@@ -915,3 +915,28 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
   - `NOT_ELIGIBLE`: 81 -> 81 (0)
   - `NOT_MEASURABLE`: 107 -> 179 (+72)
 - **Governance**: `run-gates` was NOT loaded to DB and `FREEZE-R1.json` was NOT re-frozen.
+
+
+## 2026-11-05 — G5 Gate Fix: Count placed content beyond TOP row 5 (not raw OCR rows)
+
+### Context & Root Cause
+- In Task 5 diff, 18 ELRs moved to `HOLD:ROW_OVER_5` because G5 counted raw OCR TOP rows (`> 5`).
+- User reviewed the diff and rejected this: in all 18 cases, OCR rows 6-7 were completely empty (no text and no graphics), and the engine layout places only rows 1-5 anyway.
+- User decision: G5 counts rows **after placement on the Layout** (`generate_expected`), holding only when real text/content lands beyond row 5.
+
+### Resolution & Code Fix
+- In `mark_engine/pipeline.py`: moved G5 check to run after `generate_expected`. Condition: `[l for l in expected.lines if l.side == Side.TOP and l.line_no > 5 and (l.text or "").strip()]`.
+- In `tests/unit/test_pipeline.py`: updated `test_row_over_5_gate` to verify 7 rows with empty rows 6-7 does not hold, while row 6 with text `"ADW"` holds.
+- Full unit suite: 370 tests passed.
+
+### Re-regression Results (3 workers)
+- Finished: `jobs: 402 independence: 254 / 254 excluded: 148 failed: 0 freeze: UNFROZEN`.
+- Diff `run-overflowfix` -> `run-gates`:
+  - `DONE:NOT_VERIFIABLE -> HOLD:CUST_ASSY_TBD`: 27 ELRs
+    `ADI2607009, ADI2607028, ADI2607029, ADI2607050, ADI2608007, ADI2608080, ADI2608081, ADI2608082, ADI2608083, ADI2608084, ADI2608085, ADI2609004, ADI2609005, ADI2609093, ADI2610014, ADI2610018, ADI2610033, ADI2610064, ADI2610068, ADI2610069, ADI2610070, ADI2610071, ADI2610072, ADI2610073, ADI2610074, ADI2610095, ADI2611004`
+  - `HOLD:BOM_NOT_FOUND -> HOLD:CUST_ASSY_TBD`: 1 ELR (`ADI2609073`)
+  - Total `CUST_ASSY_TBD`: 28 ELRs.
+  - Zero `ROW_OVER_5` false positives (0 ELRs).
+  - Zero unexplained groups.
+  - Line-level final_status counts: all line changes match baseline (diff 0 for non-TBD lines).
+- **Governance**: `run-gates` was NOT loaded to DB and `FREEZE-R1.json` was NOT re-frozen.

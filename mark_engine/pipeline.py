@@ -356,9 +356,15 @@ def process_elr(
             layout_source=inference.layout_source,
         )
 
-    # G5: More than 5 TOP rows holds the job
-    top_lines = sum(1 for line in inference.lines if line.side == Side.TOP)
-    if top_lines > 5:
+    # 6. Generate Expected Mark
+    # CRITICAL INVARIANT: must run before touching oracle
+    expected = generate_expected(meta, resolution, slr_facts, inference, rules)
+    if inference_validator and resolution.abs:
+        inference_validator(meta.elr_no, Path(resolution.abs.path), resolution.abs.sha256)
+
+    # G5: Content beyond TOP row 5 holds the job
+    over_5_lines = [l for l in expected.lines if l.side == Side.TOP and l.line_no > 5 and (l.text or "").strip()]
+    if over_5_lines:
         comparisons = tuple(
             LineComparison(
                 side=s,
@@ -371,7 +377,11 @@ def process_elr(
             )
             for s, n, text in oracle.lines
         )
-        res = replace(resolution, hold_detail=f"{top_lines} TOP rows") if resolution else None
+        res = (
+            replace(resolution, hold_detail=f"{len(over_5_lines)} TOP rows with content beyond row 5")
+            if resolution
+            else None
+        )
         return JobResult(
             elr_no=meta.elr_no,
             processing_status=ProcessingStatus.HOLD,
@@ -383,12 +393,6 @@ def process_elr(
             comparisons=comparisons,
             layout_source=inference.layout_source,
         )
-
-    # 6. Generate Expected Mark
-    # CRITICAL INVARIANT: must run before touching oracle
-    expected = generate_expected(meta, resolution, slr_facts, inference, rules)
-    if inference_validator and resolution.abs:
-        inference_validator(meta.elr_no, Path(resolution.abs.path), resolution.abs.sha256)
 
     layout_conflicts = {}
     layout_overflows: dict[int, str] = {}
