@@ -693,3 +693,18 @@
 - Added 4 route unit tests + 1 permission test (forbidden for engineer, unlock clears lock with audit and CSRF requirement, state calculation, date range validation).
 - Executed direct query on live PostgreSQL DB: `admin_users` retrieved user `kam` and `activity` verified `total_elrs == 402` for run 19.
 - Full suite: 351 unit tests passed.
+
+## 2026-11-05 — Task 4: Web /admin page
+
+### What changed
+- Created `web/src/pages/Admin.tsx` implementing:
+  - Users table with account state badges and audited Unlock button.
+  - Activity overview with date range selector, run progress cards, per-user reviews/approvals table, and daily auth event summary.
+  - Paginated audit log explorer (50 items/page) with user and action filter dropdowns for investigating login failures.
+- Added `/admin` lazy route in `web/src/App.tsx` and protected with role check (redirecting non-admin to `/`).
+- Added "Admin" link in Dashboard header for admin users.
+- Declared types `AdminUser`, `ActivityData`, and `AuditEvent` in `web/src/api.ts`.
+
+### Verification
+- `tsc -b && vite build` succeeded with 0 errors.
+- Bundle budget compliance: initial JS bundle 88.07 kB gzip (limit ≤ 300 kB), Admin chunk 4.37 kB gzip.

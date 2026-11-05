@@ -4,6 +4,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 
 const Preview = lazy(() => import('./pages/Preview'));
+const Admin = lazy(() => import('./pages/Admin'));
 
 export const App: React.FC = () => {
   return (
@@ -11,6 +12,20 @@ export const App: React.FC = () => {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Dashboard />} />
+        <Route
+          path="/admin"
+          element={
+            <Suspense
+              fallback={
+                <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 text-sm">
+                  Loading Admin Console...
+                </div>
+              }
+            >
+              <Admin />
+            </Suspense>
+          }
+        />
         <Route
           path="/elr/:elr"
           element={

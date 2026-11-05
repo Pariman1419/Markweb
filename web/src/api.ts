@@ -108,8 +108,60 @@ export interface ElrDetailResponse {
   image_available: boolean;
 }
 
+export interface AdminUser {
+  user_id: number;
+  username: string;
+  display_name: string;
+  role: string;
+  active: boolean;
+  failed_count: number;
+  locked_until: string | null;
+  last_login_at: string | null;
+  state: 'OK' | 'LOCKED' | 'INACTIVE';
+}
+
+export interface ActivityUserDay {
+  day: string;
+  user_id: number;
+  display_name: string;
+  reviews: number;
+  approvals: number;
+}
+
+export interface RunProgress {
+  run_id: number;
+  total_elrs: number;
+  approved: number;
+  rejected: number;
+  undecided: number;
+}
+
+export interface ActivityAuthDay {
+  day: string;
+  login_ok: number;
+  login_failed: number;
+  locked: number;
+  session_expired: number;
+}
+
+export interface ActivityData {
+  per_user_day: ActivityUserDay[];
+  run_progress: RunProgress;
+  auth_per_day: ActivityAuthDay[];
+}
+
+export interface AuditEvent {
+  created_at: string;
+  action: string;
+  user_id: number | null;
+  display_name: string | null;
+  client_ip: string | null;
+  request_id: string | null;
+  detail: Record<string, any> | null;
+}
+
 function getCsrfToken(): string | null {
-  const match = document.cookie.match(/(?:^|;\s*)(?:mark_csrf|__Secure-mark_csrf)=([^;]+)/);
+  const match = document.cookie.match(/(?:^|;\s*)(?:mark_csrf|__Secure-mark_csrf|__Host-mark_csrf)=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 

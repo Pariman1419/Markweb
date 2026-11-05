@@ -63,6 +63,19 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 4: Web /admin page
+- **What changed**:
+  - Implemented lazy-loaded Admin console in web/src/pages/Admin.tsx with 3 sections:
+    1. ผู้ใช้ (Users): table with user roles, lockout counts, and active 'ปลดล็อก' (Unlock) button triggering POST /api/admin/users/{id}/unlock.
+    2. ภาพรวม (Overview): date range filter, 4 progress cards (total, approved, rejected, undecided), per-user velocity table, and daily auth breakdown table.
+    3. เหตุการณ์ล่าสุด (Events): 50 rows/page paginated audit event viewer filterable by action and user.
+  - Added 'Admin' navigation link to Dashboard header for admin role users.
+  - Added /admin lazy route in web/src/App.tsx.
+  - Added TypeScript interfaces in web/src/api.ts (AdminUser, ActivityData, AuditEvent, etc.).
+- **Verification**:
+  - 	sc -b && vite build passed with zero errors.
+  - Bundle size: initial JavaScript chunk 88.07 kB gzip (≤ 300 kB budget); Admin chunk isolated at 4.37 kB gzip.
+
 ### 2026-11-05 — Task 3: Admin API for users, unlock, activity, events
 - **What changed**:
   - Widen `can` permission matrix in `mark_api.auth`: added `"admin"` action restricted exclusively to `"admin"` role.

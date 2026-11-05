@@ -241,12 +241,12 @@ def test_admin_activity_range_validation(client):
     - an auth-problems per-day chart
   - **"เหตุการณ์ล่าสุด" (latest events):** a table with user and action filters and next/prev paging.
   - Non-admin users who open `/admin` are redirected to `/`.
-- [ ] **Step 2: Build.** `cd web && npm run build`. Expected: 0 TS errors. The initial chunk stays ≤ 300 KB gzip, and `Admin` is its own chunk.
+- [x] **Step 2: Build.** `cd web && npm run build`. Expected: 0 TS errors. The initial chunk stays ≤ 300 KB gzip, and `Admin` is its own chunk.
 - [ ] **Step 3: Manual check** on localhost:8088 after the Jenkins deploy, as admin:
   - Users list shows.
   - Lock a test user with 5 bad logins, then Unlock it.
   - The events table shows `auth.login_failed`, `auth.locked` and `admin.unlock`, each with an IP.
-- [ ] **Step 4: Commit** with message `"feat: admin page with users, activity overview and auth events"`.
+- [x] **Step 4: Commit** with message `"feat: admin page with users, activity overview and auth events"`.
 
 ### Task 5: Persistent API log file
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   apiFetch,
   type DashboardData,
@@ -147,6 +147,14 @@ export const Dashboard: React.FC = () => {
                 <div className="text-xs font-bold text-slate-800">{user?.display_name || user?.username}</div>
                 <div className="text-[10px] text-slate-400 uppercase tracking-wider">{user?.role}</div>
               </div>
+              {user?.role === 'admin' && (
+                <Link
+                  to="/admin"
+                  className="text-xs px-2.5 py-1 text-indigo-700 hover:text-indigo-900 font-semibold rounded border border-indigo-200 hover:border-indigo-300 bg-indigo-50"
+                >
+                  Admin
+                </Link>
+              )}
               <button
                 onClick={handleLogout}
                 className="text-xs px-2.5 py-1 text-slate-600 hover:text-rose-600 font-medium rounded border border-slate-200 hover:border-rose-200 bg-white"
