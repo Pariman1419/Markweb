@@ -28,6 +28,7 @@ pipeline {
     MARK_LOG_HOST_DIR = "${params.MARK_LOG_HOST_DIR}"
     PIP_DISABLE_PIP_VERSION_CHECK = '1'
     PYTHON_EXE = "${params.PYTHON_EXE}"
+    MARK_ENV_FILE_BS = "${params.ENV_FILE.replace('/', '\\')}"
   }
 
   stages {
@@ -98,6 +99,15 @@ pipeline {
           if ($r.Headers["Cache-Control"] -ne "no-store" -or -not $r.Headers["Content-Security-Policy"]) { throw "security headers missing on /api" }
           Write-Host "smoke OK: $base"
         '''
+      }
+    }
+
+    stage('Real-DB check') {
+      when { expression { params.DEPLOY } }
+      steps {
+        catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+          bat '.venv\\Scripts\\python scripts\\check_trial_readonly.py --run 19 --env-file "%MARK_ENV_FILE_BS%"'
+        }
       }
     }
   }

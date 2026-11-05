@@ -78,7 +78,7 @@ def test_elrs_and_detail_handle_null_text_fields(client, fake_repo):
 ```
 
 - [x] **Step 2: Run it.** `python -m pytest tests/unit/test_api_routes.py -k null_text -q`. Expected: FAIL with 500, or an `AttributeError` traceback.
-- [ ] **Step 3: Implement `_text`** and use it at every string use of a row field in `list_elrs` and `get_elr`:
+- [x] **Step 3: Implement `_text`** and use it at every string use of a row field in `list_elrs` and `get_elr`:
   - `warning`, `detail` and `hold_reason` (lines 63, 67, 71, 74)
   - `abs_no` in the `q` filter and the row
   - the `get_elr` line dict
@@ -122,9 +122,9 @@ Checks, in this order (each wrapped so that one failure doesn't hide the others)
 | `expected_match` | for the same sample, every line's `expected` equals `Repo().lines_for_elr(...)[i]["expected"]` |
 | `admin_reads` | `Repo().admin_users()`, `activity(today-13, today, run)` and `audit_events(..., page=1)` run without error |
 
-- [ ] **Step 1: Write the script** to the table above. Put `sys.path.insert(0, <repo root>)` and `services/api` first, as `scripts/create_app_user.py` does.
-- [ ] **Step 2: Run it locally.** `python scripts/check_trial_readonly.py --run 19`. Expected: every line OK and exit code 0, after Task 1 is merged. Paste the output, which has no values, into QA_LOG.
-- [ ] **Step 3: Jenkins stage.**
+- [x] **Step 1: Write the script** to the table above. Put `sys.path.insert(0, <repo root>)` and `services/api` first, as `scripts/create_app_user.py` does.
+- [x] **Step 2: Run it locally.** `python scripts/check_trial_readonly.py --run 19`. Expected: every line OK and exit code 0, after Task 1 is merged. Paste the output, which has no values, into QA_LOG.
+- [x] **Step 3: Jenkins stage.**
 
 ```groovy
 stage('Real-DB check') {

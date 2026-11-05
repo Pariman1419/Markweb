@@ -63,6 +63,17 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Acceptance Task 2: Read-only real-DB acceptance check and Jenkins stage
+- **What changed**:
+  - Implemented `scripts/check_trial_readonly.py` testing 8 acceptance checks sequentially (`runs`, `dashboard_cards`, `elrs_total`, `elrs_pages`, `elr_detail`, `oracle_raw`, `expected_match`, `admin_reads`).
+  - Strict privacy: outputs single-line status `OK <name> <summary>` or `FAIL <name> <reason>` without printing mark values, SLR texts, or file paths.
+  - Added non-blocking `Real-DB check` stage to `Jenkinsfile` running against real DB when `params.DEPLOY` is true (`catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE')`).
+  - Documented usage in `services/README.md`.
+- **Verification**:
+  - Executed `python scripts/check_trial_readonly.py --run 19`: all 8 checks reported OK with exit code 0.
+  - Verified run 19 reference counts: `TRUE 866, WARNING 214, ERROR 41, HOLD 34`, `total=402 jobs=402`, 9 pages, 5 oracle_top_raw entries.
+  - Full test suite: 353 unit tests passed.
+
 ### 2026-11-05 — Acceptance Task 1: NULL-safe ELR list/detail and visible load error
 - **What changed**:
   - Added helper `_text(v)` in `routers/mark.py` converting `None` to `""`.

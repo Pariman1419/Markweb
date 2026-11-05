@@ -751,3 +751,25 @@
 - `test_elrs_and_detail_handle_null_text_fields` verified 200 responses when all text columns are None.
 - `tsc -b && vite build` succeeded with 0 errors.
 - Full suite: 353 unit tests passed.
+
+## 2026-11-05 — Acceptance Task 2: Read-only real-DB acceptance check and Jenkins stage
+
+### What changed
+- Created `scripts/check_trial_readonly.py` implementing 8 acceptance checks against PostgreSQL and router endpoints (`runs`, `dashboard_cards`, `elrs_total`, `elrs_pages`, `elr_detail`, `oracle_raw`, `expected_match`, `admin_reads`).
+- Strictly protects customer privacy: prints one `OK` or `FAIL` line per check with short summaries; never prints mark strings, SLR texts, or file paths.
+- Added non-blocking `Real-DB check` stage in `Jenkinsfile` wrapped in `catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE')`.
+- Updated `services/README.md` with documentation on running the check script.
+
+### Verification
+- Executed `python scripts/check_trial_readonly.py --run 19` against live DB (exit code 0):
+```
+OK runs found run 19 in 16 runs
+OK dashboard_cards TRUE 866, WARNING 214, ERROR 41, HOLD 34
+OK elrs_total total=402 jobs=402
+OK elrs_pages 402 unique ELRs across 9 pages
+OK elr_detail sampled 20 ELRs OK
+OK oracle_raw sampled 20 snapshots have 5 oracle_top_raw entries
+OK expected_match sampled 20 ELRs line expected values match
+OK admin_reads admin_users (4), activity, audit_events (15) OK
+```
+- Full suite: 353 unit tests passed.

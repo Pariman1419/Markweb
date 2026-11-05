@@ -40,6 +40,13 @@ docker compose up -d --build
 - Static files caching: `curl -I http://10.153.90.17/api/files/...` (expect `Cache-Control: private, max-age=86400` and CSP)
 - API caching: `curl -I http://10.153.90.17/api/runs` (expect `Cache-Control: no-store` and CSP)
 
+### Real-DB Acceptance Check (Read-Only):
+To verify that trial run data in PostgreSQL matches expected cards, counts, detail endpoints, and admin queries without altering database state:
+```bash
+python scripts/check_trial_readonly.py --run 19 [--env-file PATH] [--sample 20]
+```
+The script runs 8 sequential checks (`runs`, `dashboard_cards`, `elrs_total`, `elrs_pages`, `elr_detail`, `oracle_raw`, `expected_match`, `admin_reads`), prints one `OK` or `FAIL` line per check with short summaries (never printing customer marks, SLR texts, or paths), and exits 0 on success. In CI/CD, the Jenkins `Real-DB check` stage executes this automatically after the smoke test.
+
 ## CI/CD with Jenkins (workstation, http://localhost:8080)
 
 The pipeline is defined in `Jenkinsfile` at the repo root. It runs on a Windows agent in this order: Preflight → Python tests (venv + pytest, JUnit report) → Web build (`npm ci`, `npm run build`) → Docker images → Deploy (`docker compose up -d`, project `mark-web`) → Smoke test (`/api/ready` 200, and `/api/runs` 401 with `no-store` + CSP).
