@@ -17,6 +17,7 @@
 - No passwords in the repo. Read everything from `.env` / env vars (`MARK_PG_*`, `MARK_FILES_ROOT`, `MARK_SESSION_HOURS=8`).
 - TOP MARK only in the UI.
 - Customer ABS images stay on the internal network. They are served only from under `MARK_FILES_ROOT`.
+- Same-origin only. Do not add FastAPI `CORSMiddleware` unless `MARK_CORS_ORIGINS` is set (default empty). See spec §16.
 - Out of scope this round: WebSocket (B3) and gRPC (B4). They are designed in spec §13; do not build them now.
 - Do not duplicate `mark_engine` tests. Test only new logic (grouping, approve guard, auth, path guard, snapshot builder), plus one happy-path test per endpoint. For web, `tsc` + `vite build` passing is enough.
 - Every task updates `HANDOFF.md` §4 and `docs/qa/QA_LOG.md` in the same commit (project rule).
@@ -232,6 +233,7 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `test_post_without_csrf_403`: logged in, `POST /api/reviews` without `X-CSRF-Token` → 403.
   - `test_engineer_cannot_read_metrics`: engineer → 403 on `/api/metrics`; a fake API token with `metrics:read` → 200 with key `requests`.
   - `test_request_id_echoed`: the response has an `X-Request-ID` header.
+  - `test_no_cors_by_default`: `OPTIONS /api/runs` with `Origin: http://evil.example` and `Access-Control-Request-Method: GET` → the response has no `access-control-allow-origin` header. With `MARK_CORS_ORIGINS=http://ok.example`, that origin gets it echoed and `evil.example` does not.
 - [ ] **Step 2:** Run `python -m pytest tests/unit/test_api_routes.py -q`. Expected: FAIL.
 - [ ] **Step 3:** Implement the repository SQL and the routers. `lines()` reads `mark_logic.line_result` for `side='TOP'` and returns `final_status` as `status` (spec §14).
 - [ ] **Step 4:** Run the tests and the full suite. Expected: PASS. **[USER]** Run `uvicorn services.api.mark_api.app:app --port 8000` against the DB, then log in and open `/api/dashboard?run=<new>`. The card counts must equal the line statuses in `run-trial/metrics.json`.
@@ -278,6 +280,7 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `location /api/ { proxy_pass http://api:8000; proxy_set_header X-Request-ID $request_id; }` and an SPA fallback `try_files $uri /index.html`.
   - The three `limit_req_zone` zones of spec §12 (`login` 5r/m burst 5, `files` 10r/s burst 20, `api` 20r/s burst 40), returning `limit_req_status 429`, plus `client_max_body_size 1m`.
   - `log_format json` with `request_id, status, request_time, upstream_response_time, uri`.
+  - Security headers from spec §16 via `add_header ... always` (CSP, nosniff, Referrer-Policy, X-Frame-Options); `Cache-Control: no-store` on `/api/`.
   - Compose `logging: {driver: json-file, options: {max-size: 20m, max-file: '10'}}` on both services.
 
 - [ ] **Step 1:** Write the Dockerfiles, `nginx.conf` and compose file. Build locally with `docker compose build`. Expected: both images build.

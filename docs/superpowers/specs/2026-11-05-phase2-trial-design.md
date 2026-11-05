@@ -219,3 +219,31 @@ NGINX access log ใช้ `log_format json` ด้วยฟิลด์ชุ�
 | Error | 5xx เกิน 1% ของ request ใน 15 นาที |
 | ช้า | p95 เกิน 1,000 ms (ไม่นับ `/api/files`) · query เกิน 500 ms → log `db.slow_query` |
 | ความปลอดภัย | `auth.login_failed` เกิน 10 ครั้งต่อชั่วโมง · มี `auth.locked` · มี 429 บน zone `login` |
+
+## 16. CORS และ security header **[Claude]**
+
+**หลักคือ same-origin และไม่เปิด CORS**
+- Production: หน้าเว็บกับ `/api` อยู่ origin เดียวกัน (NGINX เสิร์ฟ `dist/` และ proxy `/api` → `api:8000`)
+- Dev: Vite proxy `/api` → `localhost:8000` ทำให้ browser เห็นเป็น origin เดียวกัน
+- API จึง **ไม่ติดตั้ง `CORSMiddleware`** และไม่ส่ง header `Access-Control-Allow-*` เลย request จาก origin อื่นจึงถูก browser บล็อก
+- ถ้าวันหน้าต้องให้ origin อื่นเรียก (เช่น dashboard ของทีมอื่น) ให้เปิดผ่าน env `MARK_CORS_ORIGINS` เป็นรายชื่อ origin แบบตรงตัว
+  - ค่าเริ่มต้นว่าง = ปิด
+  - ห้ามใช้ `*` ร่วมกับ `allow_credentials`
+  - method ที่อนุญาต: `GET, POST`
+  - header ที่อนุญาต: `Content-Type, X-CSRF-Token, X-Request-ID`
+  - `max_age` 600
+- CORS ไม่ได้กัน CSRF: การกันยังเป็น SameSite cookie + `X-CSRF-Token` + ตรวจ `Origin` ตามข้อ 11
+- API token (Bearer) ใช้จากเครื่องต่อเครื่อง ไม่เกี่ยวกับ CORS
+- WebSocket (B3): browser ไม่ใช้ CORS กับ WebSocket จึงต้องตรวจ `Origin` เองตอน handshake (ข้อ 13)
+
+**Security header** (ตั้งที่ NGINX)
+
+| Header | ค่า |
+|---|---|
+| `Content-Security-Policy` | `default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `same-origin` |
+| `X-Frame-Options` | `DENY` |
+| `Strict-Transport-Security` | ใส่เมื่อขึ้น HTTPS แล้วเท่านั้น (`max-age=31536000`) |
+| `Cache-Control` | `no-store` สำหรับ `/api/` (ข้อมูลลูกค้า) · ไฟล์ static ที่มี hash ในชื่อ cache ได้ 1 ปี |
+

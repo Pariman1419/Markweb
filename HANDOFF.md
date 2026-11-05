@@ -85,6 +85,7 @@
     - `line_review` uses the full key including `abs_no` and `side`.
     - `audit_log`, `line_review` and `approval` are append-only.
   - **Logging:** JSON logs with `request_id` from NGINX; `/api/health`, `/api/ready`, `/api/metrics`; alert thresholds.
+- Added spec §16 on CORS: same-origin only, no CORS middleware unless the `MARK_CORS_ORIGINS` allowlist is set, plus NGINX security headers (CSP, nosniff, frame deny, `no-store` on `/api`).
 - Facts checked against the DB on 2026-11-05: the `line_result` PK is `(run_id, elr_no, abs_no, side, line_no)`, and line status is in `final_status`.
 
 ### 2026-11-05 — Engine fixes from the run-17 overflow review (post-holdout, not frozen)
