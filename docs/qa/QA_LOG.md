@@ -555,3 +555,14 @@
 ### Verification
 - `pytest tests -q`: 308 passed in 13.4s.
 - DB checks: verified `mark_app.app_user` contains active user, foreign key constraint on `line_review` rejects nonexistent runs/lines, and latest `run_id` is 19.
+
+## 2026-11-05 — Task 2: Snapshot loader (spec T2)
+
+### What changed
+- Created `scripts/load_app_snapshot.py` to extract per-ELR metadata, Oracle raw 5-line marks, 5x18 layout grids, SLR facts, and line compare extras (`line_extra`) from run artifacts.
+- Created `tests/unit/test_app_snapshot.py` verifying snapshot construction with isolated fixtures.
+- Populated `mark_app.elr_snapshot` for trial `run_id = 19` with 402 rows and copied 287 ABS images to file storage.
+
+### Verification
+- `pytest tests/unit/test_app_snapshot.py -q`: 3 passed.
+- Database query: `select count(*) from mark_app.elr_snapshot where run_id = 19` confirmed 402 rows.

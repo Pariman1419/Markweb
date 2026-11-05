@@ -131,7 +131,7 @@ Read these first, in this order:
   - `line_extra` = jsonb `{line_no: {compare_rules, flags, detail}}` taken from the TOP rows of `run_dir/lines.csv`. These are not columns in `mark_logic.line_result`.
 - Produces CLI: `python scripts/load_app_snapshot.py --run-id N --oracle … --cache … --run … [--commit]`. It copies each image to `$MARK_FILES_ROOT/abs/<run_id>/<sha256>.png` and sets `image_path` relative to that root. Without `--commit` it rolls back.
 
-- [ ] **Step 1: Write failing tests** with a tiny fixture: 1 ELR meta dict, a 2-row layout and a 1×1 PNG in `tmp_path`.
+- [x] **Step 1: Write failing tests** with a tiny fixture: 1 ELR meta dict, a 2-row layout and a 1×1 PNG in `tmp_path`.
 
 ```python
 def test_snapshot_row_has_five_oracle_rows_and_layout_grid(tmp_path):
@@ -148,10 +148,10 @@ def test_hold_elr_without_image_has_null_image_path(tmp_path):
     assert build_snapshot_rows(18, oracle, cache, run_hold_only)[0]['image_path'] is None
 ```
 
-- [ ] **Step 2:** Run `python -m pytest tests/unit/test_app_snapshot.py -q`. Expected: FAIL (ImportError).
-- [ ] **Step 3:** Implement `build_snapshot_rows` and the CLI. Use `execute_values` with `on conflict (run_id, elr_no) do update`, so a re-load is idempotent.
-- [ ] **Step 4:** Run the tests. Expected: PASS. **[USER]** Run the CLI with `--commit` for the Task 1 run. Expected: 402 rows, and the image count equals the ELRs with an image in `images_index.csv`.
-- [ ] **Step 5:** Commit (`feat(app): elr_snapshot loader for trial run`) with HANDOFF and QA_LOG.
+- [x] **Step 2:** Run `python -m pytest tests/unit/test_app_snapshot.py -q`. Expected: FAIL (ImportError).
+- [x] **Step 3:** Implement `build_snapshot_rows` and the CLI. Use `execute_values` with `on conflict (run_id, elr_no) do update`, so a re-load is idempotent.
+- [x] **Step 4:** Run the tests. Expected: PASS. **[USER]** Run the CLI with `--commit` for the Task 1 run. Expected: 402 rows, and the image count equals the ELRs with an image in `images_index.csv`.
+- [x] **Step 5:** Commit (`feat(app): elr_snapshot loader for trial run`) with HANDOFF and QA_LOG.
 
 ### Task 3: API core logic (pure functions)
 

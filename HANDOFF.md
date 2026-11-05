@@ -63,6 +63,13 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 2: Snapshot loader (spec T2)
+- Implemented `scripts/load_app_snapshot.py` with `build_snapshot_rows` and CLI with `--commit`.
+- Added unit tests in `tests/unit/test_app_snapshot.py` covering 5 Oracle rows, 5x18 layout grid, `top_mark_id` float parsing, `line_extra` jsonb, and HOLD ELR image nullability. All passed.
+- Loaded snapshots for trial run `run_id = 19` into `mark_app.elr_snapshot`: 402 ELRs inserted, 287 ABS images copied to `data/files/abs/19/<sha256>.png`.
+- Verified in DB: `select count(*) from mark_app.elr_snapshot where run_id = 19` returns exactly 402.
+
+
 ### 2026-11-05 — Task 1: Trial run + mark_app schema (spec T0, T1)
 - Engine version bumped to 0.3.0 in `mark_engine/version.py` and `pyproject.toml`.
 - Extracted `is_blind_run` in `scripts/load_r1_to_pg.py`; added unit test `tests/unit/test_load_r1_blind.py`. All 308 engine unit tests pass.
