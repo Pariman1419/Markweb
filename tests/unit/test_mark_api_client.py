@@ -1,4 +1,4 @@
-﻿from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import json
 import sys
@@ -78,9 +78,9 @@ def test_summarize_counts_line():
         'scan_id=42 found=10 queued=4 unchanged=3 skipped=2')
 
 
-def test_summarize_rejects_customer_data():
-    with pytest.raises(ValueError, match='invalid scan summary'):
-        summarize({'scan_id': 'customer-data', 'counts': {'found': 1}})
+@pytest.mark.parametrize('response', [None, [], {}, {'scan_id': 'customer-data', 'counts': {'found': 1}}, {'scan_id': 1, 'counts': 'invalid'}])
+def test_summarize_unavailable_without_leaking_data(response):
+    assert summarize(response) == 'summary unavailable'
 
 
 def test_task_maps_busy_and_auth_without_leaking_token(monkeypatch):
@@ -154,3 +154,37 @@ def test_dag_configuration_without_airflow_or_network(monkeypatch, filename, sch
     assert dag['default_args']['retries'] == retries
     assert task['op_kwargs'] == {'path': path, 'body': body}
     assert task['do_xcom_push'] is False
+
+
+@pytest.mark.parametrize('port', [None, ''])
+def test_task_without_port_does_not_retry_for_unavailable_summary(monkeypatch, caplog, port):
+    import types
+    root = Path(__file__).resolve().parents[2] / 'airflow' / 'dags'
+    monkeypatch.syspath_prepend(str(root))
+    from mark import mark_tasks
+    class Hook:
+        @staticmethod
+        def get_connection(name):
+            return types.SimpleNamespace(schema='http', host='example.internal', port=port, password='secret')
+    for name, module in {
+        'airflow': types.ModuleType('airflow'),
+        'airflow.exceptions': types.SimpleNamespace(AirflowSkipException=RuntimeError, AirflowFailException=RuntimeError),
+        'airflow.hooks': types.ModuleType('airflow.hooks'),
+        'airflow.hooks.base': types.SimpleNamespace(BaseHook=Hook),
+    }.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    calls = []
+    def post(*args):
+        calls.append(args)
+        return {'scan_id': 'private data'}
+    monkeypatch.setattr(mark_tasks, 'call_mark_api', post)
+    with caplog.at_level('INFO'):
+        mark_tasks.run_scan('/api/scans', {'source': 'airflow'})
+    assert len(calls) == 1 and calls[0][0] == 'http://example.internal'
+    assert 'summary unavailable' in caplog.text and 'private data' not in caplog.text
+
+
+def test_success_with_invalid_json_does_not_retry(monkeypatch):
+    from io import BytesIO
+    monkeypatch.setattr('urllib.request.urlopen', lambda *a, **kw: BytesIO(b'invalid'))
+    assert summarize(call_mark_api('http://example.internal', 'secret', '/api/scans', {})) == 'summary unavailable'

@@ -1,4 +1,4 @@
-﻿"""Airflow task callable shared by the Mark DAGs."""
+"""Airflow task callable shared by the Mark DAGs."""
 import logging
 from mark.mark_api_client import MarkApiAuthError, MarkApiBusy, call_mark_api, summarize
 
@@ -8,7 +8,9 @@ def run_scan(path, body):
     from airflow.hooks.base import BaseHook
 
     conn = BaseHook.get_connection('mark_api')
-    base_url = f'{conn.schema or "http"}://{conn.host}:{conn.port}'
+    base_url = f'{conn.schema or "http"}://{conn.host}'
+    if conn.port:
+        base_url += f':{conn.port}'
     try:
         result = call_mark_api(base_url, conn.password, path, body)
     except MarkApiBusy:

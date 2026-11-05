@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from airflow import DAG
 from airflow.operators.python import PythonOperator

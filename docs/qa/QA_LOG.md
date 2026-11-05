@@ -1173,3 +1173,10 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 - 409 is skipped; 401/403 fail without retry; transient errors retry. Logs contain only scan ID and counts. Prerequisites for Task 3 remain B3 Task 5 green and migration 0007 applied to real DB.
 - Verification: 12 focused tests passed; the full non-regression suite passed 403 tests with one pynvml deprecation warning. DAG settings were verified locally with Airflow stubs; a real scheduler parse remains pending.
 - After rebase onto B3 Task 2, the full non-regression suite passed 433 tests, with the same pynvml warning.
+
+
+## 2026-11-06 - Airflow optional port and successful-response summary
+
+- Omit the port separator when Connection port is empty. After a successful POST, malformed JSON or unavailable summary is logged as `summary unavailable` and does not cause another scan attempt. The summary does not expose unexpected values.
+- All Mark DAG Python files and the focused test file were verified UTF-8 without BOM. Focused tests: 19 passed; full non-regression suite: 440 passed, one existing pynvml deprecation warning.
+- Published branch history is retained, per user request for a normal push without force. The fetched trial branch has advanced; no published commits were rebased. Real Airflow deployment and parse remain deferred.

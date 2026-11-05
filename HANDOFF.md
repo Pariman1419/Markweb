@@ -63,6 +63,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 - Airflow safe summary and optional port
+- Connection URLs omit the port separator when `port` is empty. Successful POST responses with unreadable JSON or invalid summary fields produce `summary unavailable` rather than retrying the scan; no response data is logged.
+- Mark DAG Python files and the client test are UTF-8 without BOM. Focused tests: 19 passed; full non-regression suite: 440 passed, one existing pynvml warning.
+- User requested one normal push and no history rewrite or force push. The fetched `origin/phase2/trial` has moved since the previous push; no rebase of published airflow commits was attempted. Deployment and real Airflow parse remain deferred to .17.
+
 ### 2026-11-06 — B3 Task 2: Input Fingerprints & Re-check Decision Table (Spec §4)
 - **Implemented**: `mark_engine/history/__init__.py`, `mark_engine/history/fingerprint.py`, `mark_engine/history/decide.py`, `tests/unit/test_history.py`.
 - **Key Modules**:
