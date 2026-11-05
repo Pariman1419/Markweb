@@ -39,10 +39,12 @@ pipeline {
       steps {
         bat '"%PYTHON_EXE%" -m venv .venv'
         bat '.venv\\Scripts\\python -m pip install -q -e ".[dev,api]"'
-        bat 'if not exist reports mkdir reports && .venv\\Scripts\\python -m pytest tests -q --junitxml=reports\\pytest.xml'
+        // separate steps: in cmd, `if not exist X a && b` runs b only inside the if
+        bat 'if exist reports rmdir /S /Q reports'
+        bat '.venv\\Scripts\\python -m pytest tests -q --junitxml=reports\\pytest.xml'
       }
       post {
-        always { junit allowEmptyResults: true, testResults: 'reports/pytest.xml' }
+        always { junit allowEmptyResults: false, testResults: 'reports/pytest.xml' }
       }
     }
 
