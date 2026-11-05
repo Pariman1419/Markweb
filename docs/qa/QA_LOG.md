@@ -822,3 +822,18 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 - **Rule differs:** SLR selection (Marking Comment vs CUST_REQ_NO).
 - **Engine-only, absent from the diagram:** document HOLD reasons and Skip Mark.
 - Any new gate must be regressed on run 19 before merge (spec §7).
+
+
+## 2026-11-05 — Engine Gates Task 1: G1 Cust Assy TBD holds the job
+
+### What changed
+- In `mark_engine/pipeline.py`: restructured eligibility checks into explicit ordered gates:
+  1. `STATUS == 'C'` → `NOT_ELIGIBLE`
+  2. `CUST_ASSY_LOT == 'TBD'` (G1) → `HOLD:CUST_ASSY_TBD` (TBD takes precedence over ZY layout per user gate order)
+  3. `top_type_code != 'E'` or `top_layout_code == 'ZY'` → `NOT_ELIGIBLE`
+  4. Document resolution gate (as before)
+- Job result for TBD sets `ProcessingStatus.HOLD`, `hold_reason="CUST_ASSY_TBD"`, `resolution=None`, and `LineStatus.NOT_MEASURABLE` for each Oracle line.
+
+### Verification
+- `test_cust_assy_tbd_gate` tested 5 cases: `" tbd "`, `"Tbd"`, `"TBD"` on closed ELR (stays NOT_ELIGIBLE), `"1STBOND"` (not TBD), and `None`.
+- Full suite: 362 unit tests passed.

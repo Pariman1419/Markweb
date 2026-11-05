@@ -163,12 +163,61 @@ def process_elr(
       7. Comparison Engine (compare)
       8. Three-axis Status Synthesis
     """
-    # 1. Eligibility Gate
-    status_is_c = (meta.status or "").strip().upper() == "C"
+    # 1. Closed ELR Gate
+    if (meta.status or "").strip().upper() == "C":
+        comparisons = tuple(
+            LineComparison(
+                side=s,
+                line_no=n,
+                expected=None,
+                oracle=text,
+                status=LineStatus.NOT_ELIGIBLE,
+                compare_rules=(),
+                detail="NOT_ELIGIBLE",
+            )
+            for s, n, text in oracle.lines
+        )
+        return JobResult(
+            elr_no=meta.elr_no,
+            processing_status=ProcessingStatus.DONE,
+            hold_reason=None,
+            verification_status=VerificationStatus.NOT_VERIFIABLE,
+            approval_status=ApprovalStatus.NOT_REVIEWED,
+            resolution=None,
+            expected=None,
+            comparisons=comparisons,
+        )
+
+    # 2. Cust Assy TBD Gate (G1)
+    if (meta.cust_assy_lot or "").strip().upper() == "TBD":
+        comparisons = tuple(
+            LineComparison(
+                side=s,
+                line_no=n,
+                expected=None,
+                oracle=text,
+                status=LineStatus.NOT_MEASURABLE,
+                compare_rules=(),
+                detail="CUST_ASSY_TBD",
+            )
+            for s, n, text in oracle.lines
+        )
+        return JobResult(
+            elr_no=meta.elr_no,
+            processing_status=ProcessingStatus.HOLD,
+            hold_reason="CUST_ASSY_TBD",
+            verification_status=None,
+            approval_status=ApprovalStatus.NOT_REVIEWED,
+            resolution=None,
+            expected=None,
+            comparisons=comparisons,
+        )
+
+    # 3. Type / Layout Eligibility Gate
     type_not_e = (meta.top_type_code or "").strip().upper() != "E"
     layout_is_zy = (meta.top_layout_code or "").strip().upper() == "ZY"
 
-    if status_is_c or type_not_e or layout_is_zy:
+    if type_not_e or layout_is_zy:
         comparisons = tuple(
             LineComparison(
                 side=s,

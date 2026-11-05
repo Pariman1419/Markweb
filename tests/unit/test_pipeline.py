@@ -337,3 +337,26 @@ def test_shift_match_all(month_tree: Path, tmp_path: Path):
     assert job.verification_status == VerificationStatus.MATCH_ALL
     assert all(c.status == LineStatus.MATCH_SHIFT for c in job.comparisons)
 
+
+@pytest.mark.parametrize("lot, status, layout, expect_hold", [
+    (" tbd ", "A", "ZY", True),      # TBD wins over the ZY layout gate (user order)
+    ("Tbd", "A", "STD", True),
+    ("TBD", "C", "STD", False),      # closed ELR stays NOT_ELIGIBLE
+    ("1STBOND", "A", "ZY", False),   # contains "TB" but is not TBD
+    (None, "A", "ZY", False),
+])
+def test_cust_assy_tbd_gate(tmp_path: Path, lot, status, layout, expect_hold):
+    meta = ElrMeta(elr_no="ADI2601020", status=status, top_type_code="E",
+                   top_layout_code=layout, cust_assy_lot=lot)
+    oracle = OracleMark(elr_no="ADI2601020", lines=((Side.TOP, 1, "ADW"),))
+    job = process_elr(meta, oracle, tmp_path, ["1_JAN"], tmp_path / "work", _rules(),
+                      lambda elr, stem: InferenceResult(elr))
+    if expect_hold:
+        assert (job.processing_status, job.hold_reason) == (ProcessingStatus.HOLD, "CUST_ASSY_TBD")
+        assert job.resolution is None and job.verification_status is None
+        assert job.comparisons[0].status == LineStatus.NOT_MEASURABLE
+        assert job.comparisons[0].detail == "CUST_ASSY_TBD"
+    else:
+        assert job.comparisons[0].status == LineStatus.NOT_ELIGIBLE
+
+

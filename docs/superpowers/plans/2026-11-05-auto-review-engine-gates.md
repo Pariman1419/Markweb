@@ -62,7 +62,7 @@
   3. type not `E` or layout `ZY` → NOT_ELIGIBLE
   4. documents (as before)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 @pytest.mark.parametrize("lot, status, layout, expect_hold", [
@@ -87,9 +87,9 @@ def test_cust_assy_tbd_gate(tmp_path: Path, lot, status, layout, expect_hold):
         assert job.comparisons[0].status == LineStatus.NOT_ELIGIBLE
 ```
 
-- [ ] **Step 2: Run the test.** `python -m pytest tests/unit/test_pipeline.py -k cust_assy_tbd -q`. Expected: the first two cases FAIL (they get NOT_ELIGIBLE or a document HOLD instead).
-- [ ] **Step 3: Implement.** In `process_elr`, split the combined eligibility `if` into the three ordered checks above. TBD means `(meta.cust_assy_lot or "").strip().upper() == "TBD"`.
-- [ ] **Step 4: Run the unit suite.** `python -m pytest tests/unit -q -p no:cacheprovider`. Expected: all pass.
+- [x] **Step 2: Run the test.** `python -m pytest tests/unit/test_pipeline.py -k cust_assy_tbd -q`. Expected: the first two cases FAIL (they get NOT_ELIGIBLE or a document HOLD instead).
+- [x] **Step 3: Implement.** In `process_elr`, split the combined eligibility `if` into the three ordered checks above. TBD means `(meta.cust_assy_lot or "").strip().upper() == "TBD"`.
+- [x] **Step 4: Run the unit suite.** `python -m pytest tests/unit -q -p no:cacheprovider`. Expected: all pass.
 - [ ] **Step 5: Commit and push.** Use `git commit -m "feat(engine): G1 hold when Cust Assy is TBD"`, then push and wait for Jenkins to go green.
 
 ### Task 2: Special requirement only when the SLR has SPECIAL INSTRUCTIONS

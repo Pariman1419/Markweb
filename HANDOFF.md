@@ -63,6 +63,18 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Engine Gates Task 1: G1 Cust Assy TBD holds the job
+- **What changed**:
+  - In `mark_engine/pipeline.py`: restructured eligibility checks into explicit ordered gates:
+    1. `STATUS == 'C'` → `NOT_ELIGIBLE`
+    2. `CUST_ASSY_LOT == 'TBD'` (G1) → `HOLD:CUST_ASSY_TBD`
+    3. `top_type_code != 'E'` or `top_layout_code == 'ZY'` → `NOT_ELIGIBLE`
+    4. Document resolution gate (as before)
+  - TBD jobs yield `ProcessingStatus.HOLD`, `hold_reason="CUST_ASSY_TBD"`, `resolution=None`, and `LineStatus.NOT_MEASURABLE` with detail `"CUST_ASSY_TBD"`.
+- **Verification**:
+  - `test_cust_assy_tbd_gate` tested 5 parameterized cases.
+  - Full suite: 362 unit tests passed.
+
 ### 2026-11-05 — Plan: auto review step 1, engine gates (for the other agent)
 - **Plan:** `docs/superpowers/plans/2026-11-05-auto-review-engine-gates.md`.
 - **Tasks:**
