@@ -797,3 +797,16 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 - **Cause:** the review used the snapshot abs (`-ENG-2` suffix) and not `line_result.abs_no`. All 1358 run-19 lines are affected.
 - **Fix:** take `abs_no`/`side` from the line row; unknown line → 404.
 - **Tests:** 356 unit tests pass. The E2E re-run after deploy is recorded in the next entry.
+
+## 2026-11-05 — Acceptance Task 4: Dashboard cache LRU 8 and lazy ABS thumbnail
+
+### What changed
+- In `services/api/mark_api/routers/validation.py`: replaced `_dashboard_cache` dict with `OrderedDict` bounded by `_CACHE_MAX = 8`.
+  - Cache hit: `move_to_end(run)`.
+  - Cache store: evicts least recently used via `popitem(last=False)` when exceeding 8 entries.
+- In `web/src/pages/Preview.tsx`: added `loading="lazy"` to thumbnail `<img>` on line 259, while keeping modal zoomed preview eager.
+
+### Verification
+- `test_dashboard_cache_lru_8` verified 9 unique runs store 8 entries and evict run 100.
+- `tsc -b && vite build` built web bundle with 0 errors.
+- Full suite: 357 unit tests passed.

@@ -188,7 +188,7 @@ def test_metrics_counts_logins(client, fake_repo):
   - **Endpoint:** `/api/metrics` returns `metrics.snapshot(repo.active_sessions())`, catching a DB error and passing `None` instead.
   - **FakeRepo:** gets `active_sessions()`, which returns `len(self.sessions)`.
 - [x] **Step 4: Run the unit suite.** Expected: all pass.
-- [ ] **Step 5: Commit and push.** Use `git commit -m "feat: metrics per spec 15 (login counts, p50/p95 ring buffer, db_error, active sessions)"`, then wait for green.
+- [x] **Step 5: Commit and push.** Use `git commit -m "feat: metrics per spec 15 (login counts, p50/p95 ring buffer, db_error, active sessions)"`, then wait for green.
 
 ### Task 4: Spec §18 leftovers (dashboard LRU 8, lazy ABS thumbnail)
 
@@ -215,8 +215,8 @@ def test_dashboard_cache_lru_8(client, fake_repo):
 ```
 
 - [x] **Step 2: Run it.** Expected: FAIL (9 entries).
-- [ ] **Step 3: Implement** the LRU, and add `loading="lazy"` to the thumbnail `<img>`.
-- [ ] **Step 4: Run the unit suite and `npm run build`.** Expected: all pass.
+- [x] **Step 3: Implement** the LRU, and add `loading="lazy"` to the thumbnail `<img>`.
+- [x] **Step 4: Run the unit suite and `npm run build`.** Expected: all pass.
 - [ ] **Step 5: Commit and push.** Use `git commit -m "perf: dashboard cache LRU 8 and lazy ABS thumbnail"`, then wait for green.
 
 ### Task 5: User walkthrough (needs the user)

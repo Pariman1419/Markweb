@@ -823,3 +823,12 @@ def test_review_uses_line_key_not_snapshot_abs(client, fake_repo):
     n = len(fake_repo.reviews_data)
     r = client.post("/api/reviews", json=dict(body, line_no=99), headers={"X-CSRF-Token": csrf})
     assert r.status_code == 404 and len(fake_repo.reviews_data) == n
+
+
+def test_dashboard_cache_lru_8(client, fake_repo):
+    from mark_api.routers import validation
+    _login(client)
+    for run in range(100, 109):                       # 9 distinct runs (FakeRepo returns empty data → still cached)
+        client.get(f"/api/dashboard?run={run}")
+    assert len(validation._dashboard_cache) == 8 and 100 not in validation._dashboard_cache
+

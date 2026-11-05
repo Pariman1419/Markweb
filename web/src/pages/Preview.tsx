@@ -259,6 +259,7 @@ export const Preview: React.FC = () => {
                     <img
                       src={`/api/files/abs/${runId}/${elr}`}
                       alt="ABS Drawing"
+                      loading="lazy"
                       className="max-h-72 object-contain cursor-pointer hover:scale-[1.02] transition-transform"
                       onClick={() => setEnlargeImage(true)}
                     />

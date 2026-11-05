@@ -63,6 +63,15 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Acceptance Task 4: Dashboard cache LRU 8 and lazy ABS thumbnail
+- **What changed**:
+  - In `services/api/mark_api/routers/validation.py`: `_dashboard_cache` changed to `OrderedDict` with `_CACHE_MAX = 8`, promoting on cache hit (`move_to_end(run)`) and evicting oldest entry (`popitem(last=False)`) when exceeding capacity.
+  - In `web/src/pages/Preview.tsx`: added `loading="lazy"` to the thumbnail drawing `<img ... />` while leaving the modal image eager.
+- **Verification**:
+  - `test_dashboard_cache_lru_8` passed.
+  - `npm run build` passed with 0 errors.
+  - Full suite: 357 unit tests passed.
+
 ### 2026-11-05 — Fix: line review always failed on the real DB; E2E walkthrough script (Task 5)
 - **Bug (found by the new E2E script):** `POST /api/reviews` returned 500 on run 19 for every line, so engineers could not save any review. That also meant no ELR with an ERROR line could ever be approved.
   - **Cause:** the router took `abs_no` from the job snapshot (`abs_file`, e.g. `ABS071169-ENG-2`) and hard-coded `side='TOP'`. But `line_review`'s FK `(run_id, elr_no, abs_no, side, line_no)` points to `mark_logic.line_result`, whose `abs_no` is the base number (`ABS071169`). On run 19, 1358/1358 lines differ.
