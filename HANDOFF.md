@@ -87,7 +87,7 @@
 - User deferred Task 3-4 to .17 deployment: .3 to 10.151.97.18 is network-blocked; user reports .3 to 10.153.90.17 works and .17:8088 is occupied by another app. API port remains to be decided. The direct host probe returned HTTP 000.
 - Key-only SSH worked; Airflow scheduler and webserver were observed as active systemd services. Version, DAG folder, timezone and CLI access remain unknown; no service or DAG changed.
 - Added the three paused DAGs and an HTTP client. Scheme, host, port and token come from Airflow Connection `mark_api`; no endpoint is hard-coded. 409 skips; 401/403 fail without retry; other failures retry.
-- Verification: 12 focused tests passed; `python -m pytest tests -q --ignore=tests/regression -p no:cacheprovider` passed 403 tests with one existing pynvml deprecation warning.
+- Verification: after rebase onto B3 Task 2, the full non-regression suite passed 433 tests (one existing pynvml deprecation warning). Before rebase, 12 focused tests passed; `python -m pytest tests -q --ignore=tests/regression -p no:cacheprovider` passed 403 tests with one existing pynvml deprecation warning.
 - No deployment or server parse check has been performed. Task 3 requires B3 Task 5 green and migration 0007 applied to the real DB; Task 4 additionally requires B3 Task 6 and user-triggered initial load/unpause.
 
 ### 2026-11-06 — Airflow DAG plan for Codex (branch `phase2/airflow`)
