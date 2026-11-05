@@ -154,3 +154,12 @@ def test_ordinal_brand_line_is_an_instruction():
     facts = parse_slr('Second line of brand content / marking: "LS1234v00" BEF Promis notes: 7.1 is costing off.')
     assert [(i.line_no, i.value) for i in facts.instructions] == [(2, "LS1234v00")]
     assert facts.unresolved == ()
+
+
+def test_special_flag_follows_section_header() -> None:
+    plain = "Line 1: Q1.\nScheduled Lot ID\n7284173.1\n"
+    with_header = "HEADER\nSPECIAL INSTRUCTIONS\nLine 1: Q1.\nANALOG\nDEVICES\n"
+    assert parse_slr(plain).special is False
+    assert parse_slr(plain).scheduled_lots          # lots still parsed without the header
+    assert parse_slr(with_header).special is True
+    assert parse_slr(plain + "\n" + with_header).special is True   # two SLRs joined, one has it

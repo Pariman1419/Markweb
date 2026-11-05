@@ -234,4 +234,5 @@ def parse_slr(text: str) -> SlrFacts:
         scheduled_lots=tuple(scheduled_lots),
         qual_lot=qual_lot,
         unresolved=tuple(unresolved),
+        special=bool(sec_match),
     )

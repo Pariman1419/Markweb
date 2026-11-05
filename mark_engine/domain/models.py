@@ -154,6 +154,7 @@ class SlrFacts:
     scheduled_lots: tuple[str, ...] = ()
     qual_lot: tuple[int, int] | None = None
     unresolved: tuple[str, ...] = ()
+    special: bool = False
 
 
 @dataclass(frozen=True, slots=True)

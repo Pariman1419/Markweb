@@ -27,6 +27,7 @@ def _setup_elr(
     elr_no: str,
     include_slr: bool = True,
     slr_instruction: str = "",
+    special_header: bool = True,
 ) -> tuple[Path, ElrMeta]:
     elr_folder = month_tree / "1_JAN" / elr_no
     elr_folder.mkdir(parents=True, exist_ok=True)
@@ -37,9 +38,10 @@ def _setup_elr(
     if include_slr:
         slr_pdf = elr_folder / "SLR232022.pdf"
         inst = f"{slr_instruction}\n" if slr_instruction else "None.\n"
+        hdr = "SPECIAL INSTRUCTIONS\n" if special_header else ""
         slr_body = (
             f"HEADER INFO\n"
-            f"SPECIAL INSTRUCTIONS\n"
+            f"{hdr}"
             f"{inst}"
             f"ANALOG\n"
             f"DEVICES\n"
@@ -360,3 +362,15 @@ def test_cust_assy_tbd_gate(tmp_path: Path, lot, status, layout, expect_hold):
         assert job.comparisons[0].status == LineStatus.NOT_ELIGIBLE
 
 
+
+
+def test_slr_without_special_instructions_uses_abs_only(month_tree: Path, tmp_path: Path):
+    # same inputs as test_match_slr_match_all, but the SLR has no SPECIAL INSTRUCTIONS header
+    _, meta = _setup_elr(month_tree, "ADI2601021", include_slr=True, slr_instruction="Line 1: Q1",
+                         special_header=False)
+    oracle = OracleMark(elr_no="ADI2601021", lines=((Side.TOP, 1, "Q1"),))
+    loader = lambda elr, stem: InferenceResult(
+        elr, lines=(LayoutLine(side=Side.TOP, line_no=1, text="ADW", graphics=""),), layout_source="auto")
+    job = process_elr(meta, oracle, month_tree, ["1_JAN"], tmp_path / "work", _rules(), loader)
+    assert job.comparisons[0].status != LineStatus.MATCH_SLR
+    assert all(t.source != "SLR" for line in job.expected.lines for t in line.tokens)

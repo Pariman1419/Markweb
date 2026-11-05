@@ -63,6 +63,16 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Engine Gates Task 2: SLR instructions apply only when SLR has SPECIAL INSTRUCTIONS
+- **What changed**:
+  - In `mark_engine/domain/models.py`: added `special: bool = False` to `SlrFacts`.
+  - In `mark_engine/slr/parse.py`: set `special=bool(sec_match)` in `parse_slr()`.
+  - In `mark_engine/pipeline.py`: after `parse_slr()`, if `not slr_facts.special`, replace with `instructions=(), unresolved=()` to prevent SLR line override while keeping scheduled lots.
+- **Verification**:
+  - `test_special_flag_follows_section_header` in `tests/unit/test_slr_parse.py`.
+  - `test_slr_without_special_instructions_uses_abs_only` in `tests/unit/test_pipeline.py`.
+  - Full suite: 364 unit tests passed.
+
 ### 2026-11-05 — Engine Gates Task 1: G1 Cust Assy TBD holds the job
 - **What changed**:
   - In `mark_engine/pipeline.py`: restructured eligibility checks into explicit ordered gates:

@@ -314,6 +314,8 @@ def process_elr(
     if slr_texts:
         joined_text = "\n".join(slr_texts)
         slr_facts = parse_slr(joined_text)
+        if not slr_facts.special:
+            slr_facts = replace(slr_facts, instructions=(), unresolved=())
     else:
         slr_facts = SlrFacts(
             text="",

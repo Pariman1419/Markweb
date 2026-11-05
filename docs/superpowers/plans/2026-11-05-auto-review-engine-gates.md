@@ -90,7 +90,7 @@ def test_cust_assy_tbd_gate(tmp_path: Path, lot, status, layout, expect_hold):
 - [x] **Step 2: Run the test.** `python -m pytest tests/unit/test_pipeline.py -k cust_assy_tbd -q`. Expected: the first two cases FAIL (they get NOT_ELIGIBLE or a document HOLD instead).
 - [x] **Step 3: Implement.** In `process_elr`, split the combined eligibility `if` into the three ordered checks above. TBD means `(meta.cust_assy_lot or "").strip().upper() == "TBD"`.
 - [x] **Step 4: Run the unit suite.** `python -m pytest tests/unit -q -p no:cacheprovider`. Expected: all pass.
-- [ ] **Step 5: Commit and push.** Use `git commit -m "feat(engine): G1 hold when Cust Assy is TBD"`, then push and wait for Jenkins to go green.
+- [x] **Step 5: Commit and push.** Use `git commit -m "feat(engine): G1 hold when Cust Assy is TBD"`, then push and wait for Jenkins to go green.
 
 ### Task 2: Special requirement only when the SLR has SPECIAL INSTRUCTIONS
 
@@ -104,7 +104,7 @@ def test_cust_assy_tbd_gate(tmp_path: Path, lot, status, layout, expect_hold):
 - Produces: `SlrFacts.special: bool = False`. `parse_slr(text)` sets it to `True` exactly when the existing `SPECIAL INSTRUCTIONS` section regex matches. **`parse_slr`'s other output is unchanged**, so existing parse tests keep passing.
 - Produces: in `process_elr`, when `not slr_facts.special`, use `dataclasses.replace(slr_facts, instructions=(), unresolved=())`. Scheduled lots and the qual lot are kept, and the SLR is still required (G3 is unchanged).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/unit/test_slr_parse.py
@@ -130,9 +130,9 @@ def test_slr_without_special_instructions_uses_abs_only(month_tree: Path, tmp_pa
 ```
 
   For the pipeline test, give `_setup_elr` a new keyword `special_header: bool = True`. When `False`, it writes the SLR body without the `SPECIAL INSTRUCTIONS` line. Existing callers are unchanged.
-- [ ] **Step 2: Run the tests.** `python -m pytest tests/unit/test_slr_parse.py tests/unit/test_pipeline.py -k "special" -q`. Expected: FAIL (`special` doesn't exist yet, and the SLR instruction is applied).
-- [ ] **Step 3: Implement** the field, the flag and the pipeline `replace`, exactly as described in Interfaces.
-- [ ] **Step 4: Run the unit suite.** Expected: all pass. If an existing test relied on header-less SLR instructions, **stop and report it to the user**, because it is a behaviour change the user must see. Do not edit the old test to make it pass.
+- [x] **Step 2: Run the tests.** `python -m pytest tests/unit/test_slr_parse.py tests/unit/test_pipeline.py -k "special" -q`. Expected: FAIL (`special` doesn't exist yet, and the SLR instruction is applied).
+- [x] **Step 3: Implement** the field, the flag and the pipeline `replace`, exactly as described in Interfaces.
+- [x] **Step 4: Run the unit suite.** Expected: all pass. If an existing test relied on header-less SLR instructions, **stop and report it to the user**, because it is a behaviour change the user must see. Do not edit the old test to make it pass.
 - [ ] **Step 5: Commit and push.** Use `git commit -m "feat(engine): SLR instructions apply only to Special requirement (SPECIAL INSTRUCTIONS)"`, then wait for green.
 
 ### Task 3: G5 — more than 5 TOP rows holds the job

@@ -837,3 +837,16 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 ### Verification
 - `test_cust_assy_tbd_gate` tested 5 cases: `" tbd "`, `"Tbd"`, `"TBD"` on closed ELR (stays NOT_ELIGIBLE), `"1STBOND"` (not TBD), and `None`.
 - Full suite: 362 unit tests passed.
+
+
+## 2026-11-05 — Engine Gates Task 2: SLR instructions apply only when SLR has SPECIAL INSTRUCTIONS
+
+### What changed
+- In `mark_engine/domain/models.py`: added `special: bool = False` to `SlrFacts`.
+- In `mark_engine/slr/parse.py`: set `special=bool(sec_match)` in `parse_slr()`. When `SPECIAL INSTRUCTIONS` section is absent, `special` is `False`.
+- In `mark_engine/pipeline.py`: after `parse_slr()`, if `not slr_facts.special`, replace with `instructions=(), unresolved=()`. This ensures SLR overrides only apply when the SLR contains explicit `SPECIAL INSTRUCTIONS`, while scheduled lots and qual lot remain preserved.
+
+### Verification
+- `test_special_flag_follows_section_header` in `tests/unit/test_slr_parse.py`: verified plain SLR (`special=False`, scheduled lots parsed), SLR with header (`special=True`), and joined SLRs (`special=True`).
+- `test_slr_without_special_instructions_uses_abs_only` in `tests/unit/test_pipeline.py`: verified pipeline does not apply SLR instruction without special header.
+- Full suite: 364 unit tests passed.
