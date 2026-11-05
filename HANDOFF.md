@@ -78,6 +78,7 @@
 - On resumption the NAS name did not resolve and the Oracle, PostgreSQL and AI-server ports timed out. The refreshed index and live batch are waiting for the internal network; existing snapshot and extracted images remain in ignored `artifacts/`.
 - Source-integrity fix committed as `318a770`; replacement freeze has been regenerated from it. The cache image index still needs to be refreshed from the NAS before any official inference.
 - Internal network connectivity returned. Image-index refresh is running; package and engine versions were corrected to `0.2.0` as specified by the closeout plan. Regenerate the freeze and release bundle after committing the version change.
+- The 0.2.0 freeze was generated from code commit `9a9bd92`; after image-index refresh, run the AI batch using this freeze.
 
 ### 2026-11-04 (plan: Phase 1 close-out)
 - Plan [`docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md`](docs/superpowers/plans/2026-11-04-phase1-closeout-blind-test.md): 11 tasks — `.env` + read-only ACTL client, migration 0004, ACTIVEL `MARK_ID_LAYOUT` positions (warning only, compare stage), FREEZE-R1, Oracle snapshot Jul–Nov, inference cache + Brand extraction, AI-server batch (determinism check vs R0), blind runner, DB load + Marking / rule-approval lists. Run order puts every `mark_engine/` change before the freeze.
