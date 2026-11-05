@@ -146,7 +146,7 @@ holdout ใหม่ (รอข้อมูล พ.ย. ครบเดือน
 
 ชั้นที่ 2 ในแอป: ล็อกบัญชีตามข้อ 11 (กันการเดารหัสจากหลาย IP) · request body ใหญ่สุด 1 MB (`client_max_body_size`)
 
-## 13. gRPC และ WebSocket **[Claude]**
+## 13. gRPC และ WebSocket **[ผู้ใช้ 2026-11-05: ทำรอบต่อไป]** (ออกแบบโดย Claude)
 
 | | ใช้ที่ไหน | เมื่อไร |
 |---|---|---|
@@ -245,7 +245,7 @@ NGINX access log ใช้ `log_format json` ด้วยฟิลด์ชุ�
 | `Referrer-Policy` | `same-origin` |
 | `X-Frame-Options` | `DENY` |
 | `Strict-Transport-Security` | ใส่เมื่อขึ้น HTTPS แล้วเท่านั้น (`max-age=31536000`) |
-| `Cache-Control` | `no-store` สำหรับ `/api/` (ข้อมูลลูกค้า) · ไฟล์ static ที่มี hash ในชื่อ cache ได้ 1 ปี |
+| `Cache-Control` | `no-store` สำหรับ `/api/` (ข้อมูลลูกค้า) · ยกเว้น `/api/files/` = `private, max-age=86400` + `ETag` = sha256 ของภาพ (ข้อ 18) · ไฟล์ static ที่มี hash ในชื่อ cache ได้ 1 ปี |
 
 ## 17. Cookie **[Claude]**
 
@@ -278,4 +278,60 @@ NGINX access log ใช้ `log_format json` ด้วยฟิลด์ชุ�
 - ควบคุมด้วย env `MARK_COOKIE_SECURE=true`; ค่าเริ่มต้น false เพราะรอบทดลองเป็น HTTP ภายใน
 
 **ห้าม:** ใส่ข้อมูลผู้ใช้ / role / ELR ใน cookie, ใช้ cookie แทน API token, ตั้ง `Domain=` ให้ใช้ร่วมกับ subdomain อื่น, log ค่า cookie
+
+## 18. Performance และ Big-O **[Claude]**
+
+**ขนาดข้อมูลที่ออกแบบไว้** (วัดจาก DB 2026-11-05)
+
+| | ตอนนี้ | ออกแบบให้รับได้ |
+|---|---|---|
+| ELR ต่อ run (`J`) | 402 (ก.ค.–พ.ย.) ≈ 80 / เดือน | 10,000 (หลายปี) |
+| บรรทัด TOP ต่อ run (`L`) | ~1,100–2,000 | 50,000 |
+| `line_result` ทั้งตาราง (`N`) | 33,365 (17 run) | 5 ล้าน |
+| บรรทัดต่อ ELR (`k`) | ≤ 5 ต่อ side (ค่าคงที่) | — |
+| ผู้ใช้พร้อมกัน | 1 | 20 |
+
+**ความซับซ้อนต่อ endpoint** (ทุก query ใช้ PK ที่ขึ้นต้นด้วย `(run_id, elr_no)` จึงไม่สแกนทั้งตาราง `N`)
+
+| Endpoint | Query | เวลา | หน่วยความจำ | หมายเหตุ |
+|---|---|---|---|---|
+| `GET /dashboard` | 2 query: range scan ของ run เดียว | O(log N + L + J) ครั้งแรก · **O(1)** ครั้งต่อไป | O(L) ชั่วคราว | จัดกลุ่มใน Python ด้วย `classify_line` (ที่เดียว) · cache ผลต่อ `run_id` (LRU 8) เพราะผล run ที่โหลดแล้วไม่เปลี่ยน และ review ไม่เปลี่ยนการ์ด |
+| `GET /elrs` | 2 query เดียวกับ dashboard (ใช้ cache แถวรวม) | O(J) กรอง + O(J log J) เรียง · **ส่งทีละหน้า 50 แถว** | O(J) | `q` ค้นหาแบบ substring O(J·m) ในหน่วยความจำ · ถ้า J > 50,000 ค่อยย้ายเป็น `ILIKE` + GIN trigram (ข้อ 14) |
+| `GET /elrs/{elr}` | **4 query คงที่**: snapshot, job, lines, review ล่าสุด (`DISTINCT ON (line_no)` ใช้ index) | O(log N + k) | O(k) | ห้ามมี N+1 (ห้าม query ต่อบรรทัด) |
+| `GET /files/abs/...` | 1 query snapshot | O(log N) + O(ขนาดภาพ) | O(1) — stream จากดิสก์ | `FileResponse` ไม่โหลดทั้งไฟล์เข้าหน่วยความจำ · `ETag` ทำให้เปิดซ้ำได้ 304 |
+| `POST /reviews` | 1 insert + 1 audit | O(log N) | O(1) | |
+| `POST /approvals` | 2 query (lines + latest reviews) + 2 insert | O(log N + k) | O(k) | `approve_blockers` O(k) |
+| `POST /auth/login` | 1 select + update + insert | O(log U) + **argon2 ~50–150 ms (ตั้งใจให้ช้า)** | ~64 MB ต่อการ hash | เป็นเหตุผลหนึ่งที่จำกัด login 5/นาที (ข้อ 12) |
+| ทุก request (session) | 1 select ตาม PK hash | O(log S) | O(1) | update `last_seen_at` ไม่เกินนาทีละครั้ง |
+| `GET /metrics` | ไม่มี query | O(R · B log B) | O(R · B) | ring buffer เวลา 1,000 ค่าล่าสุดต่อ route (R ≈ 12) · คำนวณ p95 ตอนเรียกเท่านั้น |
+
+**Snapshot loader (T2)**: O(J + I) แถว · insert ทีละ batch 500 (`execute_values`) · คัดลอกภาพ O(ขนาดรวม) และข้ามไฟล์ที่มี sha256 เดิมอยู่แล้ว (รันซ้ำแล้วไม่คัดลอกซ้ำ)
+
+**ฝั่ง server**
+- Connection pool `psycopg2.pool.ThreadedConnectionPool(min=1, max=10)` (ไม่เปิด connection ใหม่ทุก request)
+- uvicorn 2 worker · cache dashboard แยกในแต่ละ worker ได้ (ข้อมูลไม่เปลี่ยน จึงไม่ต้อง sync)
+- `statement_timeout = 5s` ต่อ connection · query เกิน 500 ms log `db.slow_query` (ข้อ 15)
+- response ใหญ่ (dashboard, elrs) บีบอัดด้วย gzip ที่ NGINX (`gzip on`, ≥ 1 KB)
+
+**ฝั่งหน้าเว็บ**
+- JS ตอนเปิดครั้งแรก ≤ 300 KB (gzip) · หน้า Preview โหลดแบบ lazy (`React.lazy`)
+- ตาราง ELR แสดงทีละหน้า 50 แถว (ไม่ต้องทำ virtual list)
+- ตาราง ACTIVEL คงที่ 5 × 21 ช่อง: O(1) ต่อ ELR · สี diff ต่อช่อง O(5·21)
+- ภาพ ABS ใช้ `loading="lazy"` และแสดงขนาดย่อด้วย CSS · กดขยายแล้วค่อยแสดงเต็มขนาด
+- ค้นหาแบบ debounce 300 ms ก่อนยิง API
+
+**เป้าหมายเวลา** (p95 บน LAN, run ขนาด ≤ 5,000 บรรทัด, วัดจาก `duration_ms` ใน log)
+
+| Endpoint | เป้า |
+|---|---|
+| `/dashboard` | ≤ 300 ms ครั้งแรก · ≤ 50 ms เมื่อมี cache |
+| `/elrs` | ≤ 200 ms |
+| `/elrs/{elr}` | ≤ 150 ms |
+| `POST /reviews`, `/approvals` | ≤ 150 ms |
+| `/auth/login` | ≤ 500 ms |
+| หน้าเว็บเปิดครั้งแรกจนเห็น Dashboard | ≤ 2 วินาที |
+
+**เมื่อไรต้องออกแบบใหม่**:
+- L > 50,000 ต่อ run หรือมีผู้ใช้พร้อมกันเกิน 20 คน → ย้ายการนับไปทำใน SQL (`GROUP BY`) หรือตาราง `metric_snapshot` (spec หลัก §13)
+- เริ่มมี job ใหม่เข้าตลอดเวลา (B3) → cache dashboard ต้องล้างเมื่อได้ event (`mark_events` ข้อ 13)
 

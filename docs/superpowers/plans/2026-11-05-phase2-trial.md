@@ -193,7 +193,7 @@ def test_safe_file_rejects_traversal(tmp_path):
 
 **Interfaces:**
 - Consumes: Task 3 functions; Task 1 tables.
-- Produces: `class Repo` (psycopg2, one connection per request from `MARK_PG_*`) with these methods:
+- Produces: `class Repo` with these methods. It uses psycopg2 `ThreadedConnectionPool(1, 10)` from `MARK_PG_*`, sets `statement_timeout=5s`, and keeps a fixed number of queries per endpoint (spec §18):
   - `runs()`
   - `lines(run_id)`, `jobs(run_id)`: TOP side only
   - `snapshot(run_id, elr)`
@@ -218,9 +218,9 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `POST /auth/logout`, `GET /auth/me`
   - `GET /runs`
   - `GET /dashboard?run=` → `summarize(...)`
-  - `GET /elrs?run=&month=&result=&cause=&q=` → rows `{elr_no, month, abs_file, result, true_lines, total_lines, cause}`. `q` matches ELR, ABS and SLR file names.
+  - `GET /elrs?run=&month=&result=&cause=&q=&page=` → `{total, page, rows}`, with 50 rows per page. Each row is `{elr_no, month, abs_file, result, true_lines, total_lines, cause}`. `q` matches ELR, ABS and SLR file names.
   - `GET /elrs/{elr}?run=` → `{snapshot, job, lines:[{line_no, expected, oracle, status, group, warning, detail, compare_rules}], reviews, approval, image_available}`
-  - `GET /files/abs/{run}/{elr}`
+  - `GET /files/abs/{run}/{elr}`: a `FileResponse` stream with `ETag` = `abs_sha256` and `Cache-Control: private, max-age=86400`. A matching `If-None-Match` returns 304.
   - `POST /reviews {run_id, elr_no, line_no, reason, note, corrected_mark, is_draft}`
   - `POST /approvals {run_id, elr_no, decision}` → 409 with `{blocked_lines}` when `approve_blockers` is non-empty and decision is APPROVED
 - Every write also writes `audit_log`.
@@ -235,6 +235,9 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `test_post_without_csrf_403`: logged in, `POST /api/reviews` without `X-CSRF-Token` → 403.
   - `test_engineer_cannot_read_metrics`: engineer → 403 on `/api/metrics`; a fake API token with `metrics:read` → 200 with key `requests`.
   - `test_request_id_echoed`: the response has an `X-Request-ID` header.
+  - `test_elr_detail_fixed_query_count`: the FakeRepo counts calls. For an ELR with 5 lines, `GET /api/elrs/{elr}` makes ≤ 4 repo calls (no per-line calls).
+  - `test_dashboard_cached_per_run`: two `GET /api/dashboard?run=18` calls → `Repo.lines` is called once.
+  - `test_elrs_paged`: with 120 fake jobs, `GET /api/elrs?run=18&page=2` returns 50 rows and `total == 120`.
   - `test_cookie_attributes_and_rotation`:
     - After login, `Set-Cookie` for `mark_session` contains `HttpOnly`, `SameSite=Strict`, `Path=/api`, `Max-Age=28800` and no `Domain`.
     - `mark_csrf` has `Path=/` and no `HttpOnly`.
@@ -244,7 +247,7 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `test_no_cors_by_default`: `OPTIONS /api/runs` with `Origin: http://evil.example` and `Access-Control-Request-Method: GET` → the response has no `access-control-allow-origin` header. With `MARK_CORS_ORIGINS=http://ok.example`, that origin gets it echoed and `evil.example` does not.
 - [ ] **Step 2:** Run `python -m pytest tests/unit/test_api_routes.py -q`. Expected: FAIL.
 - [ ] **Step 3:** Implement the repository SQL and the routers. `lines()` reads `mark_logic.line_result` for `side='TOP'` and returns `final_status` as `status` (spec §14).
-- [ ] **Step 4:** Run the tests and the full suite. Expected: PASS. **[USER]** Run `uvicorn services.api.mark_api.app:app --port 8000` against the DB, then log in and open `/api/dashboard?run=<new>`. The card counts must equal the line statuses in `run-trial/metrics.json`.
+- [ ] **Step 4:** Run the tests and the full suite. Expected: PASS. **[USER]** Run `uvicorn services.api.mark_api.app:app --port 8000` against the DB, then log in and open `/api/dashboard?run=<new>`. The card counts must equal the line statuses in `run-trial/metrics.json`. Then open `/api/metrics`: p95 is within the spec §18 targets (dashboard ≤ 300 ms cold, elr detail ≤ 150 ms).
 - [ ] **Step 5:** Commit (`feat(api): auth, mark, validation, workflow routers`) with HANDOFF and QA_LOG.
 
 ### Task 5: Web app (spec T4)
@@ -272,7 +275,7 @@ def test_safe_file_rejects_traversal(tmp_path):
   - Line review form with a reason dropdown (7 values from Task 1), note and corrected value.
   - Buttons: บันทึกร่าง / Approve / Reject. On 409, list the blocked line numbers.
   - A HOLD job shows its reason instead of grids.
-- [ ] **Step 4:** Run `npm run build` (runs `tsc -b && vite build`). Expected: exit 0, no type errors. **[USER]** Run the dev server against the local API, then walk the flow: login → dashboard → filter → ELR → review → approve.
+- [ ] **Step 4:** Run `npm run build` (runs `tsc -b && vite build`). Expected: exit 0, no type errors, and the initial JS chunk is ≤ 300 KB gzip (Vite prints sizes). Preview is loaded via `React.lazy`, and the search box is debounced at 300 ms. **[USER]** Run the dev server against the local API, then walk the flow: login → dashboard → filter → ELR → review → approve.
 - [ ] **Step 5:** Commit (`feat(web): dashboard and ELR preview for trial`) with HANDOFF and QA_LOG.
 
 ### Task 6: Deploy on 10.153.90.17 (spec T5)
@@ -288,6 +291,7 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `location /api/ { proxy_pass http://api:8000; proxy_set_header X-Request-ID $request_id; }` and an SPA fallback `try_files $uri /index.html`.
   - The three `limit_req_zone` zones of spec §12 (`login` 5r/m burst 5, `files` 10r/s burst 20, `api` 20r/s burst 40), returning `limit_req_status 429`, plus `client_max_body_size 1m`.
   - `log_format json` with `request_id, status, request_time, upstream_response_time, uri`.
+  - `gzip on; gzip_min_length 1024; gzip_types application/json text/css application/javascript;`
   - Security headers from spec §16 via `add_header ... always` (CSP, nosniff, Referrer-Policy, X-Frame-Options); `Cache-Control: no-store` on `/api/`.
   - Compose `logging: {driver: json-file, options: {max-size: 20m, max-file: '10'}}` on both services.
 

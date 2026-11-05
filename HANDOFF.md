@@ -91,6 +91,17 @@
   - Both are rotated on login and cleared with `Max-Age=0`.
   - All of a user's sessions are deleted on lock or reset.
   - `Secure` and the `__Host-`/`__Secure-` prefixes switch on via `MARK_COOKIE_SECURE` once HTTPS is in place.
+- User decision: WebSocket and gRPC are deferred to the next round.
+- Added spec §18 on performance and Big-O:
+  - **Sizing:** sized for J=10k ELR and L=50k lines per run.
+  - **Dashboard:** O(L+J) once, then cached per run.
+  - **ELR detail:** 4 fixed queries, O(log N + k), no N+1.
+  - **ELR list:** paged at 50 rows.
+  - **Images:** streamed with ETag.
+  - **Connections:** pool of 1–10, `statement_timeout` 5 s.
+  - **Frontend:** initial JS ≤ 300 KB gzip.
+  - **Targets:** p95 dashboard ≤ 300 ms cold, detail ≤ 150 ms.
+  - **Redesign trigger:** L > 50k or > 20 concurrent users.
 - Facts checked against the DB on 2026-11-05: the `line_result` PK is `(run_id, elr_no, abs_no, side, line_no)`, and line status is in `final_status`.
 
 ### 2026-11-05 — Engine fixes from the run-17 overflow review (post-holdout, not frozen)
