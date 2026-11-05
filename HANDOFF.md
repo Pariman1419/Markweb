@@ -63,6 +63,18 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Plan: trial acceptance and monitor completion (for the other agent)
+- **Plan:** `docs/superpowers/plans/2026-11-05-trial-acceptance-and-monitor.md`, Tasks 1–5.
+- **Root cause of the empty ELR table:** `routers/mark.py` calls `.get("warning", "").split(...)`, which raises when the value is NULL. So `/api/elrs` returns 500, and the web shows "No ELR packages found".
+- **Scope:**
+  - NULL-safe ELR list and detail, plus a visible load error.
+  - A read-only real-DB acceptance check (spec §8), run as a non-blocking Jenkins stage.
+  - `/api/metrics` per §15: login counts, p50/p95 over the last 1000 requests per route, db_error, active sessions. `rate_limited` is dropped, because 429s are only in the NGINX log.
+  - Dashboard cache LRU 8 and a lazy ABS thumbnail (§18).
+  - The user walkthrough.
+- **New rule in this plan:** a task is not done until its Jenkins build is green.
+- **User decision 2026-11-05:** no password rotation (D-13 is an accepted risk).
+
 ### 2026-11-05 — Live admin check on localhost:8088: `/api/runs` bug fixed
 - **Test accounts:** `qa_admin` (admin, user_id 3) and `qa_engineer` (engineer, user_id 4) were created for trial testing.
   - Passwords are random and stored only in the git-ignored `.env`, as `MARK_TEST_ADMIN_*` and `MARK_TEST_ENGINEER_*`.

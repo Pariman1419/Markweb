@@ -734,3 +734,7 @@
 - Smoke of all `Repo` reads on the real DB (run 19): all OK.
 - Gap: unit tests use a fake repo and cannot catch column-name errors. The real-DB read smoke is the check for that.
 - 352 unit tests pass.
+
+## 2026-11-05 — Empty ELR table diagnosed (plan only)
+- Called `list_elrs(run=19)` against the real DB: `AttributeError: 'NoneType' object has no attribute 'split'` at `routers/mark.py:63` (NULL `warning`).
+- Fixes are planned in `2026-11-05-trial-acceptance-and-monitor.md`, Task 1.
