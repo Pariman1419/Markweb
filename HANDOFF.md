@@ -63,6 +63,25 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — R1 multi-ABS review deferred until the web is finished
+- **User decision:** wait until the web is finished before reviewing or changing R1 G1–G9. All nine remain open. R1 G1 (date-code `Q`) and G5 (`FS91004B`/`ADW91004B`) are not engine gates G1 (TBD) and G5 (ROW_OVER_5).
+- **R1 G5:** ADI2605053/054 and ADI2606014/015 have both ABS065681-ENG-1 (Oracle-selected) and ABS065288-ENG-2 (named by SLR). Manual inspection of the latter's marking diagram agrees with the Oracle snapshot in all five rows at the format/placeholder level. Confirm the applicable document with Mark Eng before changing selection logic.
+- **Other candidates:** ADI2606076: alternative ABS071101-ENG-2; ADI2606077/078: ABS068387C; their diagrams are consistent with Oracle at the format/placeholder level. 6077/078 remain HOLD under the user-confirmed revision conflict rule. ADI2602101 and 2119–2122/2123/2125 require SLR line overrides and confirmation of `Q`; ADI2605077 needs `{V}` versus `#` checked.
+- **ADI2602050:** Oracle-selected ABS061089A is explicitly permitted by E-mail1.pdf with line 2 `ADW90040` and line 3 `ENGF`. The SLR names ABS067186B and changes line 3. The run-14 `DB_WRONG` verdict for line 2 must be reviewed in light of the email; do not assume Oracle is wrong. The engine does not currently apply that email instruction.
+- Findings are manual comparisons against the historical Oracle snapshot, not a fresh alternate-ABS engine run or proof of document precedence. Review the whole document set, including attachments, before deciding. Do not change rules or frozen holdout results on this basis.
+- **R1 G4:** earlier line-break parsing fix was checked on ADI2601066, ADI2605015 and ADI2606074; targeted regression 3 ELRs / 15 lines, independence 3/3, and 53 relevant tests passed. The old description says seven lines without identifying them, so G4 remains open pending reconciliation. The full 668-ELR regression was stopped and is not a completed result.
+
+### 2026-11-05 — B4 Inference Service Task 4: Image and deploy on the A100
+- **What changed**:
+  - Created `services/inference/Dockerfile` and `services/inference/DEPLOY.md`.
+  - Built image `mark-inference:0.1.0` on A100 (`sha256:3ff19f4c00299fc4fed0662d8d99b09b0ac2eaeb376606fc7ab4a08558c4c080`) with PaddleOCR, Ultralytics YOLO, and gRPC dependencies.
+  - Mounted models from `~/mark_inference/models` into container `/models:ro`.
+  - Verified hashes for OCR recognizer (`eb1105c4...`), PP-OCRv5 detector (`183146fe...`), and YOLO symbol weights (`a8f4e910...`).
+  - Confirmed vLLM memory on A100 untouched (75,208 MiB / 81,920 MiB used), container idle memory 38.35 MiB.
+  - Stopped and removed legacy container `ic-marking-ocr`; verified port 8095 closed.
+  - Verified dev workstation connectivity and API key auth (`UNAUTHENTICATED` without valid token).
+- **Current State**: `mark-inference` service active and healthy on `10.151.28.9:50051`.
+
 ### 2026-11-05 — B4 Inference Service Task 3: Engine client and MARK_INFERENCE switch
 - **What changed**:
   - In mark_engine/adapters/inference_service.py: implemented InferenceClient (Health, Page, Symbols, Rec with 2x retry on UNAVAILABLE), InferenceUnavailable, and load_service_inference (with trim-logo re-OCR).

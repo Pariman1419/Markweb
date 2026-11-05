@@ -53,7 +53,14 @@ class MarkInferenceServicer(pb2_grpc.MarkInferenceServicer):
     def Health(self, request, context):
         ocr_dev = getattr(self.ocr_engine, "device", "cpu")
         sym_dev = getattr(self.symbol_engine, "device", "cpu")
-        free_mb = getattr(self.ocr_engine, "free_vram_mb", 0)
+        free_mb = getattr(self.ocr_engine, "free_vram_mb", None)
+        if free_mb is None:
+            try:
+                from services.inference.devices import free_vram_mb
+                val = free_vram_mb()
+                free_mb = val if val is not None else 0
+            except Exception:
+                free_mb = 0
         return pb2.HealthReply(
             status="ok",
             ocr_device=ocr_dev,
@@ -144,6 +151,17 @@ def build_server(
     return server
 
 
+def _file_sha256(path: str) -> str:
+    import hashlib
+    if not path or not os.path.isfile(path):
+        return ""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while chunk := f.read(65536):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def main():
     api_key = os.getenv("MARK_INF_API_KEY", "")
     if not api_key:
@@ -162,10 +180,25 @@ def main():
     recognizer_dir = os.getenv("MARK_INF_RECOGNIZER_DIR", "/models/exp09")
     weights = os.getenv("MARK_INF_SYMBOL_WEIGHTS", "/models/symdet/v2/weights/best.pt")
 
+    # Find detector weights for model_info
+    det_candidates = [
+        "/models/paddlex_cache/official_models/PP-OCRv5_server_det/inference.pdiparams",
+        "/models/PP-OCRv5_server_det/inference.pdiparams",
+        os.path.expanduser("~/.paddlex/official_models/PP-OCRv5_server_det/inference.pdiparams"),
+    ]
+    det_path = next((p for p in det_candidates if os.path.isfile(p)), "")
+
+    model_info = {
+        "service_version": "0.1.0",
+        "ocr_rec_sha256": _file_sha256(os.path.join(recognizer_dir, "inference.pdiparams")),
+        "symbol_sha256": _file_sha256(weights),
+        "detector_sha256": _file_sha256(det_path),
+    }
+
     ocr = OcrEngine(device=device, recognizer_dir=recognizer_dir)
     symbols = SymbolEngine(device=device, weights=weights)
 
-    server = build_server(ocr, symbols, api_key=api_key, port=port)
+    server = build_server(ocr, symbols, api_key=api_key, port=port, model_info=model_info)
     server.start()
     print(f"mark-inference service running on port {port} (device={device})")
     server.wait_for_termination()

@@ -1,5 +1,35 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-05] B4 Task 4: mark-inference Deployment and A100 Host Validation
+
+### Context & Deployment
+- **Target Host**: A100 (`10.151.28.9:50051`)
+- **Docker Image**: `mark-inference:0.1.0` (Image ID: `sha256:3ff19f4c00299fc4fed0662d8d99b09b0ac2eaeb376606fc7ab4a08558c4c080`)
+- **Container**: `mark-inference` (`767d9e20a2d9`)
+- **Model Hashes Verified**:
+  - `ocr_rec_sha256`: `eb1105c4c3cd2bfdd794303474b4b60e053706e4030184f2b2df9346c8a16bbe` (matches `models/ocr-rec-exp09/ep40`)
+  - `detector_sha256`: `183146fe9d9910352f68482f623bcbbb9fa7b9e8fa1463b9ad288cef00524d2d` (matches `PP-OCRv5_server_det`)
+  - `symbol_sha256`: `a8f4e910f8213e3e73eddfc1f94c889f40aabc1947699cc06064cfc436391562` (matches `models/symdet/v2/weights/best.pt`)
+
+### GPU & System Verification
+- **vLLM State**: Processes PID 3214984 (62,266 MiB) and PID 3697665 (9,900 MiB) completely untouched and stable; total VRAM used 75,208 MiB / 81,920 MiB.
+- **Container Idle Footprint**: `mark-inference` RAM usage 38.35 MiB / 62.89 GiB (< 4GB limit). Free VRAM reported ~5,945 MiB.
+- **Legacy Container Retirement**: `ic-marking-ocr` stopped and removed; verified `ss -ltn | grep 8095` is closed.
+- **Auth & Network**: Dev machine (`10.151.97.18`) verified via gRPC `Health`:
+  - With valid `x-api-key`: `status=ok`, `ocr_device=gpu`, `symbol_device=gpu`.
+  - With invalid `x-api-key`: rejected with `StatusCode.UNAUTHENTICATED`.
+
+---
+
+## [2026-11-05] R1 multi-ABS evidence — review after web completion
+
+- **User decision:** defer review and fixes for R1 G1–G9 until the web is finished; all remain open. These R1 identifiers are distinct from similarly numbered engine gates.
+- In ADI2605053/054 and ADI2606014/015, Oracle selects ABS065681-ENG-1, while the SLR names ABS065288-ENG-2. Manual inspection of the alternate drawing matches the Oracle snapshot's five TOP rows at the format/placeholder level. The applicable ABS still needs Mark Eng confirmation.
+- ADI2606076 alternative ABS071101-ENG-2 and ADI2606077/078 alternative ABS068387C likewise match their Oracle snapshots at the format/placeholder level. The latter two remain HOLD for revision conflict. ADI2602101 and 2119–2122/2123/2125 require SLR overrides and confirmation of `Q`; ADI2605077 requires `{V}` versus `#` review.
+- ADI2602050 E-mail1.pdf permits ABS061089A and specifies TOP 2 `ADW90040` and TOP 3 `ENGF`. Review the prior `DB_WRONG` verdict for TOP 2 against that evidence; the engine does not currently apply the email instruction. The SLR itself names ABS067186B and specifies line 3.
+- These are manual comparisons of drawings with historical snapshots; no alternative-document engine run, automatic precedence decision, Oracle update, or change to the frozen holdout was made. Review attachments and document precedence when work resumes.
+- R1 G4 remains open: the existing line-break fix passed a fresh targeted regression on ADI2601066, ADI2605015 and ADI2606074 (15/15 lines; independence 3/3), and the two relevant test files passed 53 tests. The seven lines mentioned in the older R1 list have not been reconciled. A full 668-ELR regression was started then stopped; it is not a completed run.
+
 > Managed via the `/qa-logger` skill to record architectural decisions, bug investigations, root causes, and verification resolutions for long-term project memory.
 
 ---

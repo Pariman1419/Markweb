@@ -182,7 +182,7 @@ message HealthReply { string status = 1; string ocr_device = 2; string symbol_de
 - [x] **Step 2:** Run them. Expected: FAIL.
 - [x] **Step 3:** Implement.
 - [x] **Step 4:** Run the unit suite. Expected: all pass.
-- [ ] **Step 5:** Commit `feat(engine): inference service client and MARK_INFERENCE switch`, then push and wait for a green Jenkins build.
+- [x] **Step 5:** Commit `feat(engine): inference service client and MARK_INFERENCE switch`, then push and wait for a green Jenkins build.
 
 ### Task 4: Image and deploy on the A100
 
@@ -200,12 +200,12 @@ message HealthReply { string status = 1; string ocr_device = 2; string symbol_de
   - the PP-OCRv5_server_det files, copied out of `ic-marking-ocr` with `docker cp` (read-only). Its sha256 must equal `detector_sha256` in `cache/models.json`.
 - **Run:** `docker run -d --name mark-inference --restart unless-stopped --gpus all -p 50051:50051 --env-file ~/mark_inference/.env -v ~/mark_inference/models:/models:ro mark-inference:0.1.0`
 
-- [ ] **Step 1:** Run `ssh 10.151.28.9 'df -h ~; docker system df; nvidia-smi --query-gpu=memory.used,memory.total --format=csv'` and record the output in QA_LOG. Then run the allowed prune and record `df -h ~` again. Stop if the disk rule still fails.
-- [ ] **Step 2:** Copy the models to `~/mark_inference/models/` with `scp`. Verify every sha256 on the A100 against `models/REGISTRY.json` and `cache/models.json`.
-- [ ] **Step 3:** Generate the API key into both `.env` files (Global Constraints), then build the image on the A100 and run the container.
-- [ ] **Step 4:** `Health` from this machine reports `status=ok`, a device, and model hashes equal to the registry. Record `docker image inspect mark-inference:0.1.0 --format '{{.Id}}'` in QA_LOG.
-- [ ] **Step 5:** Run `nvidia-smi` again. vLLM's memory must be unchanged, and `mark-inference` must be under 4 GB with no images in flight. Record it. Then retire `ic-marking-ocr` as described in Global Constraints. Run `ss -ltn | grep 8095` and confirm port 8095 is closed.
-- [ ] **Step 6: Network.** Do not change the firewall. `ufw` is inactive on the A100 (checked 2026-11-05), so enabling it would cut off the other services on the box. Port 50051 is protected by the API key.
+- [x] **Step 1:** Run `ssh 10.151.28.9 'df -h ~; docker system df; nvidia-smi --query-gpu=memory.used,memory.total --format=csv'` and record the output in QA_LOG. Then run the allowed prune and record `df -h ~` again. Stop if the disk rule still fails.
+- [x] **Step 2:** Copy the models to `~/mark_inference/models/` with `scp`. Verify every sha256 on the A100 against `models/REGISTRY.json` and `cache/models.json`.
+- [x] **Step 3:** Generate the API key into both `.env` files (Global Constraints), then build the image on the A100 and run the container.
+- [x] **Step 4:** `Health` from this machine reports `status=ok`, a device, and model hashes equal to the registry. Record `docker image inspect mark-inference:0.1.0 --format '{{.Id}}'` in QA_LOG.
+- [x] **Step 5:** Run `nvidia-smi` again. vLLM's memory must be unchanged, and `mark-inference` must be under 4 GB with no images in flight. Record it. Then retire `ic-marking-ocr` as described in Global Constraints. Run `ss -ltn | grep 8095` and confirm port 8095 is closed.
+- [x] **Step 6: Network.** Do not change the firewall. `ufw` is inactive on the A100 (checked 2026-11-05), so enabling it would cut off the other services on the box. Port 50051 is protected by the API key.
   - **Check from this dev machine (`10.151.97.18`):** Health works with the key, and gives `UNAUTHENTICATED` without it.
   - **Other callers:** later, the production API on `10.153.90.17` and the Airflow worker on `10.151.28.3` call the same address.
   - **[USER] Only if the user later wants an IP allow-list:** the server admin adds `DOCKER-USER` iptables rules for 50051.
