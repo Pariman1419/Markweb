@@ -63,6 +63,14 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Empty template rows rule (spec §2.2.1)
+- **Cause, confirmed by the user:** the ABS marking diagram has `LINE 1–7` labels from a template shared with other jobs. OCR reads the labels, and `layout.py` makes one row per label, so 5-line jobs get empty rows 6–7.
+- **Rule:**
+  - An empty row means no content after Generate.
+  - Trailing empty rows are dropped.
+  - Empty rows in the middle keep their position, with no shift.
+  - G5 holds only on content beyond row 5. This matches the G5 fix plan in progress.
+
 ### 2026-11-05 — Engine 0.4.0 regression reviewed; G5 fix planned
 - **Task 5 implementation**: Bumped `ENGINE_VERSION = "0.4.0"`, created `scripts/diff_runs.py` and `tests/unit/test_diff_runs.py` (372 unit tests passed).
 - **Diff:** run-overflowfix → run-gates (engine 0.4.0, 402 ELRs). 46 ELRs changed.
