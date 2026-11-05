@@ -352,6 +352,6 @@ def test_safe_file_rejects_traversal(tmp_path):
   - Security headers from spec §16 in `web/security_headers.conf` (`add_header ... always`), included in every location, because a nested `add_header` does not inherit.
   - Compose `logging: {driver: json-file, options: {max-size: 20m, max-file: '10'}}` on both services.
 
-- [ ] **Step 1:** Write the Dockerfiles, `nginx.conf` and compose file. Build locally with `docker compose build`. Expected: both images build.
+- [x] **Step 1:** Write the Dockerfiles, `nginx.conf` and compose file. Build locally with `docker compose build`. Expected: both images build.
 - [ ] **Step 2 [USER/ops]:** On 10.153.90.17, first check that `docker compose version` works and `pg_isready -h 10.151.28.2 -p 5432` succeeds. Then copy the repo (without `artifacts/` or `.env`), create `.env`, mount the files root, then run `docker compose up -d`. Verify: `curl http://10.153.90.17/api/ready` returns 200, and the login page loads from a workstation browser. Seven rapid logins: the seventh returns 429 from NGINX (1 + burst 5 pass), and `docker compose logs web` shows the JSON line for it. `curl -I` on `/api/runs` shows `no-store` and the CSP. On `/api/files/...` it shows `private, max-age=86400` and the CSP.
-- [ ] **Step 3:** Commit (`chore(deploy): docker compose for phase 2 trial`) with HANDOFF and QA_LOG.
+- [x] **Step 3:** Commit (`chore(deploy): docker compose for phase 2 trial`) with HANDOFF and QA_LOG.

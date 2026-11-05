@@ -63,6 +63,16 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 6: Deploy on 10.153.90.17 (spec T5)
+- Created `services/api/Dockerfile` (Python 3.12-slim, uvicorn with 1 worker).
+- Created `web/Dockerfile` (multi-stage Node 24 alpine build and NGINX alpine runtime).
+- Created `web/nginx.conf` with 3 rate-limit zones (`login` 5r/m, `files` 10r/s, `api` 20r/s all with `nodelay` and 429 status), JSON logging, and security headers inclusion.
+- Created `web/security_headers.conf` (CSP, nosniff, same-origin referrer, frame deny).
+- Created `docker-compose.yml` linking `api` and `web` with json-file log rotation (20m x 10) and read-only files mount.
+- Updated `.env.example` with full `MARK_PG_*`, `MARK_FILES_ROOT`, and cookie/cors settings.
+- Updated `services/README.md` with preflight checks and deployment instructions for 10.153.90.17.
+
+
 ### 2026-11-05 — Task 5: Web app (spec T4)
 - Scaffolded Vite React 19 + TypeScript app in `web/` with Tailwind CSS v4, Lucide icons, and React Router v7.
 - Implemented `web/src/api.ts` with credentials, CSRF token handling, and typed client methods.

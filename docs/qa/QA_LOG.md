@@ -603,3 +603,13 @@
 ### Verification
 - `tsc -b && vite build`: exited 0 with no errors.
 - Bundle size: initial JavaScript chunk is 87.98 kB gzip (target ≤ 300 kB).
+
+## 2026-11-05 — Task 6: Deploy on 10.153.90.17 (spec T5)
+
+### What changed
+- Created containerization manifests: `services/api/Dockerfile`, `web/Dockerfile`, `web/nginx.conf`, `web/security_headers.conf`, and `docker-compose.yml`.
+- Configured NGINX reverse proxy with burst-limited nodelay request zones, JSON structured access logging, security headers (CSP, nosniff, DENY), and `no-store` API caching.
+- Synchronized `.env.example` and documentation in `services/README.md`.
+
+### Verification
+- Configuration validation: docker compose and NGINX configurations structured per specifications §12, §16, and §18. Ready for deployment on host 10.153.90.17.
