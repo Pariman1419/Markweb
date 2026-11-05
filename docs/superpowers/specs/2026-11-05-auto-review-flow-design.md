@@ -1,6 +1,6 @@
 # Mark Automation — Auto Review Flow (B3 + B4) · Design
 
-วันที่: 2026-11-05 (แก้ครั้งที่ 2 ตามผู้ใช้) · ที่มา: แผนภาพ TO-BE Marking Process ของผู้ใช้ (ภาพ #24) + คำอธิบายและการแก้ของผู้ใช้ 2026-11-05 + engine `mark_engine` (ตัวที่สร้าง run 19)
+วันที่: 2026-11-05 (แก้ครั้งที่ 3 — ผู้ใช้ยืนยัน §10 แล้ว) · ที่มา: แผนภาพ TO-BE Marking Process ของผู้ใช้ (ภาพ #24) + คำอธิบายและการแก้ของผู้ใช้ 2026-11-05 + engine `mark_engine` (ตัวที่สร้าง run 19)
 ต่อจาก: [`2026-11-05-phase2-trial-design.md`](2026-11-05-phase2-trial-design.md) §9, §13 และ [`2026-11-04-phase1-completion-and-phase2-design.md`](2026-11-04-phase1-completion-and-phase2-design.md) §4.5 (B3, B4)
 
 ป้ายในเอกสาร: **[ผู้ใช้]** มาจากผู้ใช้ · **[Claude]** ผู้ออกแบบตัดสินเอง (ตรวจและแก้ได้)
@@ -62,7 +62,10 @@ flowchart TD
 ```
 
 ### 2.1 ทางเข้า 2 ทาง **[ผู้ใช้]**
-- **Schedule**: Airflow DAG `mark_elr_polling` รันตามรอบเวลา กวาด ELR ในช่วงเวลาที่กำหนด · รอบ 15 นาที และช่วงย้อนหลัง 3 วันตาม `LAST_TRAN` เป็นค่าเริ่ม **[Claude]** (ปรับได้ใน env / หน้า Config B6)
+- **Schedule** **[ผู้ใช้]**: Airflow DAG `mark_elr_polling` ทุก **15 นาที** กวาดเฉพาะช่วงตั้งแต่รอบที่แล้ว (ย้อนหลังตามรอบ 15 นาที ไม่ใช่หลายวัน)
+  - ช่วงที่กวาด **[Claude]**: `LAST_TRAN` ตั้งแต่ `to_ts` ของ scan ล่าสุดที่สำเร็จ (watermark) **ลบ 5 นาที** (กันขอบเวลาและนาฬิกาไม่ตรง) ถึงเวลาปัจจุบัน — รอบไหนล้ม รอบถัดไปจะกวาดต่อจาก watermark เดิมเอง ไม่มีช่องว่าง · ELR ที่ซ้ำเพราะช่วงทับกันถูกกรองด้วย fingerprint (§4)
+  - **Initial load ก่อนเปิดรอบ** **[ผู้ใช้]**: รันครั้งเดียวก่อนเปิด schedule — กวาด ELR ที่ยังอยู่ step Mark Engineer ทั้งหมด (หรือช่วงวันที่ที่ผู้ใช้กำหนด) ผ่าน `POST /api/scans` ด้วย `source=initial` แล้วตั้ง watermark = เวลาที่ initial เริ่ม
+  - เอกสารบน NAS เปลี่ยนโดยที่ `LAST_TRAN` ไม่เปลี่ยน → DAG `mark_pending_job_retry` (10 นาที) เช็ก NAS ซ้ำให้ ELR ที่ยัง HOLD/ยังไม่ Approve และยังอยู่ step Mark Engineer **[Claude]**
 - **Select by user** (ตรวจราย ELR):
   1. ค้นในระบบเรา (PostgreSQL) ก่อน — **มี** → เปิดผลเดิม และตรวจว่ามีอัปเดตตาม §4 (มี → บอกบนหน้าและให้กด "ตรวจใหม่")
   2. **ไม่มี** → Notify "ไม่พบ ELR นี้ในระบบ" พร้อมให้เลือก "ค้นใน Oracle"
@@ -117,7 +120,8 @@ flowchart TD
 | ไม่เคยตรวจ | ตรวจ |
 | เคยตรวจ, `oracle_fp` และ `docs_fp` เหมือนเดิม | **ไม่ตรวจซ้ำ** (นับเป็น `unchanged` ใน scan log) |
 | `oracle_fp` หรือ `docs_fp` เปลี่ยน | ตรวจใหม่ → ได้ revision ใหม่ของ ELR และบันทึกว่าส่วนไหนเปลี่ยน (`changed: oracle` / `docs` / ทั้งคู่) |
-| เปลี่ยน และผลเดิม **Approve แล้ว** | ตรวจใหม่ แต่ **ไม่ล้าง Approve เดิม** — ผลใหม่ขึ้นป้าย "ข้อมูลเปลี่ยนหลัง Approve" + Notify ให้วิศวกรดูอีกครั้ง |
+| เปลี่ยน และผลเดิม **Approve แล้ว** **[ผู้ใช้]** | revision เดิมพร้อม Approve เก็บเป็น **History** (ไม่แก้ ไม่ลบ) · ผลใหม่เป็น **revision ใหม่** ที่มีวันที่สร้างของตัวเอง เริ่มสถานะยังไม่ Approve + Notify |
+| **กันซ้ำกับของเก่า** **[ผู้ใช้: ขอ logic]** | ก่อนสร้าง revision ใหม่ เทียบคู่ (`oracle_fp`, `docs_fp`) กับ **ทุก revision เก่า** ของ ELR นั้น ไม่ใช่แค่ตัวล่าสุด — ถ้าตรงกับตัวใดตัวหนึ่ง (เช่น ข้อมูลถูกแก้กลับเป็นค่าเดิม) **ไม่สร้าง revision ใหม่** แต่บันทึกใน scan log ว่า `same_as_rev=N` · นอกจากนี้เก็บ `result_fp` (sha256 ของ expected mark + สถานะทุกบรรทัด) ถ้า input ต่างแต่ผลตรงกับ revision ล่าสุด → สร้าง revision ได้ (เป็นประวัติว่า input เปลี่ยน) แต่ติดป้าย `result_unchanged` และไม่ Notify **[Claude]** |
 | เคย HOLD (เช่น ไม่มี SLR, Cust Assy TBD) | ตรวจใหม่อัตโนมัติเมื่อ `oracle_fp`/`docs_fp` เปลี่ยน — คือทางที่ HOLD หลุดเองเมื่อมีคนแก้ข้อมูล |
 | `version_fp` เปลี่ยนอย่างเดียว | **ไม่ตรวจซ้ำอัตโนมัติ** (กันงานท่วมทุกครั้งที่อัปเกรด) — วิศวกรกด "ตรวจใหม่" เอง หรือสั่ง re-run เป็นชุดแยก |
 | ELR ออกจาก step Mark Engineer แล้ว | หยุดติดตาม (G0 ไม่ผ่าน) ผลเดิมยังดูได้ |
@@ -127,7 +131,7 @@ flowchart TD
 
 ## 5. ข้อมูล **[Claude]**
 
-**ผลลัพธ์**: เขียนเป็น run ใหม่ใน `mark_logic` แบบเดียวกับ run 19 — **หนึ่ง run ต่อวัน** (`period = auto-YYYY-MM-DD`) หน้าเว็บเดิมใช้ได้ทันที
+**ผลลัพธ์** **[ผู้ใช้: ใช้แสดง Dashboard]**: เขียนเป็น run ใหม่ใน `mark_logic` แบบเดียวกับ run 19 — **หนึ่ง run ต่อวัน** (`period = auto-YYYY-MM-DD`) หน้าเว็บเดิมใช้ได้ทันที
 - ห้ามเขียนทับ run 1–19 · run อัตโนมัติเป็น run_id ใหม่เสมอ
 - ELR หนึ่งตัวอาจมีหลาย revision ข้าม run → view `mark_app.latest_job_result` ให้หน้าเว็บแสดง "ผลล่าสุดต่อ ELR" · Approve ผูกกับ run_id ที่วิศวกรดูอยู่ตามเดิม
 
@@ -135,8 +139,8 @@ flowchart TD
 
 | ตาราง | คอลัมน์หลัก | ใช้ทำ |
 |---|---|---|
-| `scan` | scan_id, source (`airflow`/`user`), requested_by, from_ts, to_ts, elr_no (ราย ELR), found, queued, unchanged, skipped, started_at, finished_at, error | ประวัติการกวาดแต่ละรอบ |
-| `elr_revision` | elr_no, revision, oracle_fp, docs_fp, version_fp, changed (`new`/`oracle`/`docs`/`both`/`manual`), run_id, created_at · unique (elr_no, revision) | ประวัติและการตรวจอัปเดต (§4) |
+| `scan` | scan_id, source (`airflow`/`initial`/`user`), requested_by, from_ts, to_ts, elr_no (ราย ELR), found, queued, unchanged, skipped, started_at, finished_at, error | ประวัติการกวาดแต่ละรอบ |
+| `elr_revision` | elr_no, revision, oracle_fp, docs_fp, version_fp, result_fp, changed (`new`/`oracle`/`docs`/`both`/`manual`), result_unchanged, run_id, created_at · unique (elr_no, revision) · unique (elr_no, oracle_fp, docs_fp) | ประวัติ (History) และการตรวจอัปเดต (§4) — revision ที่ Approve แล้วไม่ถูกแก้ |
 | `work_item` | item_id, scan_id, elr_no, state (`queued`/`running`/`done`/`retry`/`failed`), attempts, next_attempt_at, revision, error, created_at, updated_at | คิวงาน |
 | `notification` | notification_id, elr_no, run_id, kind, message, created_at, read_by, read_at | Notify บนเว็บ |
 
@@ -165,12 +169,12 @@ flowchart TD
 4. **Airflow DAG** `mark_elr_polling`, `mark_pending_job_retry`
 5. **Notify + WebSocket + ผลล่าสุดต่อ ELR + ปุ่ม Select ELR / ตรวจใหม่** บนหน้าเว็บ
 
-## 10. ต้องให้ผู้ใช้ยืนยัน
-1. G1: ค่าที่ต้องเช็กคือ **TBD** (ข้อความล่าสุดพิมพ์ "THB")
-2. logic อัปเดตใน §4 โดยเฉพาะ: ผลที่ Approve แล้วไม่ถูกล้างแต่ขึ้นป้าย + Notify, และอัปเกรด engine/โมเดลอย่างเดียวไม่ตรวจซ้ำอัตโนมัติ
-3. G3 ต้องมี SLR เสมอ — ELR ที่ไม่มี SLR จะเป็น HOLD ทั้งหมด (regression จะบอกว่ากี่ ELR ใน run 19)
-4. รอบ schedule 15 นาที ย้อนหลัง 3 วัน
-5. เก็บผลเป็น run รายวันใน `mark_logic` + มุมมองผลล่าสุดต่อ ELR
+## 10. ผู้ใช้ยืนยันแล้ว (2026-11-05)
+1. G1 เช็ก **TBD**
+2. Approve แล้วเก็บเป็น History · ข้อมูลใหม่เป็น revision ใหม่คนละวันที่สร้าง · ต้องมี logic กันซ้ำกับของเก่า (§4)
+3. ต้องมี ABS และ SLR ครบทุก ELR
+4. Schedule ทุก 15 นาที กวาดย้อนหลังตามรอบ · ทำ Initial load ก่อนเปิดรอบ (§2.1)
+5. เก็บผลเป็น run รายวันเพื่อแสดง Dashboard
 
 ## 11. ให้ผู้สร้างตัดสินเอง
 ค่า `CURRENT_STEP` ของ Mark Engineer (ดูจาก Oracle จริง), รูปแบบข้อความ notification, การจัดไฟล์ใน `services/worker`, ขนาด batch ที่ส่งให้ Inference Service, ชื่อ endpoint ย่อยของ API

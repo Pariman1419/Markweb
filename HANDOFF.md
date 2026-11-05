@@ -63,6 +63,14 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Auto Review Flow design rev 3 (user confirmed §10)
+- **G1:** TBD.
+- **Approvals:** an approved revision is kept as history. New data → a new revision with its own create date. No duplicate of **any** old revision: the `(oracle_fp, docs_fp)` pair is unique per ELR, and `result_fp` flags `result_unchanged`.
+- **ABS and SLR:** both are required.
+- **Schedule:** every 15 min, incremental from a watermark minus 5 min, plus a one-off initial load before scheduling starts. The retry DAG re-checks NAS for HOLD or unapproved ELRs.
+- **Results:** a daily `mark_logic` run feeds the dashboard.
+- **Next:** the plan for build step 1 (engine gates + run-19 regression).
+
 ### 2026-11-05 — Auto Review Flow design rev 2 (user corrections)
 - **Entry points:** an Airflow `mark_elr_polling` schedule, and "Select by user". The user path first checks our PostgreSQL. If the ELR isn't there: notify → user may search Oracle → if found, trigger that one ELR through the same flow; if not, notify.
 - **Gates now follow the user's order:**
