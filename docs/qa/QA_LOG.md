@@ -649,3 +649,6 @@
   - Fixed: the path is converted to backslashes.
 - Build #6: 343 tests, 2 failed (`tests/regression/test_r1`). They need `artifacts/regression-r1/`, which is git-ignored customer data.
   - CI now runs with `--ignore=tests/regression`; R1 stays a local gate.
+- **Build #8: SUCCESS.**
+  - 340 passed, plus web build, images, deploy, and smoke `smoke OK: http://localhost:8088`.
+  - Manual recheck: ready 200, 401 without login, SPA 200.

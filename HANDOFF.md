@@ -64,6 +64,15 @@
 ## 4. Live Changelog & Session Updates
 
 ### 2026-11-05 — Jenkins job `mark-web` created; first builds
+- **First green build: #8 (5e7b2be), SUCCESS in 57 s.**
+  - pytest: 340 passed (`tests/regression` is excluded in CI because it reads git-ignored `artifacts/`).
+  - Web build, both images, `docker compose up` and the smoke test all passed.
+  - Checked by hand afterwards: `/api/ready` 200, `/api/runs` 401, SPA 200, and no `.env` left in the workspace.
+- **Builds #4–#7 failures and fixes:**
+  - #4: FastAPI pin (cf30405).
+  - #5: cmd `if … &&` skipped pytest, and `copy` rejected `/` paths (c880e3b, 7b706fd).
+  - #6: R1 regression tests need `artifacts/` (5e7b2be).
+  - #7: stopped by hand.
 - **Job created** at http://localhost:8080/job/mark-web: Pipeline from SCM, `https://github.com/Pariman1419/Markweb.git` `*/phase2/trial`, polls every 5 min.
 - **Jenkins fixes made during the first builds:**
   - The global Git tool now points to the user's Git (`C:\Users\41495406\AppData\Local\Programs\Git\cmd\git.exe`), because the LocalSystem controller had no `git.exe` on PATH.
