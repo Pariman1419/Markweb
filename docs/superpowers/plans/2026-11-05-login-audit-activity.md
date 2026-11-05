@@ -179,7 +179,7 @@ def test_audit_failure_does_not_break_login(client, fake_repo, monkeypatch):
   - `GET /activity?from=&to=&run_id=`: 422 when `from > to` or the range is over 92 days. Malformed dates are handled by FastAPI's `date` parsing (422). `run_id` defaults to `max(run_id)` from `repo.runs()`.
   - `GET /events?from=&to=&user_id=&action=&page=1`: same date defaults, and `page >= 1`.
 
-- [ ] **Step 1: Write the failing tests** (FakeRepo returns canned rows for `admin_users`, `activity` and `audit_events`; `unlock_user` edits `self.users`):
+- [x] **Step 1: Write the failing tests** (FakeRepo returns canned rows for `admin_users`, `activity` and `audit_events`; `unlock_user` edits `self.users`):
 
 ```python
 def test_admin_routes_forbidden_for_engineer(client):
@@ -209,16 +209,16 @@ def test_admin_activity_range_validation(client):
     assert client.get("/api/admin/activity").status_code == 200
 ```
 
-- [ ] **Step 2: Run them.** `python -m pytest tests/unit -k admin -q`. Expected: FAIL with 404s (no router).
-- [ ] **Step 3: Implement** the repo methods, `routers/admin.py`, the matrix change and router registration.
-- [ ] **Step 4: Run the unit suite** (all pass). Then the manual SQL check against the real DB, with the 0006 migration applied:
+- [x] **Step 2: Run them.** `python -m pytest tests/unit -k admin -q`. Expected: FAIL with 404s (no router).
+- [x] **Step 3: Implement** the repo methods, `routers/admin.py`, the matrix change and router registration.
+- [x] **Step 4: Run the unit suite** (all pass). Then the manual SQL check against the real DB, with the 0006 migration applied:
 
   ```bash
   python -c "from mark_engine.adapters.env import load_env; load_env(); import sys; sys.path.insert(0,'services/api'); from mark_api.repo import Repo; from datetime import date; r=Repo(); print(r.admin_users()); print(r.activity(date(2026,10,23), date(2026,11,5), 19)['run_progress'])"
   ```
 
   Expected: no SQL error, and `run_progress.total_elrs == 402` for run 19.
-- [ ] **Step 5: Commit** with message `"feat: admin API for users, unlock, activity and events"`.
+- [x] **Step 5: Commit** with message `"feat: admin API for users, unlock, activity and events"`.
 
 ### Task 4: Web `/admin` page
 

@@ -281,3 +281,130 @@ class Repo:
         where token_hash = %s
         """
         return self._execute(q, (token_hash,), fetch_one=True)
+
+    def admin_users(self) -> list[dict[str, Any]]:
+        q = """
+        select
+            u.user_id,
+            u.username,
+            u.display_name,
+            u.role,
+            u.active,
+            u.failed_count,
+            u.locked_until,
+            a.last_login_at
+        from mark_app.app_user u
+        left join (
+            select user_id, max(created_at) as last_login_at
+            from mark_app.audit_log
+            where action = 'auth.login_ok'
+            group by user_id
+        ) a on a.user_id = u.user_id
+        order by u.user_id
+        """
+        rows = self._execute(q, fetch_all=True)
+        return rows if isinstance(rows, list) else []
+
+    def unlock_user(self, user_id: int) -> bool:
+        q = """
+        update mark_app.app_user
+        set failed_count = 0, locked_until = null
+        where user_id = %s
+        returning user_id
+        """
+        res = self._execute(q, (user_id,), fetch_one=True, commit=True)
+        return res is not None
+
+    def activity(self, date_from: Any, date_to: Any, run_id: int) -> dict[str, Any]:
+        q_user = """
+        select
+            (a.created_at at time zone 'Asia/Bangkok')::date::text as day,
+            u.user_id,
+            u.display_name,
+            count(*) filter (where a.action = 'review.saved')::int as reviews,
+            count(*) filter (where a.action = 'approval.saved')::int as approvals
+        from mark_app.audit_log a
+        join mark_app.app_user u on u.user_id = a.user_id
+        where a.action in ('review.saved', 'approval.saved')
+          and (a.created_at at time zone 'Asia/Bangkok')::date >= %s
+          and (a.created_at at time zone 'Asia/Bangkok')::date <= %s
+        group by 1, 2, 3
+        order by day asc, u.user_id asc
+        """
+        per_user_day = self._execute(q_user, (date_from, date_to), fetch_all=True)
+        if not isinstance(per_user_day, list):
+            per_user_day = []
+
+        q_progress = """
+        with latest_app as (
+            select distinct on (elr_no) elr_no, decision
+            from mark_app.approval
+            where run_id = %s
+            order by elr_no, created_at desc
+        ),
+        totals as (
+            select count(*)::int as total
+            from mark_logic.job_result
+            where run_id = %s
+        )
+        select
+            %s::int as run_id,
+            coalesce(t.total, 0)::int as total_elrs,
+            coalesce(count(*) filter (where l.decision = 'APPROVED'), 0)::int as approved,
+            coalesce(count(*) filter (where l.decision = 'REJECTED'), 0)::int as rejected,
+            (coalesce(t.total, 0) - coalesce(count(l.decision), 0))::int as undecided
+        from totals t
+        left join latest_app l on true
+        group by t.total
+        """
+        prog_res = self._execute(q_progress, (run_id, run_id, run_id), fetch_one=True)
+        if not prog_res:
+            prog_res = {"run_id": run_id, "total_elrs": 0, "approved": 0, "rejected": 0, "undecided": 0}
+
+        q_auth = """
+        select
+            (created_at at time zone 'Asia/Bangkok')::date::text as day,
+            count(*) filter (where action = 'auth.login_ok')::int as login_ok,
+            count(*) filter (where action = 'auth.login_failed')::int as login_failed,
+            count(*) filter (where action = 'auth.locked')::int as locked,
+            count(*) filter (where action = 'auth.session_expired')::int as session_expired
+        from mark_app.audit_log
+        where action in ('auth.login_ok', 'auth.login_failed', 'auth.locked', 'auth.session_expired')
+          and (created_at at time zone 'Asia/Bangkok')::date >= %s
+          and (created_at at time zone 'Asia/Bangkok')::date <= %s
+        group by 1
+        order by day asc
+        """
+        auth_per_day = self._execute(q_auth, (date_from, date_to), fetch_all=True)
+        if not isinstance(auth_per_day, list):
+            auth_per_day = []
+
+        return {
+            "per_user_day": per_user_day,
+            "run_progress": prog_res,
+            "auth_per_day": auth_per_day,
+        }
+
+    def audit_events(self, date_from: Any, date_to: Any, user_id: int | None, action: str | None, page: int) -> list[dict[str, Any]]:
+        offset = max(0, (page - 1) * 50)
+        q = """
+        select
+            a.created_at,
+            a.action,
+            a.user_id,
+            u.display_name,
+            a.client_ip::text as client_ip,
+            a.request_id,
+            a.detail
+        from mark_app.audit_log a
+        left join mark_app.app_user u on u.user_id = a.user_id
+        where (a.created_at at time zone 'Asia/Bangkok')::date >= %s
+          and (a.created_at at time zone 'Asia/Bangkok')::date <= %s
+          and (%s::bigint is null or a.user_id = %s::bigint)
+          and (%s::text is null or a.action = %s::text)
+        order by a.created_at desc
+        limit 50 offset %s
+        """
+        rows = self._execute(q, (date_from, date_to, user_id, user_id, action, action, offset), fetch_all=True)
+        return rows if isinstance(rows, list) else []
+

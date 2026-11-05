@@ -63,6 +63,20 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 3: Admin API for users, unlock, activity, events
+- **What changed**:
+  - Widen `can` permission matrix in `mark_api.auth`: added `"admin"` action restricted exclusively to `"admin"` role.
+  - Implemented repository methods in `Repo`:
+    - `admin_users()`: returns list of users with last login timestamp via left join on `audit_log`.
+    - `unlock_user(user_id)`: resets `failed_count = 0` and `locked_until = null`.
+    - `activity(date_from, date_to, run_id)`: runs 3 SQL statements for per-user reviews/approvals, latest ELR approval progress vs. job counts (`distinct on (elr_no)`), and daily auth events.
+    - `audit_events(date_from, date_to, user_id, action, page)`: paginated 50 rows/page newest first with filters.
+  - Created router `services/api/mark_api/routers/admin.py` with routes `/api/admin/users`, `/api/admin/users/{user_id}/unlock`, `/api/admin/activity`, and `/api/admin/events`.
+  - Enforced 92-day date range limit and `from <= to` checks with 422 HTTP status.
+- **Verification**:
+  - Unit tests in `test_api_core.py` and `test_api_routes.py`: 351 passed.
+  - Live PostgreSQL check on run 19: `total_elrs == 402` and user list fetched correctly.
+
 ### 2026-11-05 — Task 2: Audit failed logins, lockouts and expired sessions
 - **What changed**:
   - Added `session_status(session, now)` in `mark_api.auth` returning `"ok"`, `"absolute"`, or `"idle"`; `session_valid` delegates to it.

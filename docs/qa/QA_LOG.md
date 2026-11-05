@@ -680,3 +680,16 @@
 ### Verification
 - Added 6 unit tests covering: `session_status` idle/absolute expiry, unknown user audit without username, 5th failure lockout audit, locked and inactive login attempts, single audit for expired session, and fail-open on DB audit error.
 - Full suite: 347 unit tests passed.
+
+## 2026-11-05 — Task 3: Admin API for users, unlock, activity, events
+
+### What changed
+- Added `admin` action to role permission matrix for `admin` only; forbidden for `engineer` and `mark_eng_approver` (403).
+- Implemented `Repo` methods: `admin_users`, `unlock_user`, `activity` (running 3 grouped queries), and `audit_events`.
+- Created `services/api/mark_api/routers/admin.py` under `/api/admin` with endpoints for users, account unlocking (audited), activity trends (run progress, velocity, login issues), and paginated events.
+- Enforced date range validation: maximum 92 days, `from <= to`, Asia/Bangkok date grouping.
+
+### Verification
+- Added 4 route unit tests + 1 permission test (forbidden for engineer, unlock clears lock with audit and CSRF requirement, state calculation, date range validation).
+- Executed direct query on live PostgreSQL DB: `admin_users` retrieved user `kam` and `activity` verified `total_elrs == 402` for run 19.
+- Full suite: 351 unit tests passed.

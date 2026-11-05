@@ -74,11 +74,11 @@ def csrf_ok(cookie: str | None, header: str | None) -> bool:
     return hmac.compare_digest(cookie, header)
 
 
-def can(role: str, action: Literal["read", "review", "approve", "metrics"]) -> bool:
+def can(role: str, action: Literal["read", "review", "approve", "metrics", "admin"]) -> bool:
     matrix = {
         "engineer": {"read", "review", "approve"},
         "mark_eng_approver": {"read", "review", "approve"},
-        "admin": {"read", "metrics"},
+        "admin": {"read", "metrics", "admin"},
         "metrics_token": {"metrics"},
     }
     allowed = matrix.get(role, set())

@@ -15,7 +15,7 @@ from mark_api.auth import csrf_ok
 from mark_api.deps import get_cookie_name, get_repo, require
 from mark_api.logging import current_request_id, log_event
 from mark_api.repo import Repo
-from mark_api.routers import auth, mark, validation, workflow
+from mark_api.routers import admin, auth, mark, validation, workflow
 
 app = FastAPI(title="Mark API", version="0.3.0")
 
@@ -137,6 +137,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(mark.router, prefix="/api")
 app.include_router(validation.router, prefix="/api")
 app.include_router(workflow.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 
 
 @app.get("/api/health")

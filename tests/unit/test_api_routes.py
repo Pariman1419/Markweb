@@ -283,6 +283,41 @@ class FakeRepo:
     def token_by_hash(self, token_hash: str) -> dict[str, Any] | None:
         return self.api_tokens.get(token_hash)
 
+    def admin_users(self) -> list[dict[str, Any]]:
+        res = []
+        for u in self.users.values():
+            logins = [a['created_at'] for a in self.audit_data if a['action'] == 'auth.login_ok' and a['user_id'] == u['user_id']]
+            last_login = max(logins) if logins else None
+            res.append({
+                'user_id': u['user_id'],
+                'username': u['username'],
+                'display_name': u['display_name'],
+                'role': u['role'],
+                'active': u['active'],
+                'failed_count': u.get('failed_count', 0),
+                'locked_until': u.get('locked_until'),
+                'last_login_at': last_login,
+            })
+        return res
+
+    def unlock_user(self, user_id: int) -> bool:
+        for u in self.users.values():
+            if u['user_id'] == user_id:
+                u['failed_count'] = 0
+                u['locked_until'] = None
+                return True
+        return False
+
+    def activity(self, date_from: Any, date_to: Any, run_id: int) -> dict[str, Any]:
+        return {
+            'per_user_day': [],
+            'run_progress': {'run_id': run_id, 'total_elrs': 402, 'approved': 0, 'rejected': 0, 'undecided': 402},
+            'auth_per_day': [],
+        }
+
+    def audit_events(self, date_from: Any, date_to: Any, user_id: int | None, action: str | None, page: int) -> list[dict[str, Any]]:
+        return []
+
 
 @pytest.fixture
 def fake_repo():
@@ -707,5 +742,36 @@ def test_expired_session_audited_once(client, fake_repo):
 def test_audit_failure_does_not_break_login(client, fake_repo, monkeypatch):
     monkeypatch.setattr(fake_repo, "audit", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db down")))
     assert client.post("/api/auth/login", json={"username": "engineer1", "password": "ValidPassword123!"}).status_code == 200
+
+
+def test_admin_routes_forbidden_for_engineer(client):
+    _login(client)
+    assert client.get("/api/admin/users").status_code == 403
+
+
+def test_admin_unlock_clears_lock_and_audits(client, fake_repo):
+    fake_repo.users["engineer1"].update(failed_count=5, locked_until=datetime.now(timezone.utc) + timedelta(minutes=15))
+    csrf = _login(client, "admin1")
+    uid = fake_repo.users["engineer1"]["user_id"]
+    assert client.post(f"/api/admin/users/{uid}/unlock").status_code == 403                    # no CSRF header
+    r = client.post(f"/api/admin/users/{uid}/unlock", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200 and fake_repo.users["engineer1"]["locked_until"] is None
+    assert fake_repo.audit_data[-1]["detail"] == {"target_user_id": uid}
+    assert client.post("/api/admin/users/99999/unlock", headers={"X-CSRF-Token": csrf}).status_code == 404
+
+
+def test_admin_users_state(client, fake_repo):
+    _login(client, "admin1")
+    states = {u["username"]: u["state"] for u in client.get("/api/admin/users").json()}
+    assert states["engineer1"] == "OK"
+
+
+def test_admin_activity_range_validation(client):
+    _login(client, "admin1")
+    assert client.get("/api/admin/activity?from=2026-01-01&to=2026-06-01").status_code == 422   # > 92 days
+    assert client.get("/api/admin/activity?from=2026-11-05&to=2026-11-01").status_code == 422   # from > to
+    assert client.get("/api/admin/activity?from=bad").status_code == 422
+    assert client.get("/api/admin/activity").status_code == 200
+
 
 

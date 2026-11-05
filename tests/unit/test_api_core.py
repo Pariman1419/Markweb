@@ -76,6 +76,8 @@ def test_csrf_and_roles():
     assert csrf_ok("a", "a") and not csrf_ok("a", None) and not csrf_ok(None, None)
     assert can("engineer", "approve") and not can("engineer", "metrics")
     assert can("admin", "metrics") and not can("admin", "approve")
+    assert can("admin", "admin") and not can("engineer", "admin") and not can("mark_eng_approver", "admin")
+
 
 
 def test_log_event_drops_sensitive_fields(capsys):
