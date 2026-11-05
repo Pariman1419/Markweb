@@ -520,3 +520,13 @@
 ### Prevention / Rules Learned
 - Check a candidate rule against Oracle history before applying it: 92/92 for the ABS note, 31/36 uppercase for case, ACTL COO frequency for the short form.
 - A reflow or trim is applied only on overflow and only when every resulting row fits. It is always shown as a warning.
+
+## 2026-11-05 — Phase 2 trial design (docs only)
+
+### What changed
+- Added the Phase 2 trial spec and plan (`docs/superpowers/specs|plans/2026-11-05-phase2-trial*`). No code changed.
+
+### QA decisions
+- The test scope is new logic only. `mark_engine` (306 tests) is not re-tested from the API side.
+- API route tests use an in-memory fake repo. The real-DB check is the Task 4 manual step: dashboard cards must equal `metrics.json` of the same run.
+- Web checks are `tsc` + `vite build` plus the user's walkthrough. There are no UI unit tests.

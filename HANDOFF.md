@@ -63,6 +63,18 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Phase 2 trial design and plan
+- The user will trial the web app alone first. Spec: `docs/superpowers/specs/2026-11-05-phase2-trial-design.md`. Plan: `docs/superpowers/plans/2026-11-05-phase2-trial.md` (6 tasks).
+- Scope is B1 + B2 of the earlier Phase 2 design, in this order:
+  - a trial run of the Jul–Nov replay after `dd57846`, loaded as a new run_id (not a holdout);
+  - migration 0005, with 6 `mark_app` tables (app_user, user_session, elr_snapshot, line_review, approval, audit_log);
+  - a snapshot loader;
+  - one FastAPI app with Auth / Mark / Validation / Workflow routers;
+  - React Dashboard + ELR Preview;
+  - Docker Compose on 10.153.90.17.
+- Deferred: B3–B7 (Airflow, inference API, LLM, notification), FREEZE-R2 (next holdout), Redis/Kong.
+- Tests cover only new logic (grouping, approve guard, auth, file path guard, snapshot builder). The engine is not re-tested.
+
 ### 2026-11-05 — Engine fixes from the run-17 overflow review (post-holdout, not frozen)
 
 - Source: user review CSV of 25/141 overflow ELRs (`run17-overflow-review.csv`). Fixes applied to every ELR showing the same pattern, including unreviewed ones:
