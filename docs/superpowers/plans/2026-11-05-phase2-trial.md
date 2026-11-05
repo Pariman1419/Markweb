@@ -181,7 +181,7 @@ def test_hold_elr_without_image_has_null_image_path(tmp_path):
 - Produces: `services/api/mark_api/logging.py` with `log_event(event: str, **fields)`, which writes one JSON line to stdout with `ts, level, service='mark-api', request_id, event` + fields. It drops any field named `password`, `token`, `mark`, `slr_text` or `image_path`.
 - Produces: `safe_file(root: Path, relative: str) -> Path | None`. It returns None if the resolved path is outside `root` or does not exist.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```python
 def test_classify_line():
@@ -232,10 +232,10 @@ def test_safe_file_rejects_traversal(tmp_path):
     assert safe_file(tmp_path, '../secret') is None and safe_file(tmp_path, 'C:/Windows/win.ini') is None
 ```
 
-- [ ] **Step 2:** Run `python -m pytest tests/unit/test_api_core.py -q`. Expected: FAIL.
-- [ ] **Step 3:** Implement the five modules. Add to `pyproject.toml` an optional extra `api = ["fastapi", "uvicorn[standard]", "psycopg2-binary", "argon2-cffi"]` and `services/api` to the setuptools package include.
-- [ ] **Step 4:** Run the tests. Expected: PASS.
-- [ ] **Step 5:** Commit (`feat(api): grouping, approve guard, auth and file guard`) with HANDOFF and QA_LOG.
+- [x] **Step 2:** Run `python -m pytest tests/unit/test_api_core.py -q`. Expected: FAIL.
+- [x] **Step 3:** Implement the five modules. Add to `pyproject.toml` an optional extra `api = ["fastapi", "uvicorn[standard]", "psycopg2-binary", "argon2-cffi"]` and `services/api` to the setuptools package include.
+- [x] **Step 4:** Run the tests. Expected: PASS.
+- [x] **Step 5:** Commit (`feat(api): grouping, approve guard, auth and file guard`) with HANDOFF and QA_LOG.
 
 ### Task 4: API routes + repository (spec T3)
 
@@ -277,7 +277,7 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `POST /approvals {run_id, elr_no, decision}` → 409 with `{blocked_lines}` when `approve_blockers` is non-empty and decision is APPROVED. Also 409 `{reason: 'HOLD'}` for APPROVED on a HOLD job; REJECTED is allowed.
 - Every write also writes `audit_log`.
 
-- [ ] **Step 1: Write failing tests** using `fastapi.testclient.TestClient`, with `app.dependency_overrides[get_repo]` set to an in-memory `FakeRepo` defined in the test file that implements the methods above. Tests:
+- [x] **Step 1: Write failing tests** using `fastapi.testclient.TestClient`, with `app.dependency_overrides[get_repo]` set to an in-memory `FakeRepo` defined in the test file that implements the methods above. Tests:
   - `test_requires_login`: `GET /api/runs` → 401.
   - `test_login_then_dashboard`: 200, and `cards` has the 4 keys.
   - `test_elr_detail_hold_without_image`: `image_available is False`, and `job.processing_status == 'HOLD'`.

@@ -63,6 +63,17 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Task 3: API core logic (pure functions)
+- Implemented `services/api/mark_api/`:
+  - `grouping.py`: `classify_line` (TRUE/WARNING/ERROR/NONE), `classify_job`, `summarize` with cards, monthly trends, and error/hold cause breakdowns.
+  - `workflow.py`: `approve_blockers` enforcing that ERROR lines must have non-draft reviews with both reason and corrected_mark before approval.
+  - `auth.py`: argon2 password hashing/verification, account lock after 5 failures, session validity (8h absolute, 60m idle), CSRF double-submit token checking, and role permissions.
+  - `logging.py`: structured JSON logger dropping sensitive fields (`password`, `token`, `mark`, `slr_text`, `image_path`).
+  - `files.py`: `safe_file` directory traversal guard.
+- Added optional `api` dependency in `pyproject.toml` and package include for `services/api`.
+- Verified with 8 unit tests in `tests/unit/test_api_core.py`. Total test suite passes (319 tests).
+
+
 ### 2026-11-05 — Task 2: Snapshot loader (spec T2)
 - Implemented `scripts/load_app_snapshot.py` with `build_snapshot_rows` and CLI with `--commit`.
 - Added unit tests in `tests/unit/test_app_snapshot.py` covering 5 Oracle rows, 5x18 layout grid, `top_mark_id` float parsing, `line_extra` jsonb, and HOLD ELR image nullability. All passed.

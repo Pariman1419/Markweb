@@ -566,3 +566,14 @@
 ### Verification
 - `pytest tests/unit/test_app_snapshot.py -q`: 3 passed.
 - Database query: `select count(*) from mark_app.elr_snapshot where run_id = 19` confirmed 402 rows.
+
+## 2026-11-05 — Task 3: API core logic (pure functions)
+
+### What changed
+- Created pure function business modules in `services/api/mark_api/`: `grouping.py`, `workflow.py`, `auth.py`, `logging.py`, `files.py`.
+- Added `tests/unit/test_api_core.py` verifying status classification, metrics rollup, approval gating, account lockouts, session expiry, role permissions, log redaction, and path traversal guards.
+- Updated `pyproject.toml` with `[project.optional-dependencies] api` and included `mark_api*`.
+
+### Verification
+- `pytest tests/unit/test_api_core.py -q`: 8 passed.
+- Full suite `pytest tests -q`: 319 passed in 7.2s.
