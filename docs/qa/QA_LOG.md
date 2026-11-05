@@ -884,3 +884,34 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 ### Verification
 - `test_pending_reason` in `tests/unit/test_select.py` passed.
 - Full suite: 367 unit tests passed.
+
+
+## 2026-11-05 — Engine Gates Task 5: run-19 regression (0.4.0) into `run-gates` and diff report
+
+### What changed
+- Bumped `ENGINE_VERSION = "0.4.0"` in `mark_engine/version.py`.
+- Implemented `scripts/diff_runs.py` and unit tests `tests/unit/test_diff_runs.py` (369 unit tests passed).
+- Re-ran regression `scripts/run_blind.py` against run-19 inputs into `artifacts/blind-2026h2/run-gates` after NAS reconnect: `jobs: 402 independence: 236 / 236 excluded: 166 failed: 0 freeze: UNFROZEN`.
+- Executed `python scripts/diff_runs.py --base artifacts/blind-2026h2/run-overflowfix --new artifacts/blind-2026h2/run-gates`.
+
+### Diff Summary: run-overflowfix -> run-gates
+- **Job-level changes**:
+  - `DONE:NOT_VERIFIABLE -> HOLD:CUST_ASSY_TBD`: 27 ELRs
+    `ADI2607009, ADI2607028, ADI2607029, ADI2607050, ADI2608007, ADI2608080, ADI2608081, ADI2608082, ADI2608083, ADI2608084, ADI2608085, ADI2609004, ADI2609005, ADI2609093, ADI2610014, ADI2610018, ADI2610033, ADI2610064, ADI2610068, ADI2610069, ADI2610070, ADI2610071, ADI2610072, ADI2610073, ADI2610074, ADI2610095, ADI2611004`
+  - `HOLD:BOM_NOT_FOUND -> HOLD:CUST_ASSY_TBD`: 1 ELR (`ADI2609073`) (G1 check runs before document resolution)
+  - `DONE:NOT_VERIFIABLE -> HOLD:ROW_OVER_5`: 16 ELRs
+    `ADI2607019, ADI2607052, ADI2607073, ADI2607075, ADI2607076, ADI2608014, ADI2608015, ADI2608016, ADI2608028, ADI2608098, ADI2608099, ADI2609016, ADI2609085, ADI2610013, ADI2610034, ADI2610035`
+  - `DONE:MATCH_ALL -> HOLD:ROW_OVER_5`: 1 ELR (`ADI2607022`)
+  - `DONE:NEEDS_REVIEW -> HOLD:ROW_OVER_5`: 1 ELR (`ADI2608064`)
+- **Total changed ELRs**: 46 (28 `HOLD:CUST_ASSY_TBD`, 18 `HOLD:ROW_OVER_5`).
+- **Zero unexplained groups**: Every change strictly maps to Task 1 (Cust Assy TBD) or Task 3 (> 5 TOP rows). Task 2 (SLR Special Instructions) caused 0 changes on run 19 because all matching SLRs already included the header.
+- **Line-level counts**:
+  - `DB_EMPTY`: 43 -> 23 (-20)
+  - `DIFF`: 7 -> 7 (0)
+  - `MATCH`: 929 -> 858 (-71)
+  - `MATCH_LOT`: 21 -> 21 (0)
+  - `MATCH_SLR`: 69 -> 69 (0)
+  - `NEEDS_REVIEW`: 101 -> 100 (-1)
+  - `NOT_ELIGIBLE`: 81 -> 81 (0)
+  - `NOT_MEASURABLE`: 107 -> 179 (+72)
+- **Governance**: `run-gates` was NOT loaded to DB and `FREEZE-R1.json` was NOT re-frozen.

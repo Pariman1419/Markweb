@@ -198,7 +198,7 @@ def test_pending_reason(monkeypatch):
 - [x] **Step 3: Implement** `mark_engine/select.py`.
 - [x] **Step 4: Run the unit suite.** Expected: all pass.
 - [x] **Step 5: Read-only Oracle check of the step value.** Run one SELECT through `connect_actl()` and `select()`, the same way `scripts/fetch_oracle_snapshot.py` does: `SELECT CURRENT_STEP, COUNT(*) FROM ACTLDBA.ELR WHERE CUST_CODE = 'ADI' AND STATUS <> 'C' GROUP BY CURRENT_STEP`. Record **only the step values and counts** in QA_LOG. Then **[USER]** confirm which value means "Mark Engineer review", and put it in `.env` as `MARK_REVIEW_STEP` (and in `.env.example` with no secret).
-- [ ] **Step 6: Commit and push.** Use `git commit -m "feat(engine): G0 pending-review selector"`, then wait for green.
+- [x] **Step 6: Commit and push.** Use `git commit -m "feat(engine): G0 pending-review selector"`, then wait for green.
 
 ### Task 5: Regression on run-19 inputs and change report
 
@@ -217,7 +217,7 @@ def test_pending_reason(monkeypatch):
   - the line-level `final_status` count change from `lines.csv`
   - It prints no mark values.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_diff_jobs_groups_changed_elrs():
@@ -228,19 +228,19 @@ def test_diff_jobs_groups_changed_elrs():
     assert diff_jobs(base, new) == {("DONE:HAS_DIFF", "HOLD:CUST_ASSY_TBD"): ["A2"]}
 ```
 
-- [ ] **Step 2: Run it.** Expected: FAIL. Then **Step 3:** implement `scripts/diff_runs.py`, and **Step 4:** run it again. Expected: PASS.
-- [ ] **Step 5: Bump** `ENGINE_VERSION` to `"0.4.0"`, then run the unit suite. Expected: all pass. If a test pins `"0.3.0"`, update that pin only.
-- [ ] **Step 6: Regression.**
+- [x] **Step 2: Run it.** Expected: FAIL. Then **Step 3:** implement `scripts/diff_runs.py`, and **Step 4:** run it again. Expected: PASS.
+- [x] **Step 5: Bump** `ENGINE_VERSION` to `"0.4.0"`, then run the unit suite. Expected: all pass. If a test pins `"0.3.0"`, update that pin only.
+- [x] **Step 6: Regression.**
 
   `PYTHONPATH=. python scripts/run_blind.py --oracle artifacts/blind-2026h2/oracle --cache artifacts/blind-2026h2/cache --out artifacts/blind-2026h2/run-gates --months 7_JUL 8_AUG 9_SEP 10_OCT 11_NOV --allow-unfrozen`
 
   Expected: `jobs: 402`, `failed: 0`.
-- [ ] **Step 7: Diff.** `python scripts/diff_runs.py --base artifacts/blind-2026h2/run-overflowfix --new artifacts/blind-2026h2/run-gates`.
+- [x] **Step 7: Diff.** `python scripts/diff_runs.py --base artifacts/blind-2026h2/run-overflowfix --new artifacts/blind-2026h2/run-gates`.
   - **Expected:** every changed ELR falls into a group explained by Tasks 1–3:
     - `→ HOLD:CUST_ASSY_TBD`: about 29 ELRs, all with `CUST_ASSY_LOT = TBD`
     - `→ HOLD:ROW_OVER_5`
     - changes from SLRs without the header
   - **Any other group is a bug:** stop and report it.
   - Paste the table and groups (ELR numbers only) into QA_LOG and HANDOFF §4.
-- [ ] **Step 8: [USER] Review the diff.** The user confirms the changed ELRs are correct, especially the header-less SLR group. **Do not load `run-gates` into the DB, and do not re-freeze.** Both are the user's call after this review.
+- [x] **Step 8: [USER] Review the diff.** The user confirms the changed ELRs are correct, especially the header-less SLR group. **Do not load `run-gates` into the DB, and do not re-freeze.** Both are the user's call after this review.
 - [ ] **Step 9: Commit and push.** Use `git commit -m "test: run-19 regression of engine gates (0.4.0) and diff report"`, then wait for green. The `artifacts/` output is not committed.

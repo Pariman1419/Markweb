@@ -64,6 +64,7 @@
 ## 4. Live Changelog & Session Updates
 
 ### 2026-11-05 — Engine 0.4.0 regression reviewed; G5 fix planned
+- **Task 5 implementation**: Bumped `ENGINE_VERSION = "0.4.0"`, created `scripts/diff_runs.py` and `tests/unit/test_diff_runs.py` (372 unit tests passed).
 - **Diff:** run-overflowfix → run-gates (engine 0.4.0, 402 ELRs). 46 ELRs changed.
   - `→ HOLD:CUST_ASSY_TBD` ×28: **accepted**. The 29th TBD ELR, ADI2607077, is STATUS C, so it stays NOT_ELIGIBLE. ADI2609073 moved from BOM_NOT_FOUND to TBD, because the TBD gate runs first.
   - Special-SLR change: 0 ELRs.
