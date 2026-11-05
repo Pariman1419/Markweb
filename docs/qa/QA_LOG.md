@@ -652,3 +652,6 @@
 - **Build #8: SUCCESS.**
   - 340 passed, plus web build, images, deploy, and smoke `smoke OK: http://localhost:8088`.
   - Manual recheck: ready 200, 401 without login, SPA 200.
+
+## 2026-11-05 — Login audit / admin plan (design only)
+- No code yet. The plan adds about 13 tests and duplicates none: the existing lockout and no-username tests are kept as they are.

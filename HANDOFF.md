@@ -63,6 +63,18 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Design and plan: login audit, admin unlock and activity dashboard
+- **Why:** the user needs to answer "I can't log in" from the DB, and managers want an overview (role `admin`).
+- **Gaps found:**
+  - Failed logins, lockouts and expired sessions are not in `audit_log`.
+  - Audit rows have no IP or request_id.
+  - API logs are lost on every Jenkins redeploy.
+  - There is no way to unlock an account.
+- **Spec:** `docs/superpowers/specs/2026-11-05-login-audit-activity-design.md`.
+- **Plan:** `docs/superpowers/plans/2026-11-05-login-audit-activity.md` (Tasks 1–6). Migration 0006 is additive: two columns and one index on `audit_log`.
+- **Pending user:** approve the plan, give the go-ahead for migration 0006 on the shared DB, and create the admin account in their own terminal.
+- **Note:** `mark_app.audit_log` is empty so far (no logins on the trial yet). The only app user is user_id 1, an engineer.
+
 ### 2026-11-05 — Jenkins job `mark-web` created; first builds
 - **First green build: #8 (5e7b2be), SUCCESS in 57 s.**
   - pytest: 340 passed (`tests/regression` is excluded in CI because it reads git-ignored `artifacts/`).
