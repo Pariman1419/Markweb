@@ -63,6 +63,19 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — E2E walkthrough PASS 12/12 on localhost:8088 (plan Task 5, run by script for the user)
+- **Result:** `scripts/e2e_walkthrough.py --run 19` against deployed `a42a483` → **PASS 12/12**.
+  - **Engineer flow:** login → Dashboard (50 ELR rows on page 1) → search `ADI2607010` → Preview (ABS image decoded, Oracle grid). Approve before review → 409. Review lines 4 and 5 → 200 each. Approve → 200 (`Current: APPROVED`).
+  - **Admin:** login → events list `review.saved` and `approval.saved` for the engineer.
+  - **Cleanup:** deleted 2 reviews and 1 approval; `audit_log` kept.
+- **Script fixes:** these were the script's own timing problems, not app bugs.
+  - ERROR-line review forms open by default, so the script now expands a form only when it is collapsed.
+  - It waits for the ABS image to decode, and for the detail re-fetch after each save.
+  - It reads only event-table rows, because the filter `<select>` also lists the action names.
+- **Gap (not fixed, for the user to decide):** the Admin events table and `/api/admin/events` show no ELR or run. A manager can see that an `approval.saved` happened, but not for which ELR, unless they open `detail`.
+  - **Proposed fix:** select `a.run_id, a.elr_no, a.line_no` in `Repo.audit_events` and add one column to the table.
+- **Not yet deployed to 10.153.90.17** (user's call).
+
 ### 2026-11-05 — Acceptance Task 4: Dashboard cache LRU 8 and lazy ABS thumbnail
 - **What changed**:
   - In `services/api/mark_api/routers/validation.py`: `_dashboard_cache` changed to `OrderedDict` with `_CACHE_MAX = 8`, promoting on cache hit (`move_to_end(run)`) and evicting oldest entry (`popitem(last=False)`) when exceeding capacity.

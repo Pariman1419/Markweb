@@ -135,13 +135,15 @@ def main() -> int:
                 return 1
 
             # 2. Dashboard: cards + ELR table (real ELR rows, not the loading/empty row), no load-error banner
-            try:
-                page.wait_for_selector("tbody tr:has-text('ADI')", timeout=15000)
+            try:  # wait until the table has left its loading state and shows real rows (expect a full page of 50)
+                page.wait_for_function(
+                    "() => !document.body.innerText.includes('Loading records') && document.querySelectorAll('tbody tr').length >= 2",
+                    timeout=20000)
             except Exception:
                 pass
             page.screenshot(path=str(out / "01_dashboard.png"), full_page=True)
             body = page.inner_text("body")
-            rows = page.locator("tbody tr:has-text('ADI')").count()
+            rows = page.locator("tbody tr").count()
             step("dashboard", "ไม่สำเร็จ" not in body and rows >= 1 and "No ELR" not in body, f"ELR rows on page 1={rows}")
 
             # 3. Pick an ELR through the same session's API, then find it with the search box
@@ -157,7 +159,11 @@ def main() -> int:
 
             # 4. Preview: ABS image decoded, Oracle grid shown
             page.wait_for_selector("text=Oracle Actual ACTIVEL", timeout=15000)
-            img_ok = page.evaluate("() => [...document.images].some(i => i.complete && i.naturalWidth > 0 && i.src.includes('/api/files/abs/'))")
+            try:  # wait for the ABS image to finish decoding (it can arrive after the grid)
+                page.wait_for_function("() => [...document.images].some(i => i.complete && i.naturalWidth > 0 && i.src.includes('/api/files/abs/'))", timeout=15000)
+                img_ok = True
+            except Exception:
+                img_ok = False
             step("preview", img_ok, "ABS image loaded, Oracle grid shown" if img_ok else "ABS image not loaded")
             page.screenshot(path=str(out / "02_preview.png"), full_page=True)
 
@@ -173,13 +179,16 @@ def main() -> int:
             for n in err_lines:
                 # innermost review card for this line (outer panels also contain the text, so take the last match)
                 form = page.locator("div.rounded-lg.overflow-hidden.text-xs", has=page.locator(f"span:text-is('Line {n}')")).last
-                if form.locator("select").count() == 0:   # ERROR lines open by default; expand only if collapsed
+                form.locator(f"span:text-is('Line {n}')").wait_for(state="visible", timeout=15000)
+                if not form.locator("select").is_visible():   # ERROR lines open by default; expand only if collapsed
                     form.locator(f"span:text-is('Line {n}')").click()
                 form.locator("select").select_option("OTHER")
                 form.locator("input[placeholder='Enter approved mark']").fill(expected[n])
                 form.locator("input[placeholder^='Investigation note']").fill("E2E walkthrough test (auto cleanup)")
                 with page.expect_response(lambda r: r.url.endswith("/api/reviews")) as r_rev:
-                    form.locator("button:has-text('Confirm Review')").click()
+                    with page.expect_response(lambda r: f"/api/elrs/{elr}" in r.url and r.request.method == "GET", timeout=15000):
+                        form.locator("button:has-text('Confirm Review')").click()   # save, then the page re-fetches detail
+                page.wait_for_timeout(500)   # let the forms re-render after the re-fetch
                 wrote = True
                 if not step(f"review_line_{n}", r_rev.value.status == 200, f"status={r_rev.value.status}"):
                     return 1
@@ -196,9 +205,17 @@ def main() -> int:
             apage = actx.new_page()
             step("login_admin", login(apage, base, adm_u, adm_p))
             apage.goto(f"{base}/admin")
-            apage.wait_for_selector("text=approval.saved", timeout=15000)
-            atext = apage.inner_text("body")
-            step("admin_events", "review.saved" in atext and "approval.saved" in atext, "review.saved + approval.saved listed")
+            # The filter <select> also lists these action names, so read only event-table rows.
+            # Events carry no ELR/run column, so match rows by the engineer's display name among the newest events.
+            eng_name = ctx.request.get("/api/auth/me").json()["display_name"]
+            try:
+                apage.locator("tbody tr", has_text="approval.saved").first.wait_for(timeout=15000)
+            except Exception:
+                pass
+            atext = " ".join(r for r in apage.locator("tbody tr").all_inner_texts() if eng_name in r)
+            n_rev = atext.count("review.saved")
+            step("admin_events", n_rev >= len(err_lines) and "approval.saved" in atext,
+                 f"review.saved x{n_rev}, approval.saved {'yes' if 'approval.saved' in atext else 'no'}")
             apage.screenshot(path=str(out / "04_admin.png"), full_page=True)
         except Exception as e:  # any timeout or selector miss is a failed step, not a crash
             step("exception", False, f"{type(e).__name__}: {str(e).splitlines()[0][:160]}")

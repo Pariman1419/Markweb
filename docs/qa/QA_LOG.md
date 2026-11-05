@@ -810,3 +810,8 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 - `test_dashboard_cache_lru_8` verified 9 unique runs store 8 entries and evict run 100.
 - `tsc -b && vite build` built web bundle with 0 errors.
 - Full suite: 357 unit tests passed.
+
+## 2026-11-05 — E2E walkthrough PASS 12/12 (after the review FK fix)
+- **Result:** `scripts/e2e_walkthrough.py --run 19` against deployed `a42a483` passed 12/12. Steps: login, dashboard (50 rows), search/open, preview (image plus grid), approve blocked (409), review ×2 (200), approve (200), admin login, admin events. It then cleaned up its rows (2 reviews, 1 approval).
+- **Timings via NGINX:** `/api/elrs` page 1 0.16 s, `/api/dashboard` 0.06 s, `/api/runs` 0.05 s. The dashboard table fills in under 1 s with no console errors.
+- **Gap:** admin events show no ELR or run column.
