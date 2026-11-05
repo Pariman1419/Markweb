@@ -1,7 +1,7 @@
 """Admin endpoints: users, unlock, activity, and events."""
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
-from zoneinfo import ZoneInfo
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
@@ -13,7 +13,8 @@ from mark_api.repo import Repo
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require("admin"))])
 
-BKK_TZ = ZoneInfo("Asia/Bangkok")
+# Asia/Bangkok is UTC+7 with no DST; a fixed offset avoids needing tzdata on Windows.
+BKK_TZ = timezone(timedelta(hours=7))
 
 
 def _resolve_date_range(from_d: date | None, to_d: date | None) -> tuple[date, date]:

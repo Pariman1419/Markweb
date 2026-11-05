@@ -63,6 +63,19 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Review of the login-audit work (agent commits 8aa889a..5c565f4) and a CI fix
+- **Tasks 1–5 reviewed:** all match the plan. Re-run per commit gave 341 → 347 → 351 → 352 unit tests passing. The web build passes, and `Admin` is a 4.4 KB gzip chunk.
+- **Migration 0006 is applied** on `mark_web` @10.151.28.2, run by the other agent by 13:32.
+  - Checked: `mark_app.audit_log` has `client_ip` and `request_id`.
+  - The agent did not record when it was run, and plan Task 6 was left unticked.
+- **Admin account:** `mark_app.app_user` now has one `admin` account, created by the user.
+- **CI fix:** the Jenkins build for 5c565f4 failed at collection, because `ZoneInfo("Asia/Bangkok")` needs the `tzdata` package on Windows and the clean venv did not have it. `routers/admin.py` now uses a fixed UTC+7 (Thailand has no DST).
+- **Open minor items (not fixed):**
+  - `log_event` raises if the log folder is not writable.
+  - The 92-day cap allows 93 days inclusive.
+  - The date filters cast `created_at`, so the `created_at` index is not used.
+- **Pending:** the Task 4 manual check on localhost:8088 as admin. The plan's tick for it was set before any deploy.
+
 ### 2026-11-05 — Task 5: Persistent API log file
 - **What changed**:
   - In services/api/mark_api/logging.py: added rotating file handler (RotatingFileHandler(maxBytes=10MB, backupCount=5)) writing JSON lines to <MARK_LOG_DIR>/api.jsonl when MARK_LOG_DIR is configured; preserved current_request_id ContextVar across module reloads.

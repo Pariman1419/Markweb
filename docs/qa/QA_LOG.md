@@ -721,3 +721,9 @@
 - `test_log_event_also_writes_file` verified file creation and redaction of sensitive fields.
 - `docker compose config` parsed and validated volume mount and environment.
 - Full suite: 352 unit tests passed.
+
+## 2026-11-05 — Login audit: review and CI fix
+- Independent re-run of agent commits 8aa889a..5c565f4: 352 unit tests passed locally.
+- The Jenkins build for 5c565f4 failed at collection, because `zoneinfo` had no `tzdata` in the clean venv.
+  - Fixed by using a fixed UTC+7 in `routers/admin.py`; 352 tests pass.
+- DB check: migration 0006 columns are present, and there is 1 admin user.
