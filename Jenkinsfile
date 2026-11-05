@@ -66,7 +66,8 @@ pipeline {
     stage('Deploy') {
       when { expression { params.DEPLOY } }
       steps {
-        withEnv(["MARK_ENV_FILE=${params.ENV_FILE}"]) {
+        // cmd `copy` rejects forward slashes in the source path
+        withEnv(["MARK_ENV_FILE=${params.ENV_FILE.replace('/', '\\')}"]) {
           bat 'if not exist "%MARK_ENV_FILE%" (echo ENV_FILE not found: %MARK_ENV_FILE% & exit /b 1)'
           bat 'copy /Y "%MARK_ENV_FILE%" .env >nul'
           bat 'docker compose up -d --remove-orphans'

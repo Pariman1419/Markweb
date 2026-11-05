@@ -645,3 +645,5 @@
   - Fixed in cf30405 by pinning `fastapi<0.142` and declaring `httpx` in `dev`.
 - Builds #4–#5: `if not exist reports mkdir reports && pytest` ran pytest only inside the `if`, so build #5 skipped tests and republished #4's stale report (UNSTABLE).
   - Fixed: the stale report is removed first, pytest runs as its own step, and `junit` no longer allows an empty report.
+- Build #5: tests, web build and images passed. Deploy failed because cmd `copy` rejects a source path with `/` (`ENV_FILE`).
+  - Fixed: the path is converted to backslashes.
