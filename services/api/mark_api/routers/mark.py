@@ -14,6 +14,11 @@ from mark_api.repo import Repo
 router = APIRouter(tags=["mark"])
 
 
+def _text(v: Any) -> str:
+    return "" if v is None else str(v)
+
+
+
 @router.get("/runs")
 def list_runs(user: dict[str, Any] = Depends(require("read")), repo: Repo = Depends(get_repo)):
     return repo.runs()
@@ -46,7 +51,7 @@ def list_elrs(
         elr_month = f"20{elr_no[3:5]}-{elr_no[5:7]}" if len(elr_no) >= 7 and elr_no.startswith("ADI") else ""
         elr_lines = lines_by_elr.get(elr_no, [])
 
-        ps = classify_job(j.get("processing_status", ""))
+        ps = classify_job(_text(j.get("processing_status")))
         true_lines = 0
         total_lines = len(elr_lines)
         has_error = False
@@ -54,24 +59,28 @@ def list_elrs(
         line_cause = ""
 
         for l in elr_lines:
-            grp = classify_line(l.get("status") or "", l.get("warning") or "")
+            status_str = _text(l.get("status"))
+            warning_str = _text(l.get("warning"))
+            detail_str = _text(l.get("detail"))
+            grp = classify_line(status_str, warning_str)
             if grp == "TRUE":
                 true_lines += 1
             elif grp == "WARNING":
                 has_warning = True
                 if not line_cause:
-                    line_cause = l.get("warning", "").split(":")[0].strip()
+                    line_cause = warning_str.split(":")[0].strip()
             elif grp == "ERROR":
                 has_error = True
                 if not line_cause:
-                    line_cause = l.get("detail", "").split(";")[0].split(":")[0].strip()
+                    line_cause = detail_str.split(";")[0].split(":")[0].strip()
 
+        hold_reason_str = _text(j.get("hold_reason"))
         if ps == "HOLD":
             res_val = "HOLD"
-            cause_val = j.get("hold_reason", "").split(":")[0].strip() or "HOLD"
+            cause_val = hold_reason_str.split(":")[0].strip() or "HOLD"
         elif ps == "FAILED" or has_error:
             res_val = "ERROR"
-            cause_val = line_cause or j.get("hold_reason", "").split(":")[0].strip() or "ERROR"
+            cause_val = line_cause or hold_reason_str.split(":")[0].strip() or "ERROR"
         elif has_warning:
             res_val = "WARNING"
             cause_val = line_cause or "WARNING"
@@ -90,7 +99,7 @@ def list_elrs(
         if cause and cause_val != cause:
             continue
         if q_lower:
-            abs_file = (j.get("abs_no") or "").lower()
+            abs_file = _text(j.get("abs_no")).lower()
             if q_lower not in elr_no.lower() and q_lower not in abs_file:
                 continue
 
@@ -98,7 +107,7 @@ def list_elrs(
             {
                 "elr_no": elr_no,
                 "month": elr_month,
-                "abs_file": j.get("abs_no") or "",
+                "abs_file": _text(j.get("abs_no")),
                 "result": res_val,
                 "true_lines": true_lines,
                 "total_lines": total_lines,
@@ -130,31 +139,39 @@ def get_elr(elr: str, run: int = Query(...), user: dict[str, Any] = Depends(requ
     # job info from snapshot or lines
     if snapshot and "processing_status" in snapshot:
         job = {
-            "processing_status": snapshot.get("processing_status", "DONE"),
-            "hold_reason": snapshot.get("hold_reason", ""),
-            "hold_detail": snapshot.get("hold_detail", ""),
+            "processing_status": _text(snapshot.get("processing_status")) or "DONE",
+            "hold_reason": _text(snapshot.get("hold_reason")),
+            "hold_detail": _text(snapshot.get("hold_detail")),
         }
     elif lines_raw and "processing_status" in lines_raw[0]:
         job = {
-            "processing_status": lines_raw[0].get("processing_status", "DONE"),
-            "hold_reason": lines_raw[0].get("hold_reason", ""),
-            "hold_detail": lines_raw[0].get("hold_detail", ""),
+            "processing_status": _text(lines_raw[0].get("processing_status")) or "DONE",
+            "hold_reason": _text(lines_raw[0].get("hold_reason")),
+            "hold_detail": _text(lines_raw[0].get("hold_detail")),
         }
     else:
         # fallback if not merged in test fake
         job_direct = repo.job(run, elr) if hasattr(repo, "job") else None
-        job = job_direct or {"processing_status": "DONE", "hold_reason": ""}
+        job = (
+            {
+                "processing_status": _text(job_direct.get("processing_status")) or "DONE",
+                "hold_reason": _text(job_direct.get("hold_reason")),
+                "hold_detail": _text(job_direct.get("hold_detail")),
+            }
+            if job_direct
+            else {"processing_status": "DONE", "hold_reason": "", "hold_detail": ""}
+        )
 
     lines = [
         {
             "line_no": l["line_no"],
-            "expected": l.get("expected", ""),
-            "oracle": l.get("oracle", ""),
-            "status": l.get("status", ""),
-            "group": classify_line(l.get("status", ""), l.get("warning", "")),
-            "warning": l.get("warning", ""),
-            "detail": l.get("detail", ""),
-            "compare_rules": l.get("compare_rules", ""),
+            "expected": _text(l.get("expected")),
+            "oracle": _text(l.get("oracle")),
+            "status": _text(l.get("status")),
+            "group": classify_line(_text(l.get("status")), _text(l.get("warning"))),
+            "warning": _text(l.get("warning")),
+            "detail": _text(l.get("detail")),
+            "compare_rules": _text(l.get("compare_rules")),
         }
         for l in lines_raw
     ]

@@ -62,7 +62,7 @@ The other work is a bug fix plus a read-only real-DB check script that Jenkins r
 **Interfaces:**
 - Produces: a module helper in `routers/mark.py`, `_text(v: Any) -> str`, which returns `""` for `None` and `str(v)` otherwise. Every `.get(...)` on a DB row that is then used as a string goes through `_text`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_elrs_and_detail_handle_null_text_fields(client, fake_repo):
@@ -77,14 +77,14 @@ def test_elrs_and_detail_handle_null_text_fields(client, fake_repo):
     assert client.get("/api/elrs/ADI2607001?run=18").status_code == 200
 ```
 
-- [ ] **Step 2: Run it.** `python -m pytest tests/unit/test_api_routes.py -k null_text -q`. Expected: FAIL with 500, or an `AttributeError` traceback.
+- [x] **Step 2: Run it.** `python -m pytest tests/unit/test_api_routes.py -k null_text -q`. Expected: FAIL with 500, or an `AttributeError` traceback.
 - [ ] **Step 3: Implement `_text`** and use it at every string use of a row field in `list_elrs` and `get_elr`:
   - `warning`, `detail` and `hold_reason` (lines 63, 67, 71, 74)
   - `abs_no` in the `q` filter and the row
   - the `get_elr` line dict
   - the `job` fallback dict
-- [ ] **Step 4: Run the unit suite.** `python -m pytest tests/unit -q`. Expected: all pass.
-- [ ] **Step 5: Web.** In `Dashboard.tsx`, add `const [loadError, setLoadError] = useState<string | null>(null)`.
+- [x] **Step 4: Run the unit suite.** `python -m pytest tests/unit -q`. Expected: all pass.
+- [x] **Step 5: Web.** In `Dashboard.tsx`, add `const [loadError, setLoadError] = useState<string | null>(null)`.
   - **On failure:** each failing fetch (runs, dashboard, ELRs) sets a Thai message:
     - `โหลดรายการ ELR ไม่สำเร็จ (เซิร์ฟเวอร์ผิดพลาด) — ลองใหม่อีกครั้ง`
     - `โหลด Dashboard ไม่สำเร็จ`
@@ -93,7 +93,7 @@ def test_elrs_and_detail_handle_null_text_fields(client, fake_repo):
   - **On success:** clear the message.
   - **Empty table:** only show the table's empty state when the fetch succeeded.
   - Run `cd web && npm run build`. Expected: 0 errors.
-- [ ] **Step 6: Commit and push.** Use `git commit -m "fix: NULL-safe ELR list/detail and visible load errors"`, then push and wait for the Jenkins build to be green.
+- [x] **Step 6: Commit and push.** Use `git commit -m "fix: NULL-safe ELR list/detail and visible load errors"`, then push and wait for the Jenkins build to be green.
 
 ### Task 2: Read-only real-DB acceptance check (spec §8) and a Jenkins stage
 
@@ -187,7 +187,7 @@ def test_metrics_counts_logins(client, fake_repo):
   - **DB errors:** `Repo._execute`'s except block calls `metrics.inc("db_error")`.
   - **Endpoint:** `/api/metrics` returns `metrics.snapshot(repo.active_sessions())`, catching a DB error and passing `None` instead.
   - **FakeRepo:** gets `active_sessions()`, which returns `len(self.sessions)`.
-- [ ] **Step 4: Run the unit suite.** Expected: all pass.
+- [x] **Step 4: Run the unit suite.** Expected: all pass.
 - [ ] **Step 5: Commit and push.** Use `git commit -m "feat: metrics per spec 15 (login counts, p50/p95 ring buffer, db_error, active sessions)"`, then wait for green.
 
 ### Task 4: Spec §18 leftovers (dashboard LRU 8, lazy ABS thumbnail)
@@ -203,7 +203,7 @@ def test_metrics_counts_logins(client, fake_repo):
   - **On a store:** if the size is over 8, `popitem(last=False)`.
   - `clear_dashboard_cache()` is kept.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_dashboard_cache_lru_8(client, fake_repo):
@@ -214,7 +214,7 @@ def test_dashboard_cache_lru_8(client, fake_repo):
     assert len(validation._dashboard_cache) == 8 and 100 not in validation._dashboard_cache
 ```
 
-- [ ] **Step 2: Run it.** Expected: FAIL (9 entries).
+- [x] **Step 2: Run it.** Expected: FAIL (9 entries).
 - [ ] **Step 3: Implement** the LRU, and add `loading="lazy"` to the thumbnail `<img>`.
 - [ ] **Step 4: Run the unit suite and `npm run build`.** Expected: all pass.
 - [ ] **Step 5: Commit and push.** Use `git commit -m "perf: dashboard cache LRU 8 and lazy ABS thumbnail"`, then wait for green.

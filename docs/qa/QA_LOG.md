@@ -738,3 +738,16 @@
 ## 2026-11-05 — Empty ELR table diagnosed (plan only)
 - Called `list_elrs(run=19)` against the real DB: `AttributeError: 'NoneType' object has no attribute 'split'` at `routers/mark.py:63` (NULL `warning`).
 - Fixes are planned in `2026-11-05-trial-acceptance-and-monitor.md`, Task 1.
+
+## 2026-11-05 — Acceptance Task 1: NULL-safe ELR list/detail and visible load error
+
+### What changed
+- Created `_text(v)` helper in `services/api/mark_api/routers/mark.py` returning `""` for `None` values and `str(v)` otherwise.
+- Updated all accesses to `warning`, `detail`, `hold_reason`, `hold_detail`, `abs_no`, and `compare_rules` in `list_elrs` and `get_elr` to use `_text(val)`, fixing `AttributeError: 'NoneType' object has no attribute 'split'`.
+- Added `loadError` banner in `web/src/pages/Dashboard.tsx` displaying Thai server error descriptions and a retry button.
+- Updated `ElrTable.tsx` to display an explicit error row when `hasError` is true instead of the misleading "No ELR packages found" message.
+
+### Verification
+- `test_elrs_and_detail_handle_null_text_fields` verified 200 responses when all text columns are None.
+- `tsc -b && vite build` succeeded with 0 errors.
+- Full suite: 353 unit tests passed.

@@ -29,6 +29,7 @@ export const Dashboard: React.FC = () => {
   // Table
   const [elrData, setElrData] = useState<ElrListResponse>({ total: 0, page: 1, rows: [] });
   const [loadingTable, setLoadingTable] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
   const navigate = useNavigate();
@@ -51,20 +52,30 @@ export const Dashboard: React.FC = () => {
     apiFetch<Run[]>('/api/runs')
       .then((data) => {
         setRuns(data);
+        setLoadError(null);
         if (data.length > 0) {
           // Select newest run by default
           setSelectedRun(data[0].run_id);
         }
       })
-      .catch((err) => console.error('Failed to load runs:', err));
+      .catch((err) => {
+        console.error('Failed to load runs:', err);
+        setLoadError('โหลดรายการ run ไม่สำเร็จ');
+      });
   }, [navigate]);
 
   // 3. Fetch Dashboard data when selectedRun changes
   useEffect(() => {
     if (!selectedRun) return;
     apiFetch<DashboardData>(`/api/dashboard?run=${selectedRun}`)
-      .then(setDashboard)
-      .catch((err) => console.error('Failed to load dashboard:', err));
+      .then((data) => {
+        setDashboard(data);
+        setLoadError(null);
+      })
+      .catch((err) => {
+        console.error('Failed to load dashboard:', err);
+        setLoadError('โหลด Dashboard ไม่สำเร็จ');
+      });
   }, [selectedRun]);
 
   // 4. Fetch ELR Table rows when run, filters, or page changes
@@ -81,8 +92,14 @@ export const Dashboard: React.FC = () => {
     if (debouncedSearch) params.set('q', debouncedSearch);
 
     apiFetch<ElrListResponse>(`/api/elrs?${params.toString()}`)
-      .then(setElrData)
-      .catch((err) => console.error('Failed to load ELRs:', err))
+      .then((data) => {
+        setElrData(data);
+        setLoadError(null);
+      })
+      .catch((err) => {
+        console.error('Failed to load ELRs:', err);
+        setLoadError('โหลดรายการ ELR ไม่สำเร็จ (เซิร์ฟเวอร์ผิดพลาด) — ลองใหม่อีกครั้ง');
+      })
       .finally(() => setLoadingTable(false));
   }, [selectedRun, page, selectedMonth, selectedResult, selectedCause, debouncedSearch]);
 
@@ -243,6 +260,34 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* Error Banner */}
+        {loadError && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs px-4 py-3 rounded-xl flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-rose-600">⚠ ข้อผิดพลาด:</span>
+              <span>{loadError}</span>
+            </div>
+            <button
+              onClick={() => {
+                setLoadError(null);
+                if (selectedRun) {
+                  setLoadingTable(true);
+                  apiFetch<ElrListResponse>(`/api/elrs?run=${selectedRun}&page=${page}`)
+                    .then((data) => {
+                      setElrData(data);
+                      setLoadError(null);
+                    })
+                    .catch(() => setLoadError('โหลดรายการ ELR ไม่สำเร็จ (เซิร์ฟเวอร์ผิดพลาด) — ลองใหม่อีกครั้ง'))
+                    .finally(() => setLoadingTable(false));
+                }
+              }}
+              className="text-xs px-2.5 py-1 bg-white border border-rose-200 rounded text-rose-700 hover:bg-rose-100 font-medium"
+            >
+              ลองใหม่
+            </button>
+          </div>
+        )}
+
         {/* ELR Table */}
         <ElrTable
           rows={elrData.rows}
@@ -251,6 +296,7 @@ export const Dashboard: React.FC = () => {
           runId={selectedRun || 18}
           onPageChange={setPage}
           loading={loadingTable}
+          hasError={!!loadError}
         />
       </main>
     </div>

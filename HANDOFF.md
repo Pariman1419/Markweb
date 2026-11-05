@@ -63,6 +63,17 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Acceptance Task 1: NULL-safe ELR list/detail and visible load error
+- **What changed**:
+  - Added helper `_text(v)` in `routers/mark.py` converting `None` to `""`.
+  - Replaced all string `.split()`, `.lower()`, and field formatting in `list_elrs` and `get_elr` to use `_text(val)` so NULL columns in PostgreSQL (`warning`, `detail`, `hold_reason`, `hold_detail`, `abs_no`, `compare_rules`) never raise `AttributeError`.
+  - Added `loadError` state and visible red alert banner above the ELR table in `web/src/pages/Dashboard.tsx` with error details in Thai, retry button, and cleared on successful fetch.
+  - Updated `ElrTable.tsx` to handle `hasError` state instead of misleading "No ELR packages found" text.
+- **Verification**:
+  - Added unit test `test_elrs_and_detail_handle_null_text_fields` passing in `tests/unit/test_api_routes.py`.
+  - `npm run build` passed with zero errors.
+  - Full unit test suite: 353 passed.
+
 ### 2026-11-05 — Plan: trial acceptance and monitor completion (for the other agent)
 - **Plan:** `docs/superpowers/plans/2026-11-05-trial-acceptance-and-monitor.md`, Tasks 1–5.
 - **Root cause of the empty ELR table:** `routers/mark.py` calls `.get("warning", "").split(...)`, which raises when the value is NULL. So `/api/elrs` returns 500, and the web shows "No ELR packages found".

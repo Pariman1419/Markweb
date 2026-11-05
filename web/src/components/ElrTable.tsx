@@ -9,6 +9,7 @@ interface ElrTableProps {
   runId: number;
   onPageChange: (newPage: number) => void;
   loading?: boolean;
+  hasError?: boolean;
 }
 
 export const ElrTable: React.FC<ElrTableProps> = ({
@@ -18,6 +19,7 @@ export const ElrTable: React.FC<ElrTableProps> = ({
   runId,
   onPageChange,
   loading = false,
+  hasError = false,
 }) => {
   const navigate = useNavigate();
   const totalPages = Math.max(Math.ceil(total / 50), 1);
@@ -57,6 +59,12 @@ export const ElrTable: React.FC<ElrTableProps> = ({
               <tr>
                 <td colSpan={7} className="text-center py-10 text-slate-400">
                   Loading records...
+                </td>
+              </tr>
+            ) : hasError ? (
+              <tr>
+                <td colSpan={7} className="text-center py-10 text-rose-500 font-medium">
+                  เกิดข้อผิดพลาดในการโหลดข้อมูล (ดูข้อความแจ้งเตือนด้านบน)
                 </td>
               </tr>
             ) : rows.length === 0 ? (

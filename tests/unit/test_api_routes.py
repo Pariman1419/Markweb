@@ -775,3 +775,14 @@ def test_admin_activity_range_validation(client):
 
 
 
+
+def test_elrs_and_detail_handle_null_text_fields(client, fake_repo):
+    for l in fake_repo.lines_data[18]:
+        l.update(warning=None, detail=None, compare_rules=None)
+    for j in fake_repo.jobs_data[18]:
+        j.update(hold_reason=None, hold_detail=None, abs_no=None)
+    _login(client)
+    r = client.get("/api/elrs?run=18&page=1")
+    assert r.status_code == 200 and r.json()["total"] >= 1
+    assert client.get("/api/elrs?run=18&q=adi").status_code == 200
+    assert client.get("/api/elrs/ADI2607001?run=18").status_code == 200
