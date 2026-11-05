@@ -102,6 +102,9 @@
   - **Frontend:** initial JS ≤ 300 KB gzip.
   - **Targets:** p95 dashboard ≤ 300 ms cold, detail ≤ 150 ms.
   - **Redesign trigger:** L > 50k or > 20 concurrent users.
+- **User decision:** reviews are per run (a new run is reviewed again).
+- **Defaults pending confirmation:** DB_EMPTY counts as Error; the trial runs on HTTP.
+- **Handoff:** the plan is handed to another agent; Claude monitors. The plan has a "For the Executing Agent" section: branch `phase2/trial`, one `Task N:` commit per task, stop before shared-DB writes or deploys, and record any mismatch under "Blocked" in §4.
 - Analysed the design and plan against the real artifacts and DB (`docs/superpowers/specs/2026-11-05-phase2-trial-analysis.md`). Fixed 4 blockers and 9 inconsistencies; 3 decisions are waiting on the user.
   - The loader rejected UNFROZEN runs as blind.
   - `compare_rules`/`flags` are not `line_result` columns; they are now stored as `elr_snapshot.line_extra`.

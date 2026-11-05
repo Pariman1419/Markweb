@@ -47,7 +47,7 @@
 | `user_session` | token hash, user_id, csrf hash, expires_at, last_seen_at | ข้อ 11 |
 | `api_token` | name, token_hash, scopes, expires_at, last_used_at, created_by | สำหรับ Airflow / monitor (ข้อ 11) |
 | `elr_snapshot` | (run_id, elr_no) PK, top_mark_id (int), layout_code, line_extra (jsonb: compare_rules / flags / detail ต่อบรรทัด — ไม่มีเป็นคอลัมน์ใน `line_result`), mark_remark, mark_require, top_template_remark, oracle_top_raw (TOP_MARK1–5 ดิบ 21 ช่อง), layout_cells (jsonb 5×18), abs_file, abs_sha256, image_path, slr_files, slr_instructions (jsonb: line, value, quote), import_date | ค่า Oracle ณ เวลารัน — หน้าเว็บไม่ดึง Oracle สด **[ผู้ใช้]** |
-| `line_review` | id, run_id, elr_no, abs_no, side, line_no, reason (DB wrong · OCR wrong · Symbol wrong · SLR / ECN change · Rule missing · Layout wrong · Other), note, corrected_mark, reviewer_id, created_at, is_draft | เก็บทุกครั้ง (ไม่ทับ) — แถวล่าสุดคือค่าปัจจุบัน |
+| `line_review` | (รีวิวผูกกับ run — run ใหม่ต้องรีวิวใหม่ **[ผู้ใช้ 2026-11-05]**) id, run_id, elr_no, abs_no, side, line_no, reason (DB wrong · OCR wrong · Symbol wrong · SLR / ECN change · Rule missing · Layout wrong · Other), note, corrected_mark, reviewer_id, created_at, is_draft | เก็บทุกครั้ง (ไม่ทับ) — แถวล่าสุดคือค่าปัจจุบัน |
 | `approval` | id, run_id, elr_no, decision (APPROVED / REJECTED), user_id, created_at | |
 | `audit_log` | id, user_id, action, target (run_id/elr_no/line_no), detail jsonb, created_at | ทุก login / review / approve |
 

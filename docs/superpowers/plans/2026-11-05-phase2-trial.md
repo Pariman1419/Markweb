@@ -10,6 +10,43 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-05-phase2-trial-design.md`
 
+## For the Executing Agent
+
+Read these first, in this order:
+1. This plan.
+2. Spec `docs/superpowers/specs/2026-11-05-phase2-trial-design.md` §1–18.
+3. `docs/superpowers/specs/2026-11-05-phase2-trial-analysis.md`. It records the verified data facts and expected values.
+4. `HANDOFF.md` §4 (the newest entries are at the top).
+
+**Branch:** create `phase2/trial` from `phase1/mark-engine` at the current HEAD. Never push.
+
+**Do not touch:**
+- untracked `models/`;
+- `artifacts/` (except writing the new `artifacts/blind-2026h2/run-trial/`);
+- `D:\CIM Project\mark` (R0);
+- runs 1–17 in the DB.
+
+**Order:** Task 1 → 6. Each task ends with one commit whose message starts with `Task N:`, and that commit also:
+- ticks the task's checkboxes in this plan;
+- adds an entry to `HANDOFF.md` §4;
+- adds an entry to `docs/qa/QA_LOG.md`.
+
+**Steps marked [USER] / [USER/DBA] / [USER/ops]:**
+- Stop and ask the user before running anything that writes to the shared DB (`--commit`, migration UP, creating users or tokens) or deploys to 10.153.90.17.
+- Dry-runs and local work do not need approval.
+
+**If something does not match the plan** (a command fails, counts differ, or a file or column is missing): stop and write it to `HANDOFF.md` §4 under "Blocked". Do not invent a workaround.
+
+**Secrets:** read them only from `.env` / env vars. Never print or commit them.
+
+**Decided by the user (2026-11-05):**
+- Reviews and approvals are per `run_id`; a new run starts with no reviews.
+- WebSocket and gRPC are deferred to the next round.
+
+**Defaults pending user confirmation:**
+- DB_EMPTY is in the Error group.
+- The trial runs on HTTP (`MARK_COOKIE_SECURE=false`).
+
 ## Global Constraints
 
 - Never write Oracle or `mark_logic`. The web app writes only to `mark_app`.
@@ -21,7 +58,8 @@
 - Out of scope this round: WebSocket (B3) and gRPC (B4). They are designed in spec §13; do not build them now.
 - Do not duplicate `mark_engine` tests. Test only new logic (grouping, approve guard, auth, path guard, snapshot builder), plus one happy-path test per endpoint. For web, `tsc` + `vite build` passing is enough.
 - Every task updates `HANDOFF.md` §4 and `docs/qa/QA_LOG.md` in the same commit (project rule).
-- Commit on branch `phase1/mark-engine` or a new `phase2/trial` branch. Do not push until the user says.
+- Commit on branch `phase2/trial`. Do not push until the user says.
+- Reviews and approvals never carry over between runs: every query filters by `run_id` (user decision 2026-11-05).
 
 ## Review Focus
 
@@ -246,6 +284,7 @@ def test_safe_file_rejects_traversal(tmp_path):
   - `test_approve_blocked_then_allowed`: 409 `{blocked_lines:[2]}`; then POST a non-draft review; then 200.
   - `test_latest_decision_wins_and_all_audited`: approve, then reject, then approve. `latest_approval.decision == 'APPROVED'`, and the fake audit has 3 approval rows.
   - `test_file_traversal_404`: snapshot `image_path='../x'` → 404.
+  - `test_reviews_are_per_run`: a review saved on run 18 does not appear in `GET /api/elrs/{elr}?run=19` for the same ELR and line.
   - `test_hold_cannot_be_approved`: APPROVED on a HOLD job → 409 `{reason:'HOLD'}`; REJECTED → 200.
   - `test_five_failures_lock`: 5 wrong passwords, then the right one → 423.
   - `test_post_without_csrf_403`: logged in, `POST /api/reviews` without `X-CSRF-Token` → 403.
