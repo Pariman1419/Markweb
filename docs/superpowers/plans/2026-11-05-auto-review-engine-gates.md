@@ -166,7 +166,7 @@ def test_row_over_5_gate(month_tree: Path, tmp_path: Path, top_rows, bottom_rows
 - [x] **Step 2: Run the test.** Expected: the `6` case FAILS.
 - [x] **Step 3: Implement** the gate as described in Interfaces.
 - [x] **Step 4: Run the unit suite.** Expected: all pass.
-- [ ] **Step 5: Commit and push.** Use `git commit -m "feat(engine): G5 hold when OCR gives more than 5 TOP rows"`, then wait for green.
+- [x] **Step 5: Commit and push.** Use `git commit -m "feat(engine): G5 hold when OCR gives more than 5 TOP rows"`, then wait for green.
 
 ### Task 4: G0 — pending Mark Engineer review selector, and confirm the step value
 
@@ -181,7 +181,7 @@ def test_row_over_5_gate(month_tree: Path, tmp_path: Path, top_rows, bottom_rows
 - `CUST_CODE='ADI'` is enforced in the scanner's SQL (build step 3), not here.
 - Produces: `review_step_from_env() -> str`, which returns `os.environ.get("MARK_REVIEW_STEP", "6")`. Build step 3 consumes both.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_pending_reason(monkeypatch):
@@ -194,10 +194,10 @@ def test_pending_reason(monkeypatch):
     assert review_step_from_env() == "6"
 ```
 
-- [ ] **Step 2: Run the test.** Expected: FAIL (module missing).
-- [ ] **Step 3: Implement** `mark_engine/select.py`.
-- [ ] **Step 4: Run the unit suite.** Expected: all pass.
-- [ ] **Step 5: Read-only Oracle check of the step value.** Run one SELECT through `connect_actl()` and `select()`, the same way `scripts/fetch_oracle_snapshot.py` does: `SELECT CURRENT_STEP, COUNT(*) FROM ACTLDBA.ELR WHERE CUST_CODE = 'ADI' AND STATUS <> 'C' GROUP BY CURRENT_STEP`. Record **only the step values and counts** in QA_LOG. Then **[USER]** confirm which value means "Mark Engineer review", and put it in `.env` as `MARK_REVIEW_STEP` (and in `.env.example` with no secret).
+- [x] **Step 2: Run the test.** Expected: FAIL (module missing).
+- [x] **Step 3: Implement** `mark_engine/select.py`.
+- [x] **Step 4: Run the unit suite.** Expected: all pass.
+- [x] **Step 5: Read-only Oracle check of the step value.** Run one SELECT through `connect_actl()` and `select()`, the same way `scripts/fetch_oracle_snapshot.py` does: `SELECT CURRENT_STEP, COUNT(*) FROM ACTLDBA.ELR WHERE CUST_CODE = 'ADI' AND STATUS <> 'C' GROUP BY CURRENT_STEP`. Record **only the step values and counts** in QA_LOG. Then **[USER]** confirm which value means "Mark Engineer review", and put it in `.env` as `MARK_REVIEW_STEP` (and in `.env.example` with no secret).
 - [ ] **Step 6: Commit and push.** Use `git commit -m "feat(engine): G0 pending-review selector"`, then wait for green.
 
 ### Task 5: Regression on run-19 inputs and change report

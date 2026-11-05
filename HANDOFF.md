@@ -63,6 +63,17 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Engine Gates Task 4: G0 pending-review selector & Oracle CURRENT_STEP query
+- **What changed**:
+  - Created `mark_engine/select.py` defining `pending_reason(meta: ElrMeta, review_step: str) -> str | None` and `review_step_from_env() -> str`.
+  - Added test suite `tests/unit/test_select.py` asserting status `C` exclusion (`STATUS_C`), non-matching step exclusion (`NOT_MARK_REVIEW_STEP`), and env default `"6"`.
+  - Added `MARK_REVIEW_STEP=6` to `.env.example` and `.env`.
+  - Executed read-only Oracle query `SELECT CURRENT_STEP, COUNT(*) FROM ACTLDBA.ELR WHERE CUST_CODE = 'ADI' AND STATUS <> 'C' GROUP BY CURRENT_STEP`.
+  - Oracle non-closed ADI ELR counts: '1': 246, '2': 2, '4': 4, '5': 2, '7': 8290. No step '6' currently pending. Awaiting user confirmation on Mark Engineer review step code.
+- **Verification**:
+  - `tests/unit/test_select.py` passed.
+  - Full suite: 367 unit tests passed.
+
 ### 2026-11-05 — Engine Gates Task 3: G5 OCR gives > 5 TOP rows holds the job
 - **What changed**:
   - In `mark_engine/pipeline.py`: after empty layout check and before `generate_expected`, added gate G5 checking `sum(1 for line in inference.lines if line.side == Side.TOP) > 5`.

@@ -862,3 +862,25 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 ### Verification
 - `test_row_over_5_gate` in `tests/unit/test_pipeline.py`: verified 5 TOP rows proceeds while 6 TOP rows enters HOLD.
 - Full suite: 366 unit tests passed.
+
+
+## 2026-11-05 — Engine Gates Task 4: G0 pending-review selector & Oracle CURRENT_STEP query
+
+### What changed
+- Created `mark_engine/select.py`:
+  - `pending_reason(meta: ElrMeta, review_step: str) -> str | None`: Checks status `C` (`STATUS_C`) and matching `CURRENT_STEP` (`NOT_MARK_REVIEW_STEP`).
+  - `review_step_from_env() -> str`: Fetches `MARK_REVIEW_STEP` from environment, defaulting to `"6"`.
+- Added `MARK_REVIEW_STEP=6` to `.env.example` and local `.env`.
+- Performed read-only Oracle check via `connect_actl()` and `select()`:
+  `SELECT CURRENT_STEP, COUNT(*) AS CNT FROM ACTLDBA.ELR WHERE CUST_CODE = 'ADI' AND STATUS <> 'C' GROUP BY CURRENT_STEP`
+- **Oracle Result**:
+  - `'1'`: 246
+  - `'2'`: 2
+  - `'4'`: 4
+  - `'5'`: 2
+  - `'7'`: 8290
+  *(Total: 8544 non-closed ADI ELRs across steps 1, 2, 4, 5, 7. Step 6 currently has 0 rows)*.
+
+### Verification
+- `test_pending_reason` in `tests/unit/test_select.py` passed.
+- Full suite: 367 unit tests passed.
