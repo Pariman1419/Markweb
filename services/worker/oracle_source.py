@@ -39,6 +39,13 @@ def fetch_one(conn: Any, elr_no: str) -> dict[str, Any] | None:
     return meta_list[0] if meta_list else None
 
 
+def fetch_layout(conn: Any, mark_id: int) -> list[dict[str, Any]]:
+    """Fetch layout rows for a given MARK_ID."""
+    query = "SELECT MARK_ID, MARK_ROW, MARK_COLUMN, MARK_DATA FROM ACTLDBA.MARK_ID_LAYOUT WHERE MARK_ID = :mark_id"
+    binds = {"mark_id": mark_id}
+    return select(conn, query, binds)
+
+
 def fetch_pending_step(conn: Any, review_step: str) -> list[dict[str, Any]]:
     """Fetch every ADI ELR at review_step with STATUS other than 'C'."""
     query = f"{BASE_ELR_QUERY} AND e.CURRENT_STEP = :review_step AND e.STATUS != 'C'"

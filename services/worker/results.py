@@ -346,16 +346,18 @@ def write_result(
     oracle_top_raw = [
         oracle_row.get(f"TOP_MARK{i}") for i in range(1, 6) if oracle_row.get(f"TOP_MARK{i}") is not None
     ]
+    line_extra = {"oracle_row": dict(oracle_row)}
     cur.execute(
         """
         insert into mark_app.elr_snapshot (
-            run_id, elr_no, top_mark_id, oracle_top_raw, abs_file, abs_sha256
-        ) values (%s, %s, %s, %s, %s, %s);
+            run_id, elr_no, top_mark_id, line_extra, oracle_top_raw, abs_file, abs_sha256
+        ) values (%s, %s, %s, %s, %s, %s, %s);
         """,
         (
             run_id,
             elr_no,
             getattr(meta, "top_mark_id", None),
+            json.dumps(line_extra),
             oracle_top_raw,
             resolution.abs.path if resolution and resolution.abs else None,
             resolution.abs.sha256 if resolution and resolution.abs else None,

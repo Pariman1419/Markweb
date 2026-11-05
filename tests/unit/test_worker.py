@@ -359,11 +359,33 @@ class FakePgCursor:
             self._last_fetch = None
 
         elif "insert into mark_app.elr_snapshot" in sql_clean:
-            self.snapshots.append({"run_id": params[0], "elr_no": params[1]})
+            self.snapshots.append({
+                "run_id": params[0],
+                "elr_no": params[1],
+                "top_mark_id": params[2],
+                "line_extra": params[3] if len(params) > 3 else "{}",
+            })
             self._last_fetch = None
 
+        elif "select line_extra from mark_app.elr_snapshot where run_id =" in sql_clean:
+            run_id, elr_no = params[0], params[1]
+            matched = [s for s in self.snapshots if s["run_id"] == run_id and s["elr_no"] == elr_no]
+            self._last_fetch = (matched[0]["line_extra"],) if matched else None
+
         elif "insert into mark_app.elr_revision" in sql_clean:
-            self.revisions.append({"elr_no": params[0], "revision": params[1], "run_id": params[9]})
+            self.revisions.append({
+                "elr_no": params[0],
+                "revision": params[1],
+                "oracle_fp": params[2],
+                "docs_fp": params[3],
+                "version_fp": params[4],
+                "result_fp": params[5],
+                "changed": params[6],
+                "changed_fields": params[7],
+                "result_unchanged": params[8],
+                "docs_probe": params[9],
+                "run_id": params[10],
+            })
             self._last_fetch = None
 
         elif "select coalesce(max(revision), 0) from mark_app.elr_revision where elr_no =" in sql_clean:
@@ -373,17 +395,27 @@ class FakePgCursor:
 
         elif "select 1 from mark_app.approval where elr_no =" in sql_clean:
             elr_no, run_id = params[0], params[1]
-            exists = any(a["elr_no"] == elr_no and a["run_id"] == run_id and a["verdict"] == "APPROVED" for a in self.approvals)
+            exists = any(a["elr_no"] == elr_no and a["run_id"] == run_id and a.get("decision") == "APPROVED" for a in self.approvals)
             self._last_fetch = (1,) if exists else None
 
         elif "insert into mark_app.notification" in sql_clean:
             self.notifications.append({"elr_no": params[0], "run_id": params[1], "revision": params[2], "kind": params[3]})
             self._last_fetch = None
 
-        elif "select revision, oracle_fp, docs_fp, result_fp, run_id from mark_app.elr_revision where elr_no =" in sql_clean:
+        elif "select revision, oracle_fp, docs_fp, result_fp, run_id" in sql_clean:
             elr_no = params[0]
             matched = [r for r in self.revisions if r["elr_no"] == elr_no]
-            self._last_fetchall = [(r["revision"], r.get("oracle_fp", ""), r.get("docs_fp", ""), r.get("result_fp", ""), r["run_id"]) for r in matched]
+            self._last_fetchall = [
+                (
+                    r["revision"],
+                    r.get("oracle_fp", ""),
+                    r.get("docs_fp", ""),
+                    r.get("result_fp", ""),
+                    r["run_id"],
+                    r.get("docs_probe", {}),
+                )
+                for r in matched
+            ]
 
         else:
             self._last_fetch = None
@@ -445,7 +477,7 @@ def test_write_result_never_updates_existing_rows():
 
 def test_approved_revision_kept_and_new_revision_notifies():
     cur = FakePgCursor()
-    cur.approvals.append({"elr_no": "ADI2601001", "run_id": 100, "verdict": "APPROVED"})
+    cur.approvals.append({"elr_no": "ADI2601001", "run_id": 100, "decision": "APPROVED"})
     job = JobResult(elr_no="ADI2601001", processing_status=ProcessingStatus.DONE)
 
     # When previous revision was approved, notification includes changed_after_approve
@@ -464,7 +496,7 @@ def test_same_as_old_revision_creates_nothing():
 
     queue_store = InMemoryQueueStore()
     q_cur = queue_store.Cursor(queue_store)
-    enqueue(q_cur, 1, "ADI2601001", "recheck")
+    enqueue(q_cur, 1, "ADI2601001", "scan")
 
     # Oracle row reverted back to ofp1
     oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A"}
@@ -559,4 +591,381 @@ def test_loader_scripts_unchanged_output():
     assert lrow[1] == "ADI2601001"
     assert lrow[2] == "ABS065001"
     assert lrow[8] == "MATCH"
+
+
+# ---------------------------------------------------------------------------
+# Requirement-specific Unit Tests (Task 4 Pipeline Integration)
+# ---------------------------------------------------------------------------
+import json
+from pathlib import Path
+import mark_engine
+from mark_engine.domain.models import DocumentRef, DocType, DocumentResolution
+from mark_engine.history.fingerprint import version_fp
+from mark_engine.adapters.inference_service import InferenceUnavailable
+
+
+def test_step8_invokes_real_process_elr(monkeypatch):
+    """(1) Step 8 calls process_elr() with engine models and active loaders."""
+    cur = FakePgCursor()
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    recorded_calls = []
+
+    def mock_process_elr(meta, oracle, root, months, work_dir, rules, loader, **kwargs):
+        recorded_calls.append({
+            "meta": meta,
+            "oracle": oracle,
+            "root": root,
+            "months": months,
+            "work_dir": work_dir,
+            "rules": rules,
+            "loader": loader,
+            "kwargs": kwargs,
+        })
+        return JobResult(
+            elr_no=meta.elr_no,
+            processing_status=ProcessingStatus.DONE,
+            verification_status=VerificationStatus.MATCH_ALL,
+        )
+
+    monkeypatch.setattr("services.worker.main.process_elr", mock_process_elr)
+
+    oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A", "CURRENT_STEP": "6"}
+    res = run_worker_cycle(
+        cur,
+        q_cur,
+        oracle_row=oracle_row,
+        resolved_docs_fp="dfp_test",
+        worker_id="worker-test",
+    )
+    assert res is True
+    assert len(recorded_calls) == 1
+    call = recorded_calls[0]
+    assert call["meta"].elr_no == "ADI2601001"
+    assert call["oracle"].elr_no == "ADI2601001"
+    assert len(cur.revisions) == 1
+
+
+def test_docs_probe_captured_and_saved(tmp_path, monkeypatch):
+    """(2) resolve ABS/SLR from NAS, calculate docs_fp, write docs_probe."""
+    cur = FakePgCursor()
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    # Create dummy files to probe
+    abs_file = tmp_path / "ABS065001.pdf"
+    abs_file.write_bytes(b"dummy abs content")
+    slr_file = tmp_path / "SLR065001.pdf"
+    slr_file.write_bytes(b"dummy slr content")
+
+    dummy_res = DocumentResolution(
+        elr_no="ADI2601001",
+        decision="RESOLVED",
+        abs=DocumentRef(path=str(abs_file), sha256="sha_abs", doc_type=DocType.ABS),
+        slr=(DocumentRef(path=str(slr_file), sha256="sha_slr", doc_type=DocType.SLR),),
+    )
+
+    monkeypatch.setattr("services.worker.main.resolve_documents", lambda *args, **kwargs: dummy_res)
+    monkeypatch.setattr(
+        "services.worker.main.process_elr",
+        lambda *args, **kwargs: JobResult(
+            elr_no="ADI2601001",
+            processing_status=ProcessingStatus.DONE,
+            verification_status=VerificationStatus.MATCH_ALL,
+            resolution=dummy_res,
+        ),
+    )
+
+    oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A", "CURRENT_STEP": "6"}
+    ok = run_worker_cycle(cur, q_cur, oracle_row=oracle_row)
+    assert ok is True
+    assert len(cur.revisions) == 1
+    rev = cur.revisions[0]
+    assert rev["docs_fp"] != "none"
+    probe = json.loads(rev["docs_probe"]) if isinstance(rev["docs_probe"], str) else rev["docs_probe"]
+    assert str(abs_file) in probe
+    assert probe[str(abs_file)]["size"] == len(b"dummy abs content")
+    assert str(slr_file) in probe
+    assert probe[str(slr_file)]["size"] == len(b"dummy slr content")
+
+
+def test_cheap_first_docs_probe_skips_when_files_unchanged_and_runs_when_changed(tmp_path, monkeypatch):
+    """(3) If Oracle unchanged, compare docs_probe first. If files changed, re-evaluate."""
+    abs_file = tmp_path / "ABS065001.pdf"
+    abs_file.write_bytes(b"original content")
+    st = abs_file.stat()
+
+    stored_probe = {str(abs_file): {"size": st.st_size, "mtime": st.st_mtime}}
+
+    cur = FakePgCursor()
+    cur.revisions.append({
+        "elr_no": "ADI2601001",
+        "revision": 1,
+        "oracle_fp": "ofp_same",
+        "docs_fp": "dfp1",
+        "result_fp": "rfp1",
+        "run_id": 100,
+        "docs_probe": stored_probe,
+    })
+
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    resolve_called = []
+    monkeypatch.setattr("services.worker.main.resolve_documents", lambda *a, **kw: resolve_called.append(1))
+
+    oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A", "CURRENT_STEP": "6"}
+
+    # Case A: File untouched -> docs_probe matches -> skips without resolve_documents
+    ok = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, force_oracle_fp="ofp_same")
+    assert ok is False
+    assert len(resolve_called) == 0
+    assert len(cur.revisions) == 1
+
+    # Case B: File modified on NAS -> docs_probe differs -> resolves documents and runs
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+    abs_file.write_bytes(b"modified new content longer size")
+
+    dummy_res = DocumentResolution(
+        elr_no="ADI2601001",
+        decision="RESOLVED",
+        abs=DocumentRef(path=str(abs_file), sha256="sha_new", doc_type=DocType.ABS),
+    )
+    monkeypatch.setattr("services.worker.main.resolve_documents", lambda *a, **kw: dummy_res)
+    monkeypatch.setattr(
+        "services.worker.main.process_elr",
+        lambda *args, **kwargs: JobResult(
+            elr_no="ADI2601001",
+            processing_status=ProcessingStatus.DONE,
+            verification_status=VerificationStatus.MATCH_ALL,
+            resolution=dummy_res,
+        ),
+    )
+
+    ok2 = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, force_oracle_fp="ofp_same")
+    assert ok2 is True
+    assert len(cur.revisions) == 2
+    assert cur.revisions[1]["changed"] == "docs"
+
+
+def test_g0_pending_reason_skips_ineligible(monkeypatch):
+    """(4) G0 uses pending_reason(meta, review_step)."""
+    monkeypatch.setenv("MARK_REVIEW_STEP", "6")
+
+    cur = FakePgCursor()
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    # Current step is 5 (not review step 6)
+    oracle_row = {"ELR_NO": "ADI2601001", "STATUS": "A", "CURRENT_STEP": "5"}
+    ok = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, resolved_docs_fp="dfp")
+    assert ok is False
+    assert len(cur.revisions) == 0
+
+    # Status C (closed)
+    enqueue(q_cur, 1, "ADI2601002", "scan")
+    oracle_row_c = {"ELR_NO": "ADI2601002", "STATUS": "C", "CURRENT_STEP": "6"}
+    ok_c = run_worker_cycle(cur, q_cur, oracle_row=oracle_row_c, resolved_docs_fp="dfp")
+    assert ok_c is False
+    assert len(cur.revisions) == 0
+
+
+def test_manual_recheck_reason_forces_execution(monkeypatch):
+    """(5) manual = (item.reason == 'recheck') forces check even if unchanged."""
+    cur = FakePgCursor()
+    cur.revisions.append({
+        "elr_no": "ADI2601001",
+        "revision": 1,
+        "oracle_fp": "ofp1",
+        "docs_fp": "dfp1",
+        "result_fp": "rfp1",
+        "run_id": 100,
+        "docs_probe": {},
+    })
+
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "recheck")  # manual trigger
+
+    monkeypatch.setattr(
+        "services.worker.main.process_elr",
+        lambda *args, **kwargs: JobResult(
+            elr_no="ADI2601001",
+            processing_status=ProcessingStatus.DONE,
+            verification_status=VerificationStatus.MATCH_ALL,
+        ),
+    )
+
+    oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A", "CURRENT_STEP": "6"}
+    ok = run_worker_cycle(
+        cur,
+        q_cur,
+        oracle_row=oracle_row,
+        force_oracle_fp="ofp1",
+        resolved_docs_fp="dfp1",
+    )
+    assert ok is True
+    assert len(cur.revisions) == 2
+    assert cur.revisions[1]["changed"] == "manual"
+
+
+def test_approval_query_matches_real_schema():
+    """(6) query approval uses column decision = 'APPROVED' on PostgreSQL."""
+    import os
+    import psycopg2
+    from mark_engine.adapters.env import load_env
+
+    env_path = os.environ.get("ENV_FILE", "D:/CIM Project/mark-web/.env")
+    load_env(Path(env_path) if Path(env_path).is_file() else None)
+
+    password = os.environ.get("MARK_WORKER_PG_PASSWORD")
+    if not password:
+        pytest.skip("MARK_WORKER_PG_PASSWORD not in environment, skipping live DB query test")
+
+    conn = psycopg2.connect(
+        host=os.getenv("PGHOST", "10.151.28.2"),
+        port=int(os.getenv("PGPORT", 5432)),
+        dbname=os.getenv("PGDATABASE", "mark_web"),
+        user=os.getenv("MARK_WORKER_PG_USER", "mark_worker"),
+        password=password,
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM mark_app.approval WHERE elr_no = 'NONEXISTENT' AND run_id = -1 AND decision = 'APPROVED';")
+            rows = cur.fetchall()
+            assert rows == []
+    finally:
+        conn.close()
+
+
+def test_version_fp_uses_engine_and_model_version():
+    """(7) version_fp uses mark_engine.__version__ and model_version."""
+    from services.worker.main import get_service_model_version
+
+    class MockClient:
+        def health(self):
+            return {"model": {"service_version": "v1.2.3"}}
+
+    mv = get_service_model_version(MockClient())
+    assert mv == "v1.2.3"
+    vfp = version_fp(mark_engine.__version__, mv)
+    assert len(vfp) == 64
+
+
+def test_inference_unavailable_fail_with_backoff_and_hold_inference_failed(monkeypatch):
+    """(8) InferenceUnavailable calls fail_with_backoff; final attempt writes HOLD INFERENCE_FAILED."""
+    cur = FakePgCursor()
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    def mock_failing_process_elr(*args, **kwargs):
+        raise InferenceUnavailable("GPU cluster timeout")
+
+    monkeypatch.setattr("services.worker.main.process_elr", mock_failing_process_elr)
+
+    oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A", "CURRENT_STEP": "6"}
+
+    # Attempt 1 -> retry
+    ok1 = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, resolved_docs_fp="dfp")
+    assert ok1 is False
+    assert len(cur.revisions) == 0
+
+    # Simulate fast-forwarding attempts to 3 (exhausting backoff)
+    item_id = list(queue_store.items.keys())[0]
+    queue_store.items[item_id]["attempts"] = 3
+    queue_store.items[item_id]["next_attempt_at"] = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    # Attempt 4 -> fails with backoff returns "failed" -> writes HOLD INFERENCE_FAILED & notifies
+    ok4 = run_worker_cycle(cur, q_cur, oracle_row=oracle_row, resolved_docs_fp="dfp")
+    assert ok4 is True
+    assert len(cur.revisions) == 1
+    assert len(cur.notifications) == 1
+    assert cur.notifications[0]["kind"] == "hold"
+
+
+def test_changed_fields_uses_changed_oracle_fields_from_elr_snapshot(monkeypatch):
+    """(9) changed_fields uses changed_oracle_fields comparing previous revision's Oracle row."""
+    cur = FakePgCursor()
+    old_oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "OLD_PART", "STATUS": "A", "CURRENT_STEP": "6"}
+    cur.snapshots.append({
+        "run_id": 100,
+        "elr_no": "ADI2601001",
+        "top_mark_id": 1,
+        "line_extra": json.dumps({"oracle_row": old_oracle_row}),
+    })
+    cur.revisions.append({
+        "elr_no": "ADI2601001",
+        "revision": 1,
+        "oracle_fp": "ofp_old",
+        "docs_fp": "dfp1",
+        "result_fp": "rfp1",
+        "run_id": 100,
+        "docs_probe": {},
+    })
+
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    monkeypatch.setattr(
+        "services.worker.main.process_elr",
+        lambda *args, **kwargs: JobResult(
+            elr_no="ADI2601001",
+            processing_status=ProcessingStatus.DONE,
+            verification_status=VerificationStatus.MATCH_ALL,
+        ),
+    )
+
+    new_oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "NEW_PART", "STATUS": "A", "CURRENT_STEP": "6"}
+    ok = run_worker_cycle(
+        cur,
+        q_cur,
+        oracle_row=new_oracle_row,
+        resolved_docs_fp="dfp1",
+    )
+    assert ok is True
+    assert len(cur.revisions) == 2
+    rev2 = cur.revisions[1]
+    assert rev2["changed"] == "oracle"
+    assert "PRODUCT_NO" in rev2["changed_fields"]
+
+
+def test_main_connects_as_mark_worker_and_runs_once(monkeypatch):
+    """(10) main() connects to Postgres with mark_worker and Oracle read-only, exits on --once."""
+    from services.worker.main import main
+
+    monkeypatch.setenv("MARK_WORKER_PG_USER", "mark_worker")
+    monkeypatch.setenv("MARK_WORKER_PG_PASSWORD", "secret")
+
+    pg_connect_args = {}
+    class MockPgConn:
+        def cursor(self):
+            class DummyCur:
+                def __enter__(self): return self
+                def __exit__(self, *args): pass
+            return DummyCur()
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def close(self): pass
+
+    def mock_pg_connect(**kwargs):
+        pg_connect_args.update(kwargs)
+        return MockPgConn()
+
+    monkeypatch.setattr("psycopg2.connect", mock_pg_connect)
+    monkeypatch.setattr("services.worker.main.connect_actl", lambda: MockPgConn())
+    monkeypatch.setattr("services.worker.main.run_worker_cycle", lambda *args, **kwargs: False)
+    monkeypatch.setattr("sys.argv", ["main.py", "--once"])
+
+    main()
+
+    assert pg_connect_args["user"] == "mark_worker"
+    assert pg_connect_args["password"] == "secret"
+
 

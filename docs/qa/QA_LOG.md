@@ -1,22 +1,24 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
-## [2026-11-06] B3 Task 4: Daily Run Results Writer & Worker Loop with Post-Resolve Reversion Gate
+## [2026-11-06] B3 Task 4: Real Engine Pipeline Integration & Worker Loop
 
 ### Context & Implementation
-- **`services/worker/results.py`**:
-  - Factored out `job_row`, `line_row`, `build_snapshot_rows`, and `copy_images` from scripts into reusable worker functions while preserving exact tuple schemas and return contracts.
-  - `day_run_for(cur, elr_no, day)`: searches or creates daily auto run `auto-YYYY-MM-DD` (and suffixes `.2`, `.3` upon collision). Strictly insert-only into `mark_logic.run`.
-  - `write_result(cur, job, meta, oracle_row, resolution, revision_info)`: atomic insert-only writes across `job_result`, `line_result`, `elr_snapshot`, and `elr_revision` (including `docs_probe jsonb`). Returns incremented revision number.
-  - `notify_for(cur, job, revision, prev_approved, run_id)`: creates notifications for `changed_after_approve`, `hold`, `failed`, `inference_failed` (deduplicating when `result_unchanged`) and issues PostgreSQL `NOTIFY mark_events`.
-- **`services/worker/main.py`**:
-  - `run_worker_cycle(...)`: orchestrates queue consumption, Oracle row fetch, cheap-first decision, document resolution, and post-resolve re-evaluation.
-  - **Post-resolve reversion gate**: after computing real `docs_fp`, worker re-evaluates `decide()`. If inputs match an older revision (`skip_same_as_rev`), the worker immediately finishes the item without creating duplicate revisions or modifying DB results.
-- **Scripts refactored**:
-  - `scripts/load_r1_to_pg.py` and `scripts/load_app_snapshot.py` refactored to import from `services.worker.results` with verified zero behavioral divergence.
+- **Pipeline Integration**:
+  - `run_worker_cycle` step 8 calls real `process_elr()` with active `rules`, layouts (`fetch_layout` from `ACTLDBA.MARK_ID_LAYOUT` parsed via `parse_layout`), and `MARK_INFERENCE` loader (live service via `load_service_inference` or cache via `load_cached_inference`).
+  - Resolves ABS/SLR documents from NAS via `resolve_documents`, computes real `docs_fp(resolution)`, persists `docs_probe` (`path`, `size`, `mtime`), and passes `resolution` to `write_result`.
+  - Cheap-first check: if Oracle row unchanged (`oracle_fp == latest.oracle_fp`), checks `docs_probe` first. Skips if files on NAS have identical size/mtime; only runs document resolution and re-evaluates `decide()` if NAS files changed.
+  - G0 eligibility check uses `mark_engine.select.pending_reason(meta, os.environ.get("MARK_REVIEW_STEP", "6"))`.
+  - Manual execution flag: `manual = (item.reason == "recheck")`.
+  - Query approval uses column `decision = 'APPROVED'` and verified with live query on `mark_app.approval` table on `10.151.28.2:5432/mark_web`.
+  - `version_fp` uses `mark_engine.__version__` and `model_version` from service `Health`.
+  - `InferenceUnavailable` calls `fail_with_backoff`; when 3 retry attempts are exhausted, writes `write_result` as `HOLD INFERENCE_FAILED` and creates notification.
+  - `changed_fields` uses `changed_oracle_fields` by reading previous revision's Oracle row from `elr_snapshot.line_extra['oracle_row']`.
+  - `services/worker/main.py:main()` connects to PostgreSQL with role `mark_worker` (`MARK_WORKER_PG_PASSWORD`) and Oracle read-only, looping `claim` -> `process` with 1 transaction per item and `--once` support.
 
 ### Verification
-- Added 8 unit tests in `tests/unit/test_worker.py` validating run allocation with collision suffixing, insert-only invariants on `mark_logic`, approved revision change notifications, older revision dedup, post-resolve reversion rejection, inference failure backoff, version-only change skips, and loader script output contracts.
-- Full test suite: 437 passed (0 regressions).
+- 26 unit tests in `tests/unit/test_worker.py` covering all 10 requirements and edge cases.
+- Live PostgreSQL query test against `mark_app.approval` verified clean execution with `decision = 'APPROVED'`.
+- Entire unit test suite: 447 passed.
 
 
 ## [2026-11-06] B3 Task 1 Step 4: Real Database Deployment & Verification (10.151.28.2/mark_web)

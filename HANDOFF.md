@@ -63,16 +63,21 @@
 
 ## 4. Live Changelog & Session Updates
 
-### 2026-11-06 — B3 Task 4: Daily Run Results Writer & Worker Loop
-- **Implemented**: `services/worker/results.py`, `services/worker/main.py`.
-- **Refactored**: `scripts/load_r1_to_pg.py` and `scripts/load_app_snapshot.py` to import `job_row`, `line_row`, `build_snapshot_rows`, and `copy_images` from `services.worker.results`.
-- **Results Writer & Loop**:
-  - `day_run_for`: allocates daily runs `auto-YYYY-MM-DD` (and `.2`, `.3` upon collision).
-  - `write_result`: insert-only writes into `job_result`, `line_result`, `elr_snapshot`, and `elr_revision`.
-  - `notify_for`: generates notifications for status transitions and approval invalidation, and issues `NOTIFY mark_events`.
-  - `run_worker_cycle`: implements full pipeline with cheap-first probe and post-resolve decision re-evaluation (`skip_same_as_rev` creates no revision).
-- **Verification**: Strict TDD Red -> Green. 8 unit tests added in `tests/unit/test_worker.py`. Total test suite: 437 passed.
-- **Next immediate action**: Commit Task 4, push to `origin/phase2/trial`, verify green Jenkins build, then proceed to Task 5 (Scan, ELR Lookup, and Notification API).
+### 2026-11-06 — B3 Task 4: Real Engine Pipeline Integration & Worker Loop
+- **Commit**: `fix(worker): run real engine pipeline`
+- **10 Core Capabilities Wired & Verified**:
+  1. `run_worker_cycle` step 8 invokes real `process_elr()` with active `rules`, layouts (`fetch_layout` from `ACTLDBA.MARK_ID_LAYOUT` parsed via `parse_layout`), and `MARK_INFERENCE` loader (live service via `load_service_inference` or cache via `load_cached_inference`).
+  2. Resolves ABS/SLR documents from NAS via `resolve_documents`, computes real `docs_fp(resolution)`, persists `docs_probe` (`path`, `size`, `mtime`), and passes `resolution` to `write_result`.
+  3. Cheap-first check: if Oracle row unchanged (`oracle_fp == latest.oracle_fp`), checks `docs_probe` first. Skips if files on NAS have identical size/mtime; only runs document resolution and re-evaluates `decide()` if NAS files changed.
+  4. G0 eligibility check uses `mark_engine.select.pending_reason(meta, os.environ.get("MARK_REVIEW_STEP", "6"))`.
+  5. Manual execution flag: `manual = (item.reason == "recheck")`.
+  6. Query approval uses column `decision = 'APPROVED'` and verified with live query on `mark_app.approval` table on `10.151.28.2:5432/mark_web`.
+  7. `version_fp` uses `mark_engine.__version__` and `model_version` from service `Health`.
+  8. `InferenceUnavailable` calls `fail_with_backoff`; when 3 retry attempts are exhausted, writes `write_result` as `HOLD INFERENCE_FAILED` and creates notification.
+  9. `changed_fields` uses `changed_oracle_fields` by reading previous revision's Oracle row from `elr_snapshot.line_extra['oracle_row']`.
+  10. `services/worker/main.py:main()` connects to PostgreSQL with role `mark_worker` (`MARK_WORKER_PG_PASSWORD`) and Oracle read-only, looping `claim` -> `process` with 1 transaction per item and `--once` support.
+- **Verification**: 26 unit tests in `tests/unit/test_worker.py` (all 10 requirements tested). Full test suite: 447 passed.
+- **Next immediate action**: Commit & push `fix(worker): run real engine pipeline`, wait for Jenkins build to report green, then proceed to Task 5 (Scan, Lookup, and Notification API).
 
 
 ### 2026-11-06 — Migration 0007 applied to the real DB ([USER] step done)

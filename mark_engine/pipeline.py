@@ -11,6 +11,7 @@ from mark_engine.compare.engine import compare
 from mark_engine.documents.resolve import resolve_documents
 from mark_engine.domain.models import (
     ApprovalStatus,
+    DocumentResolution,
     ElrMeta,
     ExpectedLine,
     ExpectedToken,
@@ -150,6 +151,7 @@ def process_elr(
     layouts: Mapping[int, MarkLayout] | None = None,
     folder_index: dict[str, tuple[Path, ...]] | None = None,
     inference_validator: Callable[[str, Path, str], None] | None = None,
+    resolution: DocumentResolution | None = None,
 ) -> JobResult:
     """Run full mark verification pipeline for a single ELR.
 
@@ -242,8 +244,14 @@ def process_elr(
         )
 
     # 2. Document Resolution Gate
-    resolution = (resolve_documents(meta, root, months, work_dir, folder_index=folder_index)
-                  if folder_index is not None else resolve_documents(meta, root, months, work_dir))
+    if resolution is None:
+        resolution = (
+            resolve_documents(meta, root, months, work_dir, folder_index=folder_index)
+            if folder_index is not None
+            else resolve_documents(meta, root, months, work_dir)
+        )
+    
+
     if resolution.decision == "HOLD":
         comparisons = tuple(
             LineComparison(
