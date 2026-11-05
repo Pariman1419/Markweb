@@ -70,6 +70,7 @@
 - The snapshot was taken on Nov 5 Bangkok time; November is incomplete. After freeze, an aggregate layout-fit check inadvertently included the holdout months, so the evaluation is a frozen holdout, not an analyst-blind experiment. See `docs/implementation/11-blind-test-2026h2.md`.
 - Run-specific local review and team lists are in ignored `artifacts/blind-2026h2/`. Generate review HTML through `services.engine.build_review` so it cannot reuse run-14 storage or connect to external review storage. Debug and human review remain open.
 - Corrected run 17's DB note to distinguish allowed Oracle layout input from excluded TOP/BACK mark values. A post-evaluation loader wording fix and isolated-review wrapper are delivery changes; run 17 remains tied to frozen code commit `9a9bd92` and its archived bundle under `artifacts/release-run17/`.
+- Delivery freeze is generated from post-evaluation code commit `9906ce6` (source hash begins `3eb7df875ba6`). It differs from run 17's evaluation freeze (`ca52fd3932d2`) because the loader provenance wording was fixed; engine and rule logic did not change. Do not use the delivery manifest to claim it produced run 17.
 
 ### 2026-11-05 — Phase 1 closeout in progress
 
