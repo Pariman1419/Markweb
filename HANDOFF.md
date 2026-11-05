@@ -63,6 +63,13 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — Run 17 overflow comparison page
+
+- Built `artifacts/blind-2026h2/overflow-review/index.html` from the frozen run-17 inputs, replaying only failed jobs without modifying the DB or original result. All 141 recorded errors reproduced; checking all five TOP rows found 188 rows with layout-placement errors. Additional errors are labeled as replay findings, not original per-job counts.
+- The local page compares Generator text, reserved/fixed/free Layout cells, Oracle cells and ABS image. Review decisions remain in local browser storage and can be exported to CSV. Images are linked to the local cache, so the cache and HTML must remain together.
+- A portable local archive `artifacts/blind-2026h2/overflow-review-bundle.zip` contains the page and its 39 referenced images; it contains customer data and is Git-ignored.
+- The browser-control approval system did not permit opening Edge for visual QA. Offline JavaScript checks verified 141 records, search, navigation and image section; 282 Python tests passed.
+
 ### 2026-11-05 — Frozen holdout completed; review required
 
 - Loaded the July–November snapshot results as PostgreSQL **run 17**: 402 jobs (227 DONE, 141 FAILED, 34 HOLD) and 723 line rows. Independent SELECT confirmed the counts and preservation of runs 1–14.

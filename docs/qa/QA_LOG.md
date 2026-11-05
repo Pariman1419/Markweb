@@ -430,3 +430,22 @@
 - Never share review state across runs or activate external storage for local customer-data reviews. Report denominators, excluded jobs and failed jobs alongside agreement; do not claim production readiness from compared-line agreement alone.
 - After run 17 was recorded, corrected its note: expected uses Oracle `MARK_ID_LAYOUT` while remaining independent of TOP/BACK mark values. The loader was corrected for future runs; this post-evaluation delivery patch does not change the engine or the recorded run-17 result.
 
+---
+
+## [2026-11-05] Overflow comparison review
+
+### Context & Symptom
+- The user requested a local HTML comparison for the 141 run-17 layout-overflow ELRs. Run 17 stored the error but did not store the complete pre-layout Generator text.
+
+### Root Cause
+- The frozen pipeline returns a failed job at the first layout error and deliberately does not persist partial expected results.
+
+### Resolution & Code Fix
+- Added a read-only diagnostic replay in `services/engine/overflow_review.py` and a local HTML template. It validates run-17 input/output hashes and the archived engine before replay and checks the original ABS source fingerprint.
+- All 141 recorded failures were reproduced; independently checking all five rows exposed 188 affected rows in total. The local page shows the Generator, Layout cells, Oracle snapshot and cached image without inventing a partial placement. Review notes stay in browser local storage and can be exported to CSV.
+- Created a portable local archive with the HTML and all 39 referenced images, and verified all 141 image references resolve within it; the archive remains Git-ignored.
+- Verified 282 Python tests, run-17 input/output hashes, frozen engine integrity and offline JavaScript search/navigation checks. Browser automation approval for Edge was denied; a visual screenshot review was therefore not performed.
+
+### Prevention / Rules Learned
+- Distinguish the first error recorded for each ELR from additional row errors discovered during diagnostic replay. Never present an inferred overflow substring as an engine result.
+
