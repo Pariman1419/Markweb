@@ -40,6 +40,7 @@ create table if not exists mark_app.elr_revision (
   changed text not null check (changed in ('new', 'oracle', 'docs', 'both', 'manual')),
   changed_fields text[],
   result_unchanged boolean not null default false,
+  docs_probe jsonb,
   run_id bigint not null references mark_logic.run(run_id),
   created_at timestamptz not null default now(),
   primary key (elr_no, revision),
@@ -120,13 +121,15 @@ revoke update, delete, truncate on all tables in schema mark_logic from mark_wor
 
 grant select, insert, update, delete on mark_app.work_item to mark_worker;
 grant select, insert on mark_app.scan, mark_app.elr_revision, mark_app.notification, mark_app.elr_snapshot to mark_worker;
+grant select on mark_app.approval to mark_worker;
 grant usage, select on all sequences in schema mark_app to mark_worker;
 grant usage, select on all sequences in schema mark_logic to mark_worker;
 
 -- API role (mark_app)
 grant select on mark_app.scan, mark_app.elr_revision, mark_app.work_item, mark_app.notification to mark_app;
 grant select on mark_app.latest_job_result to mark_app;
-grant insert on mark_app.scan, mark_app.work_item to mark_app;
+grant insert, update on mark_app.scan to mark_app;
+grant insert on mark_app.work_item, mark_app.notification to mark_app;
 grant update (read_by, read_at) on mark_app.notification to mark_app;
 grant usage, select on all sequences in schema mark_app to mark_app;
 

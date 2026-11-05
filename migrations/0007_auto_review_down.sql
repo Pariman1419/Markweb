@@ -4,12 +4,14 @@ begin;
 
 -- Revoke permissions
 revoke select on mark_app.latest_job_result from mark_app;
-revoke select, insert on mark_app.scan, mark_app.work_item from mark_app;
+revoke select, insert, update on mark_app.scan from mark_app;
+revoke select, insert on mark_app.work_item, mark_app.notification from mark_app;
 revoke update (read_by, read_at) on mark_app.notification from mark_app;
-revoke select on mark_app.elr_revision, mark_app.notification from mark_app;
+revoke select on mark_app.elr_revision from mark_app;
 
 revoke select, insert, update, delete on mark_app.work_item from mark_worker;
 revoke select, insert on mark_app.scan, mark_app.elr_revision, mark_app.notification, mark_app.elr_snapshot from mark_worker;
+revoke select on mark_app.approval from mark_worker;
 revoke select, insert on mark_logic.run, mark_logic.job_result, mark_logic.line_result from mark_worker;
 revoke select on all tables in schema mark_logic from mark_worker;
 revoke usage on schema mark_app, mark_logic from mark_worker;

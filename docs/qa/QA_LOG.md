@@ -1,5 +1,23 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] B3 Task 1 Fix: 0007 Grants and docs_probe Column
+
+### Context & Fix Details
+- Updated `migrations/0007_auto_review.sql` and `migrations/0007_auto_review_down.sql` before DBA deployment on real DB:
+  1. `grant update on mark_app.scan to mark_app`
+  2. `grant insert on mark_app.notification to mark_app`
+  3. `grant select on mark_app.approval to mark_worker`
+  4. Added column `docs_probe jsonb` to `mark_app.elr_revision`
+- Tested UP -> DOWN -> UP on throwaway schema `t0007_test2`:
+  - Verified `docs_probe` is present as `jsonb`
+  - Verified all revokes and drops cleanly reset the schema to 0 tables
+  - Re-applied UP cleanly
+  - Verified runs 1–19 in `mark_logic.run` (16 rows) completely untouched.
+
+### Task 4 Requirement Recorded
+- **Post-resolve decision re-evaluation**: In Task 4 worker runner (`services/worker/main.py`), after documents are resolved and real `docs_fp` is computed, worker MUST invoke `decide()` again with actual `docs_fp` before creating a new revision. If result is `skip_same_as_rev`, no revision or results may be written. Include unit test `test_oracle_reverted_to_old_rev_after_docs_resolved_creates_nothing`.
+
+
 ## [2026-11-06] B3 Task 2: History Input Fingerprints & Re-check Decision Table (Spec §4)
 
 ### Context & Objective

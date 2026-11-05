@@ -63,6 +63,15 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — B3 Task 1 Fix: 0007 Grants and docs_probe Column
+- **Updated Migration 0007**:
+  - Added `docs_probe jsonb` column to `mark_app.elr_revision`.
+  - Added grants: `grant update on mark_app.scan to mark_app`, `grant insert on mark_app.notification to mark_app`, `grant select on mark_app.approval to mark_worker`.
+  - Updated `migrations/0007_auto_review_down.sql` with corresponding revokes.
+  - Verified UP -> DOWN -> UP on throwaway schema `t0007_test2`.
+- **Note for Task 4**: In worker runner, after resolving documents and computing actual `docs_fp`, invoke `decide()` again with real `docs_fp`. If `skip_same_as_rev`, do not create a revision. Test: `test_oracle_reverted_to_old_rev_after_docs_resolved_creates_nothing`.
+
+
 ### 2026-11-06 — B3 Task 2: Input Fingerprints & Re-check Decision Table (Spec §4)
 - **Implemented**: `mark_engine/history/__init__.py`, `mark_engine/history/fingerprint.py`, `mark_engine/history/decide.py`, `tests/unit/test_history.py`.
 - **Key Modules**:
