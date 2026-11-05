@@ -177,6 +177,9 @@ Marking diagram ใน ABS มีป้าย `LINE 1`–`LINE 7` (หรือ 
 - ความปลอดภัย: API key ใน metadata `x-api-key` + firewall เปิดเฉพาะ IP เครื่อง API
 - **เกณฑ์ผ่าน**: ABS ทั้งหมดของ run 19 ผ่าน service แล้วผลตรงกับ cache batch เดิม (`mark_engine/adapters/inference_cache.py`) ทุกบรรทัด — ไม่ตรงต้องอธิบายได้ก่อนเปิดใช้
 - Worker เลือก `MARK_INFERENCE=cache|service` เพื่อเทียบและสำรองตอน AI Server ล่ม
+- **เครื่อง [ผู้ใช้ 2026-11-05]**: A100 80GB (`10.151.28.9`) ใช้ร่วมกับ vLLM — สำรวจ 2026-11-05: VRAM ว่าง ~6–7 GB, disk ว่าง ~22 GB (89%)
+- **GPU + สำรอง CPU [ผู้ใช้ 2026-11-05]**: ไม่จอง VRAM ล่วงหน้า (Paddle auto_growth) · VRAM ว่างน้อยกว่า 3 GB ตอนเริ่ม → โหลด CPU · CUDA OOM ระหว่างงาน → รันงานนั้นบน CPU และบอก `device` ในผล · ห้ามแตะ vLLM/container อื่น
+- แผน: `docs/superpowers/plans/2026-11-05-b4-inference-service.md`
 
 ## 7. Notify **[ผู้ใช้: แจ้งบนเว็บ]**
 - เกิดเมื่อ: ไม่พบ ELR ในระบบ, ไม่พบใน Oracle, ไม่ผ่าน G0 ตอนผู้ใช้สั่ง, HOLD ทุกเหตุ, ROW_OVER_5, CUST_ASSY_TBD, FAILED, INFERENCE_FAILED หลัง retry ครบ, ข้อมูลเปลี่ยนหลัง Approve, scan ล้มทั้งรอบ

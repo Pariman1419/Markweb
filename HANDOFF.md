@@ -63,6 +63,18 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-05 — B4 Inference Service plan (for the other agent)
+- **Plan:** `docs/superpowers/plans/2026-11-05-b4-inference-service.md` (Tasks 1–5).
+  1. gRPC contract with Health/Page/Symbols/Rec and an API key.
+  2. Shared OCR/YOLO engines with GPU→CPU fallback.
+  3. Engine client plus the `MARK_INFERENCE` switch.
+  4. `mark-inference` container on the A100, port 50051.
+  5. Comparison with the run-19 cache (CPU must give 0 diffs; GPU diffs go to the user).
+- **A100 survey (read-only, 2026-11-05):** about 6–7 GB of VRAM free (vLLM uses ~72 GB), disk 89% (~22 GB free), CUDA 12.9, Docker 27.2. `ic-marking-ocr:exp09` is still running on :8095.
+- **User decision:** GPU with a CPU fallback.
+- **SSH access:** now key-based (`~/.ssh/id_ed25519_nopass`, installed by the user). The password lives only in `.env`.
+- **[USER] steps still open:** the firewall for 50051, and the GPU vs CPU decision once the comparison is done.
+
 ### 2026-11-05 — G5 Gate Fix: Count placed content beyond TOP row 5 (not raw OCR rows)
 - **What changed**:
   - In `mark_engine/pipeline.py`: moved G5 check to run after `generate_expected`. Gate checks `[l for l in expected.lines if l.side == Side.TOP and l.line_no > 5 and (l.text or "").strip()]`.

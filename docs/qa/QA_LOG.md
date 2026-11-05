@@ -940,3 +940,10 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
   - Zero unexplained groups.
   - Line-level final_status counts: all line changes match baseline (diff 0 for non-TBD lines).
 - **Governance**: `run-gates` was NOT loaded to DB and `FREEZE-R1.json` was NOT re-frozen.
+
+## 2026-11-05 — A100 survey for B4 (read-only)
+- **Machine:** `10.151.28.9`, A100 80GB, driver 575.57, CUDA 12.9.
+- **GPU in use:** ~75 of 82 GB (vLLM 62 + 10 GB, TEI 1.6 GB, mineru 1.4 GB).
+- **Host:** 16 CPU, RAM ~21 GB available, disk 89% used (~22 GB free), Docker 27.2, host Python 3.8.
+- **Existing:** `ic-marking-ocr:exp09` (:8095) is healthy. Port 50051 is free.
+- **No changes made on the server.** The only change was the SSH key, which the user installed with their own script.
