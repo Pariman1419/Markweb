@@ -3,10 +3,7 @@
 import grpc
 import warnings
 
-try:
-    from services.inference import mark_inference_pb2 as mark__inference__pb2
-except ImportError:
-    import mark_inference_pb2 as mark__inference__pb2
+from services.inference import mark_inference_pb2 as mark__inference__pb2
 
 GRPC_GENERATED_VERSION = '1.85.1'
 GRPC_VERSION = grpc.__version__
@@ -52,6 +49,11 @@ class MarkInferenceStub:
                 request_serializer=mark__inference__pb2.ImageRequest.SerializeToString,
                 response_deserializer=mark__inference__pb2.SymbolsReply.FromString,
                 _registered_method=True)
+        self.ProcessPdf = channel.unary_unary(
+                '/mark.inference.v1.MarkInference/ProcessPdf',
+                request_serializer=mark__inference__pb2.PdfRequest.SerializeToString,
+                response_deserializer=mark__inference__pb2.FullInferenceReply.FromString,
+                _registered_method=True)
         self.Rec = channel.unary_unary(
                 '/mark.inference.v1.MarkInference/Rec',
                 request_serializer=mark__inference__pb2.RecRequest.SerializeToString,
@@ -82,6 +84,12 @@ class MarkInferenceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ProcessPdf(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Rec(self, request, context):
         """rec on PNG crops, in order
         """
@@ -106,6 +114,11 @@ def add_MarkInferenceServicer_to_server(servicer, server):
                     servicer.Symbols,
                     request_deserializer=mark__inference__pb2.ImageRequest.FromString,
                     response_serializer=mark__inference__pb2.SymbolsReply.SerializeToString,
+            ),
+            'ProcessPdf': grpc.unary_unary_rpc_method_handler(
+                    servicer.ProcessPdf,
+                    request_deserializer=mark__inference__pb2.PdfRequest.FromString,
+                    response_serializer=mark__inference__pb2.FullInferenceReply.SerializeToString,
             ),
             'Rec': grpc.unary_unary_rpc_method_handler(
                     servicer.Rec,
@@ -194,6 +207,33 @@ class MarkInference:
             '/mark.inference.v1.MarkInference/Symbols',
             mark__inference__pb2.ImageRequest.SerializeToString,
             mark__inference__pb2.SymbolsReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ProcessPdf(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/mark.inference.v1.MarkInference/ProcessPdf',
+            mark__inference__pb2.PdfRequest.SerializeToString,
+            mark__inference__pb2.FullInferenceReply.FromString,
             options,
             channel_credentials,
             insecure,

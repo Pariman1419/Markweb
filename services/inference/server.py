@@ -1,4 +1,6 @@
 """gRPC server for mark-inference service on A100."""
+import hashlib
+import json
 import hmac
 import io
 import os
@@ -49,6 +51,44 @@ class MarkInferenceServicer(pb2_grpc.MarkInferenceServicer):
             detector_sha256=self._model_info.get("detector_sha256", ""),
             symbol_sha256=self._model_info.get("symbol_sha256", ""),
         )
+
+    def ProcessPdf(self, request, context):
+        from mark_engine.abs.brand_page import extract_brand_image
+        from mark_engine.abs.layout import layout_lines
+        from mark_engine.abs.reocr import legend_candidates, trim_logo
+        try:
+            png, method, page_number = extract_brand_image(request.pdf)
+        except Exception as exc:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"Invalid PDF: {exc}")
+        digest = hashlib.sha256(png).hexdigest()
+        name = f"{digest}.png"
+        page = self.Page(pb2.ImageRequest(name=name, png=png), context)
+        symbols = self.Symbols(pb2.ImageRequest(name=name, png=png), context)
+        items = [[i.x0, i.y0, i.x1, i.y1, i.text, i.score] for i in page.items]
+        with Image.open(io.BytesIO(png)) as source:
+            image = source.convert("RGB")
+        candidates = legend_candidates(name, items)
+        for side, number, text, _, box in layout_lines(items):
+            key = f"{digest}|{side.value}|{number}"
+            if box and not any(row["key"] == key for row in candidates):
+                crop = trim_logo(image.crop(tuple(int(x) for x in box)))
+                if crop:
+                    candidates.append({"key": key, "old": text.strip(), "image": crop})
+        crops = []
+        for candidate in candidates:
+            crop = candidate.get("image") or image.crop(candidate["box"])
+            buf = io.BytesIO()
+            crop.convert("RGB").save(buf, "PNG")
+            crops.append(buf.getvalue())
+        reread = {}
+        if crops:
+            for candidate, result in zip(candidates, self.Rec(pb2.RecRequest(crops=crops), context).results):
+                old, new = candidate["old"].strip(), result.text.strip()
+                if new and new != old and result.score >= 0.9:
+                    reread[candidate["key"]] = json.dumps([old, new])
+        return pb2.FullInferenceReply(png=png, png_sha256=digest, extraction_method=method,
+                                      page_number=page_number, items=page.items,
+                                      symbols=symbols.symbols, reocr=reread, model=page.model)
 
     def Health(self, request, context):
         ocr_dev = getattr(self.ocr_engine, "device", "cpu")

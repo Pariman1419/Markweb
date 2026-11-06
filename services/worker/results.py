@@ -279,6 +279,7 @@ def write_result(
     files_root: Path | None = None,
     schema_logic: str = "mark_logic",
     schema_app: str = "mark_app",
+    image_path: str | None = None,
 ) -> int:
     """Write job results, line results, elr_snapshot, and elr_revision in an INSERT-ONLY manner.
 
@@ -352,8 +353,8 @@ def write_result(
     cur.execute(
         f"""
         insert into {schema_app}.elr_snapshot (
-            run_id, elr_no, top_mark_id, line_extra, oracle_top_raw, abs_file, abs_sha256
-        ) values (%s, %s, %s, %s, %s, %s, %s);
+            run_id, elr_no, top_mark_id, line_extra, oracle_top_raw, abs_file, abs_sha256, image_path
+        ) values (%s, %s, %s, %s, %s, %s, %s, %s);
         """,
         (
             run_id,
@@ -363,6 +364,7 @@ def write_result(
             json.dumps(oracle_top_raw),
             resolution.abs.path if resolution and resolution.abs else None,
             resolution.abs.sha256 if resolution and resolution.abs else None,
+            image_path,
         ),
     )
 

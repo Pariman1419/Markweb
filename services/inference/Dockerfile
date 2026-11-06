@@ -7,6 +7,7 @@ WORKDIR /app
 RUN pip install --default-timeout=1000 --no-cache-dir \
     torch==2.4.0+cu121 torchvision==0.19.0+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 \
     && pip install --default-timeout=1000 --no-cache-dir \
+    pymupdf==1.24.11 \
     ultralytics==8.3.40 \
     grpcio==1.85.1 \
     protobuf==7.36.0 \

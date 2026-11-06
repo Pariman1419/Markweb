@@ -6,6 +6,7 @@ service MarkInference {
   rpc Health(HealthRequest) returns (HealthReply);
   rpc Page(ImageRequest) returns (PageReply);       // det + rec on one PNG
   rpc Symbols(ImageRequest) returns (SymbolsReply); // YOLO on one PNG
+  rpc ProcessPdf(PdfRequest) returns (FullInferenceReply);
   rpc Rec(RecRequest) returns (RecReply);           // rec on PNG crops, in order
 }
 
@@ -72,4 +73,16 @@ message HealthReply {
   string symbol_device = 3;
   int32 free_vram_mb = 4;
   ModelInfo model = 5;
+}
+
+message PdfRequest { string name = 1; bytes pdf = 2; }
+message FullInferenceReply {
+  bytes png = 1;
+  string png_sha256 = 2;
+  string extraction_method = 3;
+  int32 page_number = 4;
+  repeated TextItem items = 5;
+  repeated Symbol symbols = 6;
+  map<string, string> reocr = 7;
+  ModelInfo model = 8;
 }

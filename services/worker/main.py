@@ -30,6 +30,7 @@ from mark_engine.adapters.inference_service import (
     InferenceUnavailable,
     load_service_inference,
     load_service_inference_for_image,
+    load_service_inference_for_pdf,
 )
 from mark_engine.adapters.oracle_client import connect_actl
 from mark_engine.documents.resolve import resolve_documents
@@ -250,7 +251,7 @@ def run_worker_cycle(
 
         # Extract marking image from resolved ABS if available
         marking_image_path: Path | None = None
-        if resolution and resolution.abs and resolution.abs.path:
+        if os.environ.get("MARK_INFERENCE", "cache") != "service" and resolution and resolution.abs and resolution.abs.path:
             abs_p = Path(resolution.abs.path)
             if abs_p.is_file():
                 try:
@@ -280,6 +281,7 @@ def run_worker_cycle(
             except Exception as exc:
                 logger.warning("Failed to fetch layout for MARK_ID %s: %s", meta.top_mark_id, exc)
 
+        saved_images = []
         if inference_loader is not None:
             active_loader = inference_loader
         else:
@@ -289,7 +291,9 @@ def run_worker_cycle(
                 api_key = os.getenv("MARK_INFERENCE_API_KEY", "")
                 if client is None:
                     client = InferenceClient(addr=addr, api_key=api_key)
-                if marking_image_path is not None:
+                if resolution and resolution.abs and resolution.abs.path and Path(resolution.abs.path).is_file():
+                    active_loader = partial(load_service_inference_for_pdf, client, Path(resolution.abs.path), job_work / "images", resolution.abs.sha256, image_saved=saved_images.append)
+                elif marking_image_path is not None:
                     active_loader = partial(load_service_inference_for_image, client, marking_image_path)
                 else:
                     cache_dir = Path(os.getenv("MARK_CACHE_DIR", "cache"))
@@ -390,7 +394,8 @@ def run_worker_cycle(
             "result_unchanged": result_unchanged,
             "docs_probe": current_probe,
         }
-        new_rev = write_result(cur_pg, job, meta, oracle_row, resolution=resolution, revision_info=rev_info)
+        image_path = f"work/{elr_no}/images/{saved_images[-1].name}" if saved_images else None
+        new_rev = write_result(cur_pg, job, meta, oracle_row, resolution=resolution, revision_info=rev_info, image_path=image_path)
 
         # 14. Send notifications if needed
         notify_for(cur_pg, job, new_rev, prev_approved=prev_approved, run_id=run_id)

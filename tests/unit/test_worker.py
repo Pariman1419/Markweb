@@ -1092,8 +1092,8 @@ def test_extract_marking_image_creates_hashed_png(tmp_path):
     assert len(digest) == 64
 
 
-def test_worker_extracts_marking_image_without_images_index_csv(tmp_path, monkeypatch):
-    """(A) Worker extracts marking page image directly and passes path to service loader."""
+def test_worker_sends_pdf_without_images_index_csv(tmp_path, monkeypatch):
+    """Worker passes the resolved PDF to the service loader without local extraction."""
     import services.worker.main as w_main
 
     cur = FakePgCursor()
@@ -1136,9 +1136,10 @@ def test_worker_extracts_marking_image_without_images_index_csv(tmp_path, monkey
     assert res == CycleResult.PROCESSED
     assert len(captured_loader) == 1
     loader = captured_loader[0]
-    # Check that loader is bound to load_service_inference_for_image with extracted_img
-    assert loader.func.__name__ == "load_service_inference_for_image"
-    assert loader.args[1] == extracted_img
+    assert loader.func.__name__ == "load_service_inference_for_pdf"
+    assert loader.args[1] == abs_file
+    assert loader.args[2] == tmp_path / "work" / "images"
+    assert loader.args[3] == "sha_abs"
 
 
 def test_worker_recovers_from_unhandled_item_exception(monkeypatch):
@@ -1385,6 +1386,7 @@ def test_real_schema_enqueue_and_results_writer():
                     oracle_top_raw jsonb,
                     abs_file text,
                     abs_sha256 text,
+                    image_path text,
                     primary key (run_id, elr_no)
                 );
                 CREATE TABLE {test_schema}.elr_revision (
@@ -1661,3 +1663,14 @@ def test_check_nas_root_ok(tmp_path):
     target.mkdir()
     (target / "1_JAN").mkdir()
     check_nas_root(tmp_path)
+
+def test_write_result_records_worker_image_path():
+    cur = FakePgCursor()
+    meta = ElrMeta(elr_no='ADI2601001', product_no='AD999')
+    job = JobResult(elr_no='ADI2601001', processing_status=ProcessingStatus.DONE)
+    rev = dict(run_id=100, oracle_fp='o', docs_fp='d', version_fp='v', result_fp='r', changed='new')
+    image_path = 'work/ADI2601001/images/abc.png'
+    write_result(cur, job, meta, {}, resolution=None, revision_info=rev, image_path=image_path)
+    snapshot = next((sql, params) for sql, params in cur.executed if 'insert into mark_app.elr_snapshot' in sql.lower())
+    assert 'image_path' in snapshot[0].lower()
+    assert image_path in snapshot[1]

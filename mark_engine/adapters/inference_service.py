@@ -1,5 +1,7 @@
 """gRPC inference service client and service-backed inference loader."""
 from collections import OrderedDict
+import hashlib
+import json
 import io
 from pathlib import Path
 import threading
@@ -30,7 +32,7 @@ class InferenceClient:
         self.api_key = api_key
         self.timeout_s = timeout_s
         self.backoff_s = backoff_s
-        self._channel = grpc.insecure_channel(addr)
+        self._channel = grpc.insecure_channel(addr, options=[("grpc.max_receive_message_length", 32 * 1024 * 1024), ("grpc.max_send_message_length", 32 * 1024 * 1024)])
         self._stub = pb2_grpc.MarkInferenceStub(self._channel)
 
     def close(self):
@@ -85,10 +87,37 @@ class InferenceClient:
             for sym in reply.symbols
         ]
 
+    def process_pdf(self, name: str, pdf_bytes: bytes):
+        req = pb2.PdfRequest(name=name, pdf=pdf_bytes)
+        return self._call(lambda: self._stub.ProcessPdf(req, timeout=self.timeout_s, metadata=self._metadata()))
+
     def rec(self, crops: list[bytes]) -> list[tuple[str, float]]:
         req = pb2.RecRequest(crops=crops)
         reply = self._call(lambda: self._stub.Rec(req, timeout=self.timeout_s, metadata=self._metadata()))
         return [(res.text, res.score) for res in reply.results]
+
+
+def load_service_inference_for_pdf(client, pdf_path: Path, images_dir: Path,
+                                   expected_sha256: str, elr_no: str, abs_stem: str, *, image_saved=None) -> InferenceResult:
+    data = pdf_path.read_bytes()
+    if expected_sha256 and hashlib.sha256(data).hexdigest() != expected_sha256:
+        raise ValueError("ABS changed before inference")
+    reply = client.process_pdf(pdf_path.name, data)
+    digest = hashlib.sha256(reply.png).hexdigest()
+    if not reply.png.startswith(b"\x89PNG\r\n\x1a\n") or digest != reply.png_sha256:
+        raise InferenceUnavailable("Invalid image or hash returned by inference service")
+    images_dir.mkdir(parents=True, exist_ok=True)
+    image_path = images_dir / f"{digest}.png"
+    if image_path.exists() and hashlib.sha256(image_path.read_bytes()).hexdigest() != digest:
+        raise RuntimeError(f"Image hash mismatch: {image_path}")
+    if not image_path.exists():
+        image_path.write_bytes(reply.png)
+    if image_saved is not None:
+        image_saved(image_path)
+    items = [[i.x0, i.y0, i.x1, i.y1, i.text, i.score] for i in reply.items]
+    symbols = [[s.cls, s.conf, s.x0, s.y0, s.x1, s.y1] for s in reply.symbols]
+    reread = {key: tuple(json.loads(value)) for key, value in reply.reocr.items()}
+    return build_auto_inference(elr_no, digest, items, symbols, reread)
 
 
 _SERVICE_INFERENCE_CACHE: OrderedDict[str, tuple[list, list, dict]] = OrderedDict()

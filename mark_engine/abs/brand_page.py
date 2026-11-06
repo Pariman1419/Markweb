@@ -4,8 +4,8 @@ from pathlib import Path
 import pymupdf
 
 
-def extract_brand_image(pdf: Path) -> tuple[bytes, str, int]:
-    with pymupdf.open(pdf) as doc:
+def extract_brand_image(pdf: Path | bytes) -> tuple[bytes, str, int]:
+    with (pymupdf.open(stream=pdf, filetype="pdf") if isinstance(pdf, bytes) else pymupdf.open(pdf)) as doc:
         if not len(doc):
             raise ValueError(f'empty PDF: {pdf}')
         pages = [page.number for page in doc if 'Brand/Marking' in page.get_text()]
