@@ -126,12 +126,8 @@ def test_task_maps_busy_and_auth_without_leaking_token(monkeypatch):
 def test_dag_configuration_without_airflow_or_network(monkeypatch, filename, schedule, path, body, retries):
     import runpy
     import types
-    import zoneinfo
-    from datetime import timezone, timedelta
-    try:
-        zoneinfo.ZoneInfo('Asia/Bangkok')
-    except Exception:
-        monkeypatch.setattr(zoneinfo, 'ZoneInfo', lambda name: timezone(timedelta(hours=7)))
+    from datetime import timedelta
+    monkeypatch.setitem(sys.modules, 'zoneinfo', None)
     root = Path(__file__).resolve().parents[2] / 'airflow' / 'dags'
     monkeypatch.syspath_prepend(str(root))
     captured = {}
@@ -155,6 +151,7 @@ def test_dag_configuration_without_airflow_or_network(monkeypatch, filename, sch
         runpy.run_path(str(root / 'mark' / f'{filename}.py'))
     dag, task = captured['dag'], captured['task']
     assert dag['dag_id'] == filename and dag['schedule_interval'] == schedule
+    assert dag['start_date'].utcoffset() == timedelta(hours=7)
     assert dag['is_paused_upon_creation'] and not dag['catchup']
     assert dag['max_active_runs'] == dag['max_active_tasks'] == 1
     assert dag['default_args']['retries'] == retries
