@@ -104,6 +104,7 @@ def finish(cur: Any, item_id: int, revision: int | None = None) -> None:
     update mark_app.work_item
     set state = 'done',
         revision = %s,
+        error = null,
         updated_at = now()
     where item_id = %s;
     """

@@ -1,6 +1,42 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
-## [2026-11-06] Fix(API, Worker): Fail Loudly Without Oracle & Retry Attempts Integrity
+## [2026-11-06] Task 6 Step 1 Cleanup & Step 2 Dev E2E Walkthrough (ADI2607006)
+
+### Context & Implementation
+1. **Database Scan Invalidation Executed**:
+   - Executed SQL on `10.151.28.2`:
+     ```sql
+     update mark_app.scan set error='invalid: oracle unavailable (oracledb missing)' where scan_id=2 and error is null;
+     update mark_app.scan set finished_at=now(), error='orphan: oracle connect failed before fail_scan fix' where scan_id=1 and finished_at is null;
+     ```
+   - Confirmed in `mark_app.scan`:
+     - `scan_id=1`: finished with error `'orphan: oracle connect failed before fail_scan fix'`
+     - `scan_id=2`: finished with error `'invalid: oracle unavailable (oracledb missing)'`
+     - `scan_id=3`: clean valid initial scan (`found: 0, queued: 0`)
+2. **Task 6 Step 2 Walkthrough (ADI2607006)**:
+   - `POST /api/elrs/ADI2607006/oracle-check`:
+     - Evaluated G0 against Oracle ACTL (`CURRENT_STEP = '7'`, expected review step `'6'`).
+     - Responded HTTP 200 `{"queued": false, "reason": "NOT_MARK_REVIEW_STEP"}`.
+     - Created notification row in `mark_app.notification` (`kind = 'not_eligible'`).
+   - `POST /api/elrs/ADI2607006/recheck`:
+     - Responded HTTP 200 `{"queued": true}`, enqueuing work item with `reason = 'recheck'`.
+   - **Worker End-to-End Fixes**:
+     - `services/api/mark_api/repo.py`: Added explicit `state = 'queued'` to `Repo.enqueue_work_item()` INSERT statement.
+     - `services/worker/results.py`: Fixed `mark_logic.line_result` column names (`final_mark, db_mark, status, cause, cause_detail, system_status, final_status, review_detail, warning, hold_detail, layout_source`) to match database schema.
+     - `services/worker/results.py`: Cast `oracle_top_raw` to `json.dumps()` for JSONB column in `mark_app.elr_snapshot`.
+   - **Worker Execution (`--once`)**:
+     - Worker claimed item, resolved NAS documents from `\\th1srnas03\ELR\ADI\ELR Online 2026\7_JUL\ADI2607006` (`ABS047695C.pdf` and `SLR245168.pdf`).
+     - Extracted marking image, called live A100 inference service (`10.151.28.9:50051`).
+     - Generated new daily run `run_id: 22` (`auto-2026-11-06`).
+     - Wrote `job_result` (`processing_status: DONE`, `verification_status: MATCH_ALL`, `approval_status: NOT_REVIEWED`).
+     - Wrote 5 `line_result` rows (5/5 MATCH).
+     - Recorded `elr_revision` 1 (`changed: manual`, captured real `docs_probe` metadata).
+   - **API Verification**:
+     - `GET /api/elrs/lookup?elr=ADI2607006` returns `in_system: true`, revision 1, `status: DONE`.
+
+### Verification
+- `pytest tests -q --ignore=tests/regression`: 467 passed.
+- Real Oracle ACTL, live NAS drawings, live A100 inference service, and live PostgreSQL DB all end-to-end verified.
 
 ### Context & Implementation
 1. **Fail Loudly Without Oracle (503 Service Unavailable)**:
@@ -13,9 +49,12 @@
    - Updated `services/api/Dockerfile`: installs `libaio1t64`, `unzip`, downloads Oracle Instant Client Basic Lite 21.13 (`/opt/oracle/instantclient_21_13`), configures `libaio.so.1` symlink and `ldconfig`.
    - Updated `docker-compose.yml` to set `ORACLE_CLIENT_DIR=/opt/oracle/instantclient_21_13` and `LD_LIBRARY_PATH`.
    - Tested live inside the rebuilt container: `connect_actl()` connects to Oracle ACTL in thick mode; `fetch_pending_step(conn, '6')` executes cleanly.
-3. **Scan ID 2 Invalidation**:
-   - Previous `scan_id=2` recorded `found: 0` because Oracle was never queried due to missing `oracledb` in container. Marked invalid.
-   - Prepared SQL update: `UPDATE mark_app.scan SET error = 'invalid: oracle unavailable (oracledb missing)' WHERE scan_id = 2;`.
+3. **Scan Table Invalidation & Cleanup**:
+   - `scan_id=2` (fake 0 found due to missing `oracledb` in container) invalidated in DB:
+     `UPDATE mark_app.scan SET error = 'invalid: oracle unavailable (oracledb missing)' WHERE scan_id = 2 AND error IS NULL;`
+   - `scan_id=1` (orphaned scan before `fail_scan` was implemented) closed in DB:
+     `UPDATE mark_app.scan SET finished_at = NOW(), error = 'orphan: oracle connect failed before fail_scan fix' WHERE scan_id = 1 AND finished_at IS NULL;`
+   - Verified in DB: `scan_id=1` and `scan_id=2` have errors recorded; `scan_id=3` remains the sole valid successful scan.
 4. **Worker Rollback & Attempts Count Fix**:
    - In `services/worker/queue.py`, updated `fail()` and `fail_with_backoff()` to accept and persist `attempts = %s` directly into `mark_app.work_item`.
    - Prevents transaction rollback from resetting `attempts` counter to previous values, ensuring failing jobs advance through retry backoffs (1m, 5m, 15m) and transition to `failed` on the 4th attempt.

@@ -210,6 +210,7 @@ class InMemoryQueueStore:
                 item = self.store.items[item_id]
                 item["state"] = "done"
                 item["revision"] = revision
+                item["error"] = None
                 item["updated_at"] = now
                 self.store.locked_ids.discard(item_id)
 
@@ -1181,6 +1182,161 @@ def test_worker_once_mode_loops_until_no_item(monkeypatch):
     main()
 
     assert calls == [CycleResult.PROCESSED, CycleResult.SKIPPED, CycleResult.NO_ITEM]
+
+
+def test_finish_resets_error_to_null():
+    """(3) finish() sets error = null so completed items do not retain error strings."""
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "recheck")
+    item_id = list(queue_store.items.keys())[0]
+
+    # Set an error on the item first
+    queue_store.items[item_id]["error"] = "previous transient error"
+    assert queue_store.items[item_id]["error"] == "previous transient error"
+
+    finish(q_cur, item_id, revision=1)
+    assert queue_store.items[item_id]["state"] == "done"
+    assert queue_store.items[item_id]["revision"] == 1
+    assert queue_store.items[item_id]["error"] is None
+
+
+def test_probe_resolution_excludes_work_directory(tmp_path):
+    """(4) docs_probe keeps only files on NAS storage, strictly excluding extracted files in work\\."""
+    from mark_engine.domain.models import DocumentRef, DocumentResolution
+    from services.worker.main import probe_resolution
+
+    nas_pdf = tmp_path / "nas" / "SLR245168.pdf"
+    nas_pdf.parent.mkdir(parents=True)
+    nas_pdf.write_bytes(b"dummy nas slr")
+
+    work_extracted_pdf = tmp_path / "work" / "ADI2607006" / "extracted" / "SLR245168.pdf"
+    work_extracted_pdf.parent.mkdir(parents=True)
+    work_extracted_pdf.write_bytes(b"extracted in work")
+
+    res = DocumentResolution(
+        elr_no="ADI2607006",
+        decision="RESOLVED",
+        abs=DocumentRef(path=str(nas_pdf), doc_type="ABS", number="ABS047695", sha256="abc"),
+        slr=(
+            DocumentRef(path=str(nas_pdf), doc_type="SLR", number="SLR245168", sha256="def"),
+            DocumentRef(path=str(work_extracted_pdf), doc_type="SLR", number="SLR245168", sha256="ghi"),
+        ),
+    )
+
+    probe = probe_resolution(res, work_dir=tmp_path / "work" / "ADI2607006")
+    assert str(nas_pdf) in probe
+    assert str(work_extracted_pdf) not in probe
+    assert all("work" not in k.lower() for k in probe.keys())
+
+
+def test_real_schema_enqueue_and_results_writer():
+    """(0) Integration test verifying enqueue_work_item and write_result SQL against real DB schema."""
+    import os
+    import psycopg2
+    from mark_engine.adapters.env import load_env
+    from mark_engine.domain.models import JobResult, LineComparison, Side, LineStatus, ProcessingStatus, VerificationStatus
+    from mark_engine.adapters.snapshot import ElrMeta
+    from services.worker.results import write_result
+    from services.worker.queue import enqueue, finish
+
+    env_path = os.environ.get("ENV_FILE", "D:/CIM Project/mark-web/.env")
+    load_env(Path(env_path) if Path(env_path).is_file() else None)
+
+    password = os.environ.get("MARK_WORKER_PG_PASSWORD")
+    if not password:
+        pytest.skip("MARK_WORKER_PG_PASSWORD not in environment, skipping live schema test")
+
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("PGHOST", "10.151.28.2"),
+            port=int(os.getenv("PGPORT", 5432)),
+            dbname=os.getenv("PGDATABASE", "mark_web"),
+            user=os.getenv("MARK_WORKER_PG_USER", "mark_worker"),
+            password=password,
+            connect_timeout=3,
+        )
+    except psycopg2.OperationalError as exc:
+        pytest.skip(f"Live DB unreachable: {exc}")
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                # 1. Test enqueue with state='queued' and finish with error=null
+                test_elr = "ADI2699999"
+                cur.execute("DELETE FROM mark_app.work_item WHERE elr_no = %s;", (test_elr,))
+                ok = enqueue(cur, None, test_elr, "recheck")
+                assert ok is True
+
+                cur.execute("SELECT item_id, state, error FROM mark_app.work_item WHERE elr_no = %s;", (test_elr,))
+                item = cur.fetchone()
+                assert item[1] == "queued"
+                item_id = item[0]
+
+                # Simulate prior error, then finish()
+                cur.execute("UPDATE mark_app.work_item SET error = 'stale error' WHERE item_id = %s;", (item_id,))
+                finish(cur, item_id, revision=99)
+                cur.execute("SELECT state, revision, error FROM mark_app.work_item WHERE item_id = %s;", (item_id,))
+                fin_row = cur.fetchone()
+                assert fin_row[0] == "done"
+                assert fin_row[1] == 99
+                assert fin_row[2] is None
+
+                # 2. Test write_result SQL columns (job_result, line_result with final_mark/db_mark, elr_snapshot with jsonb)
+                job = JobResult(
+                    elr_no=test_elr,
+                    processing_status=ProcessingStatus.DONE,
+                    verification_status=VerificationStatus.MATCH_ALL,
+                    comparisons=(
+                        LineComparison(
+                            side=Side.TOP,
+                            line_no=1,
+                            expected="MARK1",
+                            oracle="MARK1",
+                            status=LineStatus.MATCH,
+                        ),
+                    ),
+                    layout_source="auto",
+                )
+                meta = ElrMeta(elr_no=test_elr, product_no="P99", top_mark_id=1, status="A", current_step="6")
+                oracle_row = {"ELR_NO": test_elr, "TOP_MARK1": "MARK1", "STATUS": "A"}
+                rev_info = {
+                    "run_id": 22,
+                    "oracle_fp": "ofp_test_schema",
+                    "docs_fp": "dfp_test_schema",
+                    "version_fp": "vfp_test_schema",
+                    "result_fp": "rfp_test_schema",
+                    "changed": "manual",
+                    "docs_probe": {"dummy": {"size": 1, "mtime": 1.0}},
+                }
+
+                # Test insertion of job_result, line_result, elr_snapshot without committing
+                new_rev = write_result(
+                    cur,
+                    job,
+                    meta,
+                    oracle_row,
+                    resolution=None,
+                    revision_info=rev_info,
+                )
+                assert new_rev >= 1
+
+                # Verify line_result column values in DB
+                cur.execute(
+                    "SELECT final_mark, db_mark, status FROM mark_logic.line_result WHERE elr_no = %s;",
+                    (test_elr,),
+                )
+                l_res = cur.fetchall()
+                assert len(l_res) == 1
+                assert l_res[0][0].strip() == "MARK1"
+                assert l_res[0][1].strip() == "MARK1"
+                assert l_res[0][2] == "MATCH"
+
+                # Always rollback so no test data remains
+                conn.rollback()
+    finally:
+        conn.close()
+
 
 
 

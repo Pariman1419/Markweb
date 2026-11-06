@@ -63,8 +63,11 @@ class CycleResult(str, Enum):
     ERROR = "ERROR"
 
 
-def probe_resolution(resolution: DocumentResolution | None) -> dict[str, dict[str, Any]]:
-    """Capture path, size, and mtime for resolved ABS and SLR files."""
+def probe_resolution(
+    resolution: DocumentResolution | None,
+    work_dir: Path | str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Capture path, size, and mtime for resolved ABS and SLR files on NAS storage only."""
     if not resolution:
         return {}
     probe: dict[str, dict[str, Any]] = {}
@@ -76,6 +79,12 @@ def probe_resolution(resolution: DocumentResolution | None) -> dict[str, dict[st
             paths.append(slr_ref.path)
 
     for p_str in sorted(set(paths)):
+        norm = p_str.replace("/", "\\").lower()
+        # Exclude extracted/temporary files inside the work directory
+        if norm.startswith("work\\") or norm.startswith(".\\work\\") or "\\work\\" in norm or "/work/" in norm.replace("\\", "/"):
+            continue
+        if work_dir and str(work_dir).replace("/", "\\").lower() in norm:
+            continue
         p = Path(p_str)
         try:
             st = p.stat()
@@ -224,7 +233,7 @@ def run_worker_cycle(
                 logger.warning("Document resolution error for %s: %s", elr_no, exc)
                 resolution = None
             dfp = docs_fp(resolution)
-            current_probe = probe_resolution(resolution)
+            current_probe = probe_resolution(resolution, job_work)
 
         # Extract marking image from resolved ABS if available
         marking_image_path: Path | None = None

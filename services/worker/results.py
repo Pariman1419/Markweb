@@ -335,8 +335,8 @@ def write_result(
             """
             insert into mark_logic.line_result (
                 run_id, elr_no, abs_no, side, line_no, month,
-                expected_mark, oracle_mark, final_status, cause, detail,
-                status, raw_status, review_detail, warning, hold_detail, layout_source
+                final_mark, db_mark, status, cause, cause_detail,
+                system_status, final_status, review_detail, warning, hold_detail, layout_source
             ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             """,
             lrow,
@@ -358,7 +358,7 @@ def write_result(
             elr_no,
             getattr(meta, "top_mark_id", None),
             json.dumps(line_extra),
-            oracle_top_raw,
+            json.dumps(oracle_top_raw),
             resolution.abs.path if resolution and resolution.abs else None,
             resolution.abs.sha256 if resolution and resolution.abs else None,
         ),

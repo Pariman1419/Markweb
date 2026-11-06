@@ -63,6 +63,27 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Task 6 Step 1 Cleanup & Step 2 Dev E2E Walkthrough (ADI2607006)
+- **Database Scan Invalidation**:
+  - Executed cleanup on `10.151.28.2`: `scan_id=2` marked `invalid: oracle unavailable (oracledb missing)`, `scan_id=1` marked `orphan: oracle connect failed before fail_scan fix`.
+  - Confirmed via `SELECT scan_id, finished_at, error FROM mark_app.scan`.
+- **Task 6 Step 2 Walkthrough (ADI2607006)**:
+  - `POST /api/elrs/ADI2607006/oracle-check` returned HTTP 200 `{"queued": false, "reason": "NOT_MARK_REVIEW_STEP"}` (Oracle ACTL step is 7, review step is 6).
+  - Created notification in `mark_app.notification` (`kind='not_eligible'`).
+  - `POST /api/elrs/ADI2607006/recheck` returned HTTP 200 `{"queued": true}` and queued work item.
+  - **Surgical Fixes Applied**:
+    1. `services/api/mark_api/repo.py`: Added `state='queued'` in `Repo.enqueue_work_item`.
+    2. `services/worker/results.py`: Fixed `line_result` insert statement columns (`final_mark`, `db_mark`, `status`, `cause`, `cause_detail`, `system_status`, `final_status`, etc.) matching DB table schema.
+    3. `services/worker/results.py`: Serialized `oracle_top_raw` with `json.dumps()` for JSONB column in `elr_snapshot`.
+  - Worker executed with `--once`:
+    - Resolved real NAS documents (`\\th1srnas03\ELR\ADI\ELR Online 2026\7_JUL\ADI2607006`).
+    - Contacted live A100 inference service (`10.151.28.9:50051`).
+    - Generated run `run_id: 22` (`period: auto-2026-11-06`).
+    - Inserted `job_result` (DONE, MATCH_ALL, NOT_REVIEWED) and 5 `line_result` rows (5/5 MATCH).
+    - Created `elr_revision` 1 (`changed: manual`, probe captured).
+  - Verified via `GET /api/elrs/lookup?elr=ADI2607006` -> returns `in_system: true`, revision 1, status `DONE`.
+- **Verification**: 467 passed unit tests. Live pipeline end-to-end verified across Oracle, NAS, A100, PostgreSQL, API and Worker.
+
 ### 2026-11-06 — Fix(API, Worker): Fail Loudly Without Oracle & Retry Attempts Integrity
 - **Commit**: `fix(api,worker): fail loudly without Oracle, retry attempts`
 - **Key Changes**:
@@ -70,7 +91,7 @@
   2. `oracle-check` returns HTTP 503 when Oracle fails, preventing false `not_in_oracle` notifications.
   3. Added `oracledb>=2.0.0` to `pyproject.toml[api]` and installed Oracle Instant Client 21.13 in `services/api/Dockerfile` with `libaio1t64` and `ldconfig`. Overrode `ORACLE_CLIENT_DIR` in `docker-compose.yml`.
   4. Fixed worker retry attempts: `fail()` and `fail_with_backoff()` in `services/worker/queue.py` persist `attempts = item.attempts` directly into DB, preventing rolled-back attempts from stalling retries. Tested 4th attempt transitions to `failed`. Added 5 consecutive cycle error exit with code 1 in `--once` mode.
-  5. Invalidation & Re-scan: Marked `scan_id=2` as invalid. Re-ran Task 6 Step 1 with live Oracle inside container -> `scan_id: 3`, queried Oracle ACTL, confirmed actual `found: 0, queued: 0`.
+  5. Invalidation & Re-scan: Executed DB cleanup on `mark_app.scan` (`scan_id=2` marked `invalid: oracle unavailable (oracledb missing)`, `scan_id=1` marked `orphan: oracle connect failed before fail_scan fix`). Re-ran Task 6 Step 1 with live Oracle inside container -> `scan_id: 3`, queried Oracle ACTL, confirmed actual `found: 0, queued: 0`.
 - **Verification**: 467 unit tests passed (`pytest tests -q --ignore=tests/regression`). Live Oracle verified inside `api` container.
 
 

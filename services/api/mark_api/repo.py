@@ -532,8 +532,8 @@ class Repo:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    insert into mark_app.work_item (scan_id, elr_no, reason)
-                    values (%s, %s, %s)
+                    insert into mark_app.work_item (scan_id, elr_no, state, reason)
+                    values (%s, %s, 'queued', %s)
                     on conflict (elr_no) where state in ('queued', 'running', 'retry') do nothing
                     returning item_id;
                     """,
