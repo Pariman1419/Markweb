@@ -16,7 +16,7 @@ pipeline {
   // properties); fallbacks are the dev workstation values. Declared parameters reset to these every build.
   parameters {
     booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Run docker compose up and the smoke test after CI')
-    booleanParam(name: 'WORKER', defaultValue: (env.MARK_DEFAULT_WORKER ?: 'false').toBoolean(), description: 'Include the background auto-review worker in docker compose build and deploy')
+    booleanParam(name: 'WORKER', defaultValue: env.MARK_DEFAULT_WORKER == 'true', description: 'Include the background auto-review worker in docker compose build and deploy')
     string(name: 'MARK_WEB_PORT', defaultValue: env.MARK_DEFAULT_WEB_PORT ?: '8088', description: 'Host port for NGINX')
     string(name: 'MARK_FILES_HOST_DIR', defaultValue: env.MARK_DEFAULT_FILES_DIR ?: 'D:/CIM Project/mark-web/data/files', description: 'Host folder with the ABS images (git-ignored; mounted read-only)')
     string(name: 'MARK_LOG_HOST_DIR', defaultValue: env.MARK_DEFAULT_LOG_DIR ?: 'D:/CIM Project/mark-web/logs', description: 'Host folder for persistent API logs')
