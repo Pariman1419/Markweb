@@ -63,6 +63,14 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Network Restored & Pre-Task 6 CI Verification
+- **Status**: Workstation reconnected to corporate network (`10.153.88.227`).
+- **Target Reachability Verified**:
+  - PostgreSQL DB `10.151.28.2:5432`: TCP connect OK.
+  - A100 inference service `10.151.28.9:50051`: TCP connect OK.
+  - Local container stack `http://localhost:8088/api/ready`: HTTP 200 OK `{"status":"ready"}`.
+- **Next**: CI build #49 to verify green Jenkins pipeline across all unit tests (464 passed), Docker build, deploy, and smoke test, followed by Task 6 (Dev End-to-End; Step 2 is [USER] selection of real ELR).
+
 ### 2026-11-06 — Fix(API): Scan Lock and Watermark Integrity
 - **Commit**: `fix(api): scan lock and watermark integrity`
 - **Key Changes**:

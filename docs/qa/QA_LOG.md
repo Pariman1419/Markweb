@@ -1,5 +1,17 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Pre-Task 6 Verification & Corporate Network Restoration
+
+### Context & Implementation
+- During Jenkins build #48, the workstation temporarily disconnected from the corporate VPN/LAN, causing the deploy smoke test to fail when attempting to connect to remote PostgreSQL DB at `10.151.28.2:5432`.
+- Workstation reconnected to corporate network (`10.153.88.227`).
+- Verified network reachability:
+  - `10.151.28.2:5432` (PostgreSQL): `TcpTestSucceeded : True`
+  - `10.151.28.9:50051` (A100 inference service): `TcpTestSucceeded : True`
+  - `http://localhost:8088/api/ready`: HTTP 200 OK `{"status":"ready"}`
+- Triggering CI build #49 to obtain green build gate before proceeding to Task 6 (Dev End-to-End).
+
+
 ## [2026-11-06] Fix(API): Scan Lock and Watermark Integrity
 
 ### Context & Implementation
