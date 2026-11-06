@@ -142,3 +142,22 @@ To ensure only **one** worker runs against the production database:
 4. **End-to-End Walkthrough**:
    - Trigger manual recheck for an ELR (e.g., ADI2607006) via the web UI or API.
    - Worker automatically processes the item and writes the next revision (`changed = manual`).
+
+---
+
+## 7. Production Deployment Record (10.153.90.17)
+
+- **Status**: Live & Verified
+- **Base URL**: `http://10.153.90.17:8093`
+- **Commit SHA**: `a8a5fde`
+- **Jenkins Controller**: Build #3 (`SUCCESS`, 496 tests passed, 3 skipped, Smoke OK, Real-DB check 8/8)
+- **Active Containers**: `mark-web-api-1`, `mark-web-web-1` (listening on `0.0.0.0:8093->80/tcp`), `mark-web-worker-1` (connected to CIFS mount `nas_elr` at `/mnt/elr`).
+- **End-to-End Verification (from Dev Workstation)**:
+  - `curl.exe -i http://10.153.90.17:8093/api/ready` -> HTTP 200 `{"status":"ready"}`
+  - `curl.exe -i http://10.153.90.17:8093/api/runs` -> HTTP 401 Unauthorized (`Cache-Control: no-store`, CSP intact)
+  - `POST http://10.153.90.17:8093/api/elrs/ADI2607006/recheck` -> HTTP 200 `{"queued": true}` (work item 15)
+  - Worker on `.17` processed item 15 to `done`, producing `elr_revision` 4 (`changed: manual`, `run_id: 26`, `result_unchanged: true`, `docs_probe` keys prefixed with `/mnt/elr/ADI/`).
+  - Read-only integrity: `check_trial_readonly.py --run 19` confirmed 8/8 OK; runs 1–19 remain completely untouched.
+- **Operational Note on Windows User Environment**:
+  - Windows user-level environment variables take precedence over values defined in `.env` during Docker Compose variable substitution. Ensure host user environment does not shadow `.env` credentials when creating or recreating CIFS volumes.
+

@@ -1,5 +1,22 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Production Live on 10.153.90.17:8093 & CIFS Volume Environment Resolution
+
+### Context & Implementation
+- Production stack (API, Web, Worker) is fully live on `http://10.153.90.17:8093` via Jenkins Build #3.
+- All acceptance criteria passed:
+  - Ready probe returns HTTP 200 with `{"status":"ready"}`.
+  - Smoke test passed, Real-DB check 8/8 passed.
+  - CIFS volume `nas_elr` mounted read-only at `/mnt/elr`, listing 11 month folders under `/mnt/elr/ADI/ELR Online 2026`.
+  - Worker executed successfully against live A100 inference (`10.151.28.9:50051`), Oracle (`10.151.26.3:1521`), and Postgres (`10.151.28.2:5432`).
+  - End-to-end recheck walkthrough on `ADI2607006`: created revision 4 (`changed: manual`, `run_id: 26`, `result_fp` unchanged).
+  - Safety verification: `check_trial_readonly.py --run 19` confirmed runs 1–19 remain 100% untouched.
+
+### Lessons Learned / Knowledge Base
+- **Docker Compose Variable Precedence**: Host Windows user environment variables take precedence over `.env` file definitions. If a user has older `NAS_USER` or `NAS_PASSWORD` set in Windows User Environment, `docker compose` will interpolate those into CIFS volume `driver_opts` instead of the `.env` values.
+- **CIFS Volume Caching**: Named local volumes store driver options at volume creation time. Changes to `.env` require stopping the service and executing `docker volume rm mark-web_nas_elr` before redeploying.
+
+
 ## [2026-11-06] Declarative parameters{} rejects expressions
 
 - **Q:** Why did build 66 fail with "Expected a symbol @ line 19"?

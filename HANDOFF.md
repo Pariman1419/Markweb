@@ -63,6 +63,25 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Deploy 17 Task 5 Complete: Production Live on 10.153.90.17:8093 & Hand-off to Codex
+- **Production Host (10.153.90.17:8093) Deployed**:
+  - Jenkins Build #3 passed (`Finished: SUCCESS`, 496 tests passed, 3 skipped, Smoke test OK, Real-DB check 8/8 OK).
+  - All 3 containers (`mark-web-api-1`, `mark-web-web-1`, `mark-web-worker-1`) live and running `Up`.
+  - Worker mounted CIFS volume `nas_elr` cleanly (11 month folders accessible under `/mnt/elr/ADI/ELR Online 2026`), logs report `Starting auto-review worker` with 0 NAS errors.
+- **Verification from Dev Workstation**:
+  - `curl.exe -i http://10.153.90.17:8093/api/ready` -> HTTP 200 `{"status":"ready"}`.
+  - `curl.exe -i http://10.153.90.17:8093/api/runs` -> HTTP 401 Unauthorized (`Cache-Control: no-store`, CSP security headers verified).
+  - End-to-end worker walkthrough: Triggered `POST http://10.153.90.17:8093/api/elrs/ADI2607006/recheck` (HTTP 200 `queued: true`).
+  - Worker on `.17` processed work item 15 to `done`, writing `elr_revision` 4 (`changed: manual`, `run_id: 26`, `result_unchanged: true`, `docs_probe` paths prefixed with `/mnt/elr/ADI/`).
+  - Safety check: `python scripts/check_trial_readonly.py --run 19` confirmed 8/8 OK. Runs 1–19 remain completely untouched (insert-only).
+- **Single-Worker Enforcement**:
+  - Confirmed 0 native python workers and 0 worker containers running on dev workstation.
+  - User to set `DEPLOY=false` on dev Jenkins job `mark-web` so dev host remains CI-only.
+- **Handoff to Codex (Airflow Tasks 3 & 4)**:
+  - Airflow Connection `mark_api`: Set host/URL to `http://10.153.90.17:8093`.
+  - Proceed with Airflow DAG scheduling (plan Tasks 3 & 4) targeting the production API endpoint.
+
+
 ### 2026-11-06 — Jenkinsfile per-host defaults: build 66 red, build 67 green
 - Build 66 failed to compile: declarative `parameters{}` rejected `(env.MARK_DEFAULT_WORKER ?: 'false').toBoolean()` ("Expected a symbol @ line 19"). `78df6bf` uses `env.MARK_DEFAULT_WORKER == 'true'`; dev build 67 is green (499 passed, `MARK_WEB_PORT=8088`, `WORKER=false`, no worker container).
 - Not validated against Jenkins `/pipeline-model-converter/validate` (needs a login; no token available to the agent). A variant with top-level `def DEF_*` was dropped unpushed.
