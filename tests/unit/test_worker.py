@@ -1047,6 +1047,7 @@ def test_main_connects_as_mark_worker_and_runs_once(monkeypatch):
         pg_connect_args.update(kwargs)
         return MockPgConn()
 
+    monkeypatch.setattr("services.worker.main.check_nas_root", lambda *a: None)
     monkeypatch.setattr("psycopg2.connect", mock_pg_connect)
     monkeypatch.setattr("services.worker.main.connect_actl", lambda: MockPgConn())
     monkeypatch.setattr("services.worker.main.run_worker_cycle", lambda *args, **kwargs: CycleResult.NO_ITEM)
@@ -1203,6 +1204,7 @@ def test_worker_once_exits_with_error_code_after_5_consecutive_errors(monkeypatc
     def mock_failing_cycle(*args, **kwargs):
         return CycleResult.ERROR
 
+    monkeypatch.setattr("services.worker.main.check_nas_root", lambda *a: None)
     monkeypatch.setattr("services.worker.main.run_worker_cycle", mock_failing_cycle)
     monkeypatch.setattr("psycopg2.connect", lambda **kw: FakePgCursor())
     monkeypatch.setattr("services.worker.main.connect_actl", lambda: FakePgCursor())
@@ -1230,6 +1232,7 @@ def test_worker_once_mode_loops_until_no_item(monkeypatch):
         calls.append(ret)
         return ret
 
+    monkeypatch.setattr("services.worker.main.check_nas_root", lambda *a: None)
     monkeypatch.setattr("services.worker.main.run_worker_cycle", mock_run_cycle)
     monkeypatch.setattr("psycopg2.connect", lambda **kw: FakePgCursor())
     monkeypatch.setattr("services.worker.main.connect_actl", lambda: FakePgCursor())
@@ -1622,3 +1625,29 @@ def test_schema_migration_0008_manual_revision_partial_index():
 
 
 
+
+
+def test_check_nas_root_missing_exits_2(tmp_path):
+    """Task 3 Step 1: missing ELR Online 2026 directory exits with code 2."""
+    from services.worker.main import check_nas_root
+    with pytest.raises(SystemExit) as exc:
+        check_nas_root(tmp_path)
+    assert exc.value.code == 2
+
+
+def test_check_nas_root_empty_exits_2(tmp_path):
+    """Task 3 Step 1: empty ELR Online 2026 directory exits with code 2."""
+    from services.worker.main import check_nas_root
+    (tmp_path / "ELR Online 2026").mkdir()
+    with pytest.raises(SystemExit) as exc:
+        check_nas_root(tmp_path)
+    assert exc.value.code == 2
+
+
+def test_check_nas_root_ok(tmp_path):
+    """Task 3 Step 1: ELR Online 2026 with at least one entry passes check."""
+    from services.worker.main import check_nas_root
+    target = tmp_path / "ELR Online 2026"
+    target.mkdir()
+    (target / "1_JAN").mkdir()
+    check_nas_root(tmp_path)

@@ -1,5 +1,24 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Deploy 17 Task 3: Worker Service and Read-Only CIFS NAS Mount in Compose
+
+### Context & Implementation
+- Added compose service `worker` under `profiles: ["worker"]` using `services/api/Dockerfile`, command `python services/worker/main.py`, read-only CIFS mount of `//th1srnas03/ELR` at `/mnt/elr`, and `./work:/app/work`.
+- Added startup check `check_nas_root(root: Path)` in `services/worker/main.py` that verifies `ELR Online 2026` folder presence and non-emptiness; exits with code 2 on failure.
+- Configured CIFS mount options with `ro,vers=3.0,domain=${NAS_DOMAIN:-TH},username=${NAS_USER},password=${NAS_PASSWORD},uid=1000,gid=1000`. Windows AD accounts with `DOMAIN\user` syntax require domain separation for Linux CIFS mount driver options.
+- Added `NAS_DOMAIN=TH` and `MARK_WORKER_PG_PASSWORD=` to `.env.example`, and added `work/` to `.gitignore`.
+
+### Verification
+- Unit test suite: 499 tests passed (`pytest tests -q --ignore=tests/regression`), including 3 new tests for `check_nas_root`.
+- Default `docker compose config --services` outputs only `api` and `web`, preserving dev deploy behavior.
+- Proved CIFS mount inside container: `docker compose --profile worker run --rm worker` printed 11 month directories in `/mnt/elr/ADI/ELR Online 2026`.
+- Proved worker end-to-end inside container:
+  - Triggered recheck via API: `POST /api/elrs/ADI2607006/recheck` returned 200 `{"queued": true}` (work item 14).
+  - Executed `docker compose --profile worker run --rm worker python services/worker/main.py --once`.
+  - Work item 14 updated to `state = 'done'`, `error = NULL`, `revision = 3`.
+  - Created `elr_revision` 3: `changed = 'manual'`, `run_id = 25`, `result_fp` matched revision 1 and 2, and `docs_probe` keys prefixed with `/mnt/elr/ADI/` (NAS only, work directory excluded).
+
+
 ## [2026-11-06] Jenkins on .17 runs as a Linux container
 
 - **Q:** Can the existing `Jenkinsfile` run on the .17 Jenkins (`jenkins/jenkins:lts-jdk21` in Docker Desktop)?

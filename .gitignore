@@ -19,3 +19,4 @@ models/**/inference.json
 !.env.example
 reports/
 logs/
+work/

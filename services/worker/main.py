@@ -416,6 +416,25 @@ def run_worker_cycle(
         return CycleResult.ERROR
 
 
+def check_nas_root(root: Path) -> None:
+    """Verify that the NAS root is accessible and contains ELR Online 2026 with entries."""
+    target = root / "ELR Online 2026"
+    if not target.is_dir():
+        logger.error("NAS root not readable: %s", root)
+        sys.stderr.write(f"NAS root not readable: {root}\n")
+        raise SystemExit(2)
+    try:
+        has_entries = any(target.iterdir())
+    except Exception as exc:
+        logger.error("NAS root not readable: %s (%s)", root, exc)
+        sys.stderr.write(f"NAS root not readable: {root}\n")
+        raise SystemExit(2) from exc
+    if not has_entries:
+        logger.error("NAS root not readable: %s", root)
+        sys.stderr.write(f"NAS root not readable: {root}\n")
+        raise SystemExit(2)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Mark Automation auto-review worker")
     parser.add_argument("--once", action="store_true", help="Process until queue is empty, then exit")
@@ -427,6 +446,8 @@ def main() -> None:
     logger.info("Starting auto-review worker (id=%s, once=%s)", args.worker_id, args.once)
 
     load_env()
+    nas_root = Path(os.environ.get("NAS_ROOT", "."))
+    check_nas_root(nas_root)
     conn_pg = psycopg2.connect(
         host=os.environ.get("PGHOST", "10.151.28.2"),
         port=int(os.environ.get("PGPORT", "5432")),

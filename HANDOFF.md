@@ -63,6 +63,22 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Deploy 17 Task 3: Worker Service and Read-Only CIFS NAS Mount in Compose
+- **Startup Check (`check_nas_root`)**:
+  - Implemented in `services/worker/main.py`: verifies `ELR Online 2026` folder exists and contains entries; exits with exit code 2 if unreadable or empty.
+  - Added unit tests `test_check_nas_root_missing_exits_2`, `test_check_nas_root_empty_exits_2`, and `test_check_nas_root_ok` in `tests/unit/test_worker.py`.
+- **Compose Service & CIFS Volume**:
+  - Added `worker` service to `docker-compose.yml` under `profiles: ["worker"]` with `NAS_ROOT=/mnt/elr/ADI`, `MARK_INFERENCE=service`, Oracle client vars, and volumes `nas_elr:/mnt/elr:ro` and `./work:/app/work`.
+  - Added CIFS volume `nas_elr` mounting `//th1srnas03/ELR` with `ro,vers=3.0,domain=${NAS_DOMAIN:-TH},username=${NAS_USER},password=${NAS_PASSWORD},uid=1000,gid=1000`.
+  - Added `NAS_DOMAIN=TH` and `MARK_WORKER_PG_PASSWORD=` to `.env.example`.
+- **Verification on Dev PC**:
+  - `docker compose config` (no profile) lists only `api` and `web`, preserving unchanged Jenkins deployment on dev.
+  - Full unit test suite: 499 tests passed (`pytest tests -q --ignore=tests/regression`).
+  - Proved CIFS mount inside container: `docker compose --profile worker run --rm worker python -c "import os,pathlib;p=pathlib.Path(os.environ['NAS_ROOT'],'ELR Online 2026');print(sum(1 for _ in p.iterdir()))"` returned 11 month directories.
+  - Proved worker container end-to-end: triggered API recheck for `ADI2607006` (`POST /api/elrs/ADI2607006/recheck` returned 200 `queued: true`), ran worker container with `--once`.
+  - Verified in PostgreSQL: Work item 14 completed with `state = 'done'`, `error = NULL`, `revision = 3`.
+  - Verified `mark_app.elr_revision`: Revision 3 created with `changed = 'manual'`, `run_id = 25`, and `docs_probe` keys prefixed with `/mnt/elr/ADI/`. Result fingerprint matched previous revisions.
+
 ### 2026-11-06 — Deploy plan updated: development moves to .17, Jenkins on .17
 - **User:** day-to-day work moves to .17 after this plan; Jenkins is already installed there as Docker container `jenkins` (`jenkins/jenkins:lts-jdk21`, host 8080, volume `jenkins_home`).
 - **Plan change** (`docs/superpowers/plans/2026-11-06-deploy-17.md`): Task 4 adds a `WORKER` parameter to `Jenkinsfile`, env-driven `scripts/jenkins-agent.bat`, and tool/GitHub checks in `preflight_17.ps1`. Task 5 now sets up a Windows agent `mark-web-local` on the .17 host (the Linux controller cannot run `bat`), job polling `phase2/trial` every 5 min, then the first build is the deploy. The dev PC Jenkins becomes CI-only (`DEPLOY=false`).

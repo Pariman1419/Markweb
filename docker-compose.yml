@@ -37,3 +37,37 @@ services:
       options:
         max-size: "20m"
         max-file: "10"
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    profiles:
+      - worker
+    command: ["python", "services/worker/main.py"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - nas_elr:/mnt/elr:ro
+      - ./work:/app/work
+    environment:
+      - NAS_ROOT=/mnt/elr/ADI
+      - MARK_INFERENCE=service
+      - PYTHONPATH=/app:/app/services/api
+      - ORACLE_CLIENT_DIR=/opt/oracle/instantclient_21_13
+      - LD_LIBRARY_PATH=/opt/oracle/instantclient_21_13
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "10"
+
+volumes:
+  nas_elr:
+    driver: local
+    driver_opts:
+      type: cifs
+      device: "//th1srnas03/ELR"
+      o: "ro,vers=3.0,domain=${NAS_DOMAIN:-TH},username=${NAS_USER},password=${NAS_PASSWORD},uid=1000,gid=1000"
+
