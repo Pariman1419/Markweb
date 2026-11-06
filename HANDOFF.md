@@ -68,6 +68,12 @@
 - **Plan change** (`docs/superpowers/plans/2026-11-06-deploy-17.md`): Task 4 adds a `WORKER` parameter to `Jenkinsfile`, env-driven `scripts/jenkins-agent.bat`, and tool/GitHub checks in `preflight_17.ps1`. Task 5 now sets up a Windows agent `mark-web-local` on the .17 host (the Linux controller cannot run `bat`), job polling `phase2/trial` every 5 min, then the first build is the deploy. The dev PC Jenkins becomes CI-only (`DEPLOY=false`).
 - **Port note:** 8080 on .17 is now Jenkins (memory said Streamlit; preflight decides).
 
+### 2026-11-06 — Deploy 17 Task 2: Mount-Independent docs_fp
+- Updated `docs_fp` to relativize document paths under `roots=(nas_root, work_dir)`.
+- Tested UNC mount vs Posix container mount `/mnt/elr/ADI`: identical `docs_fp`.
+- 496 unit tests passed.
+- Note: ADI2607006 revisions 1–2 hold old absolute-path `docs_fp`, so next automatic check will record one `changed=docs` revision (accepted, no data fix).
+
 ### 2026-11-06 — Deploy 17 Task 1: Merge phase2/airflow into phase2/trial
 - Merged origin/phase2/airflow into phase2/trial for deployment to 10.153.90.17.
 - Retained both changelogs in chronological order.

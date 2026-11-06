@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path, PureWindowsPath, PurePosixPath
 from mark_engine.domain.models import DocType, DocumentRef, DocumentResolution, JobResult, ProcessingStatus, ExpectedMark, ExpectedLine, LineComparison, LineStatus, Side
 from mark_engine.history.fingerprint import (
     ORACLE_FP_FIELDS,
@@ -54,6 +55,66 @@ def test_docs_fp_changes_with_revision_file():
     res_multi_a = docs_fp(DocumentResolution(elr_no="ELR001", decision="RESOLVED", abs=ref_abs_v1, slr=(ref_slr, ref_slr2)))
     res_multi_b = docs_fp(DocumentResolution(elr_no="ELR001", decision="RESOLVED", abs=ref_abs_v1, slr=(ref_slr2, ref_slr)))
     assert res_multi_a == res_multi_b
+
+
+def test_docs_fp_same_for_unc_and_posix_mount():
+    """Task 2 Step 1: UNC and Posix mount paths produce identical docs_fp when roots are provided."""
+    work_dir_a = PureWindowsPath(r"C:\work\ADI2607006")
+    roots_a = (PureWindowsPath(r"\\th1srnas03\ELR\ADI"), work_dir_a)
+    ref_abs_a = DocumentRef(
+        path=r"\\th1srnas03\ELR\ADI\ELR Online 2026\7_JUL\ADI2607006\ABS047695C.pdf",
+        sha256="sha_abs_common",
+        doc_type=DocType.ABS,
+    )
+    res_a = DocumentResolution(elr_no="ADI2607006", decision="RESOLVED", abs=ref_abs_a, slr=())
+
+    work_dir_b = PurePosixPath("/tmp/work/ADI2607006")
+    roots_b = (PurePosixPath("/mnt/elr/ADI"), work_dir_b)
+    ref_abs_b = DocumentRef(
+        path="/mnt/elr/ADI/ELR Online 2026/7_JUL/ADI2607006/ABS047695C.pdf",
+        sha256="sha_abs_common",
+        doc_type=DocType.ABS,
+    )
+    res_b = DocumentResolution(elr_no="ADI2607006", decision="RESOLVED", abs=ref_abs_b, slr=())
+
+    fp_a = docs_fp(res_a, roots=roots_a)
+    fp_b = docs_fp(res_b, roots=roots_b)
+    assert fp_a == fp_b
+
+
+def test_docs_fp_extracted_slr_relative_to_work_dir():
+    """Task 2 Step 1: Extracted SLR paths relative to different work_dirs produce identical docs_fp."""
+    work_dir_a = PureWindowsPath(r"C:\work\ADI2607006")
+    roots_a = (PureWindowsPath(r"\\th1srnas03\ELR\ADI"), work_dir_a)
+    ref_slr_a = DocumentRef(
+        path=r"C:\work\ADI2607006\extracted\abc123sha\SLR245168.pdf",
+        sha256="sha_slr_common",
+        doc_type=DocType.SLR,
+    )
+    res_a = DocumentResolution(elr_no="ADI2607006", decision="RESOLVED", abs=None, slr=(ref_slr_a,))
+
+    work_dir_b = PurePosixPath("/app/work/ADI2607006")
+    roots_b = (PurePosixPath("/mnt/elr/ADI"), work_dir_b)
+    ref_slr_b = DocumentRef(
+        path="/app/work/ADI2607006/extracted/abc123sha/SLR245168.pdf",
+        sha256="sha_slr_common",
+        doc_type=DocType.SLR,
+    )
+    res_b = DocumentResolution(elr_no="ADI2607006", decision="RESOLVED", abs=None, slr=(ref_slr_b,))
+
+    fp_a = docs_fp(res_a, roots=roots_a)
+    fp_b = docs_fp(res_b, roots=roots_b)
+    assert fp_a == fp_b
+
+
+def test_docs_fp_without_roots_unchanged():
+    """Task 2 Step 1: docs_fp without roots matches the exact existing implementation hex."""
+    ref_abs = DocumentRef(path="abs.pdf", sha256="hash_abs", doc_type=DocType.ABS)
+    ref_slr = DocumentRef(path="slr.pdf", sha256="hash_slr", doc_type=DocType.SLR)
+    res = DocumentResolution(elr_no="ELR001", decision="RESOLVED", abs=ref_abs, slr=(ref_slr,))
+    expected_hex = "9a47bd32ffad40321e5f17f73932a2dfa9ce0cc30510d78a6564bd3739e3cb68"
+    assert docs_fp(res) == expected_hex
+    assert docs_fp(res, roots=()) == expected_hex
 
 
 def test_version_fp():

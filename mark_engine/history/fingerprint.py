@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, Mapping
+from pathlib import Path, PurePath, PureWindowsPath, PurePosixPath
+from typing import Any, Mapping, Sequence
 
 from mark_engine.domain.models import DocumentResolution, JobResult
 
@@ -58,9 +59,35 @@ def changed_oracle_fields(old_row: Mapping[str, Any], new_row: Mapping[str, Any]
     return [f for f in ORACLE_FP_FIELDS if old_c[f] != new_c[f]]
 
 
-def docs_fp(resolution: DocumentResolution | None) -> str:
+def _relativize_path(path_str: str | Path | PurePath, roots: Sequence[Path | PurePath | str]) -> str:
+    path_raw = str(path_str)
+    for idx, root in enumerate(roots):
+        root_str = str(root)
+        is_windows = (
+            isinstance(root, PureWindowsPath)
+            or "\\" in root_str
+            or (len(root_str) >= 2 and root_str[1] == ":")
+            or root_str.startswith(r"\\")
+        )
+        if is_windows:
+            p_pure = PureWindowsPath(path_raw)
+            root_pure = PureWindowsPath(root_str)
+        else:
+            p_pure = PurePosixPath(path_raw)
+            root_pure = PurePosixPath(root_str)
+
+        try:
+            rel = p_pure.relative_to(root_pure)
+            return f"{idx}:{rel.as_posix()}"
+        except (ValueError, TypeError):
+            continue
+    return path_raw
+
+
+def docs_fp(resolution: DocumentResolution | None, roots: Sequence[Path | PurePath | str] = ()) -> str:
     """Compute sha256 hex digest of sorted (role, path, sha256) of resolved ABS and SLR documents.
 
+    If roots are provided, any path under one of roots is relativized to '<root index>:<relative path>'.
     If resolution is None or resolution contains no files (e.g. HOLD with no files),
     returns sha256 of "none".
     """
@@ -69,9 +96,9 @@ def docs_fp(resolution: DocumentResolution | None) -> str:
 
     entries: list[tuple[str, str, str]] = []
     if resolution.abs is not None:
-        entries.append(("abs", resolution.abs.path, resolution.abs.sha256))
+        entries.append(("abs", _relativize_path(resolution.abs.path, roots), resolution.abs.sha256))
     for slr_ref in resolution.slr:
-        entries.append(("slr", slr_ref.path, slr_ref.sha256))
+        entries.append(("slr", _relativize_path(slr_ref.path, roots), slr_ref.sha256))
 
     if not entries:
         return hashlib.sha256(b"none").hexdigest()

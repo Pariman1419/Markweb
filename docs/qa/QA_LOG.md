@@ -6,6 +6,20 @@
 - **A:** Not on the controller: the file uses `bat`/`powershell` and needs Windows Python, Node and Docker Desktop. Keep the dev-PC pattern: a Windows inbound agent (`scripts/jenkins-agent.bat`, WebSocket to `http://localhost:8080`) under the user's account, label `mark-web`. One `Jenkinsfile` serves both hosts; `WORKER=true` only on .17.
 - **Check:** `--remove-orphans` is scoped to compose project `mark-web`, so it does not remove the `jenkins` container.
 
+## [2026-11-06] Deploy 17 Task 2: Mount-Independent docs_fp
+
+### Context & Implementation
+- Updated `mark_engine/history/fingerprint.py:docs_fp` to accept `roots: Sequence[Path | PurePath | str] = ()`.
+- When roots are provided, paths under one of `roots` are relativized to `<root_index>:<relative_path>` with `/` separators.
+- Handled Windows UNC paths case-insensitively and Posix paths interchangeably.
+- `roots=()` returns the identical absolute-path hash as before (backward-compatible).
+- Updated `services/worker/main.py:run_worker_cycle` to pass `roots=(nas_base, job_work)`.
+
+### Verification
+- Added 3 unit tests in `tests/unit/test_history.py` (UNC vs Posix mount, extracted SLR under work dir, backward compatibility without roots).
+- 496 unit tests passed (`pytest tests -q --ignore=tests/regression`).
+- Note: ADI2607006 revisions 1–2 hold the old absolute-path docs_fp, so its next automatic check will record one `changed=docs` revision (accepted, no data fix).
+
 ## [2026-11-06] Deploy 17 Task 1: Merge phase2/airflow into phase2/trial
 
 ### Context & Implementation

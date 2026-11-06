@@ -227,7 +227,8 @@ def run_worker_cycle(
                 return CycleResult.SKIPPED
 
         # 6. Resolve documents from NAS and compute real docs_fp
-        root = nas_root or (Path(os.environ["NAS_ROOT"]) / "ELR Online 2026" if "NAS_ROOT" in os.environ else Path("."))
+        nas_base = nas_root or (Path(os.environ["NAS_ROOT"]) if "NAS_ROOT" in os.environ else Path("."))
+        root = nas_base / "ELR Online 2026" if (nas_base / "ELR Online 2026").exists() or "NAS_ROOT" in os.environ else nas_base
         m_list = list(months) if months else [
             "1_JAN", "2_FEB", "3_MAR", "4_APR", "5_MAY", "6_JUN",
             "7_JUL", "8_AUG", "9_SEP", "10_OCT", "11_NOV", "12_DEC"
@@ -244,7 +245,7 @@ def run_worker_cycle(
             except Exception as exc:
                 logger.warning("Document resolution error for %s: %s", elr_no, exc)
                 resolution = None
-            dfp = docs_fp(resolution)
+            dfp = docs_fp(resolution, roots=(nas_base, job_work))
             current_probe = probe_resolution(resolution, job_work)
 
         # Extract marking image from resolved ABS if available
