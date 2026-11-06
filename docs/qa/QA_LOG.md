@@ -1,5 +1,17 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] PDF Extraction Offloaded to A100 & Docker Read-Only Mount Collision Resolution
+
+### Context & Implementation
+- Heavy PDF extraction offloaded from the Windows host (`10.153.90.17`) to A100 GPU server (`10.151.28.9:50051`) via `mark-inference:0.2.0`.
+- New unified gRPC endpoint `ProcessPdf(PdfRequest)` performs in-memory PDF parsing via PyMuPDF, executes Page OCR, YOLO symbols, and Re-OCR in a single round-trip, returning both the extracted PNG and complete inference items.
+- Jenkins Build #11 succeeded (`cbb208c`, 503 tests passed, smoke test OK, Real-DB check 8/8 OK).
+- End-to-end verified with `ADI2607006` creating revision 5, and web asset endpoint `/api/files/abs/27/ADI2607006` successfully returning the 143 KB PNG with HTTP 200.
+
+### Lessons Learned / Knowledge Base
+- **Docker Nested Mounts on Read-Only Volumes**: Mounting a subpath like `- ./work:/app/data/files/work:ro` on top of a parent read-only volume `- /host/data/files:/app/data/files:ro` fails with `mkdirat ... read-only file system` if the subfolder does not pre-exist in the parent mount on the host. Always separate distinct mount hierarchies (e.g. `- ./work:/app/work:ro`) rather than nesting submounts inside read-only parent volumes.
+
+
 ## [2026-11-06] Production Live on 10.153.90.17:8093 & CIFS Volume Environment Resolution
 
 ### Context & Implementation

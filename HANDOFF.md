@@ -63,6 +63,26 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — PDF-to-A100 One-Shot Inference, Mount Collision Fix, Jenkins Build #11 Green
+- **PDF Inference Offloaded to A100 (10.151.28.9:50051)**:
+  - Added `rpc ProcessPdf(PdfRequest) returns (FullInferenceReply)` to `mark_inference.proto`.
+  - Upgraded A100 container to `mark-inference:0.2.0` with `pymupdf==1.24.11`.
+  - All heavy PDF parsing and raster rendering moved off the .17 host into A100 memory; full pipeline (raster/render200 -> Page OCR -> YOLO symbols -> Re-OCR) executes in a single gRPC round-trip.
+  - Backward compatibility preserved: original RPCs (`Page`, `Symbols`, `Rec`) intact. vLLM containers on A100 ran uninterrupted.
+- **Docker Compose Mount Collision Fix (`cbb208c`)**:
+  - Issue: Mounting `./work:/app/data/files/work:ro` failed during Jenkins deploy because `/app/data/files` was already mounted read-only, preventing `mkdirat` mountpoint creation.
+  - Resolution: Separated mount to `./work:/app/work:ro` and updated `mark.py` router to resolve work images via `MARK_WORK_ROOT=/app/work`.
+- **Jenkins Production Deployment (Build #11)**:
+  - Commit: `cbb208c`
+  - Result: `Finished: SUCCESS` (503 unit tests passed, smoke test OK, Real-DB check 8/8 OK).
+  - Containers `mark-web-web-1` (port 8093), `mark-web-api-1`, and `mark-web-worker-1` live and healthy.
+- **End-to-End Live Verification**:
+  - `GET http://10.153.90.17:8093/api/ready` -> HTTP 200 `{"status":"ready"}`.
+  - Recheck `ADI2607006`: `work_item` 25 completed in 1.0s to `state: done`, producing `elr_revision` 5 (`changed: manual`, `run_id: 27`, `result_unchanged: True`).
+  - Web UI asset check: `GET /api/elrs/ADI2607006?run=27` returned `image_available: True`, 5 lines.
+  - Asset endpoint: `GET /api/files/abs/27/ADI2607006` served extracted 143 KB PNG with HTTP 200 `image/png`.
+  - Safety check: `check_trial_readonly.py --run 19` confirmed 8/8 OK (Runs 1–19 untouched).
+
 ### 2026-11-06 — Deploy 17 Task 5 Complete: Production Live on 10.153.90.17:8093 & Hand-off to Codex
 - **Production Host (10.153.90.17:8093) Deployed**:
   - Jenkins Build #3 passed (`Finished: SUCCESS`, 496 tests passed, 3 skipped, Smoke test OK, Real-DB check 8/8 OK).
