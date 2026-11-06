@@ -220,7 +220,7 @@
 
 All endpoints write an `audit_log` row (`scan.started`, `elr.oracle_check`, `elr.recheck`) using the existing helper. The token scope check uses the existing `api_token.scopes`. Extend `scripts/create_api_token.py` to accept `--scope scan:write`.
 
-- [ ] **Step 1: Tests.** Use FakeRepo and fakes for the Oracle source; follow the style of `tests/unit/test_api_routes.py`.
+- [x] **Step 1: Tests.** Use FakeRepo and fakes for the Oracle source; follow the style of `tests/unit/test_api_routes.py`.
   - `test_scan_requires_scan_write_scope`
   - `test_scan_window_from_watermark_minus_5min`
   - `test_concurrent_scan_returns_409`
@@ -229,28 +229,28 @@ All endpoints write an `audit_log` row (`scan.started`, `elr.oracle_check`, `elr
   - `test_oracle_check_not_eligible_returns_reason`
   - `test_recheck_requires_csrf_and_role`
   - `test_notifications_read_is_per_user`
-- [ ] **Step 2:** Run them. Expected: FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run the unit suite, plus `python scripts/e2e_walkthrough.py --run 19` against `localhost:8088` after rebuilding the API container. Expected: all pass, and E2E is 12/12.
-- [ ] **Step 5:** Commit `feat(api): scans, lookup, oracle-check, recheck, notifications`, then push and wait for a green Jenkins build.
+- [x] **Step 2:** Run them. Expected: FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run the unit suite, plus `python scripts/e2e_walkthrough.py --run 19` against `localhost:8088` after rebuilding the API container. Expected: all pass, and E2E is 12/12.
+- [x] **Step 5:** Commit `feat(api): scans, lookup, oracle-check, recheck, notifications`, then push and wait for a green Jenkins build.
 
 ### Task 6: End-to-end on the dev machine (spec §8)
 
 Runs only after the user's Task 1 Step 4. Use `MARK_INFERENCE=service` and the `mark_worker` role from `.env`.
 
-- [ ] **Step 1: Initial load, dry run.**
+- [x] **Step 1: Initial load, dry run.**
   - Call `POST /api/scans` with `source=initial`, using a `scan:write` token made by `create_api_token.py`. The token goes into `.env` and is never printed.
   - Record the scan counts. Zero ELRs at step 6 is normal (spec §2.4).
-- [ ] **Step 2: User path.**
+- [x] **Step 2: User path.**
   - **[USER]** The user names one real ELR that is at step 6 (or recently was).
   - Call `oracle-check`, then run the worker with `--once`.
   - Check that the result shows in the API under the new `auto-…` run, and that `lookup` shows revision 1.
-- [ ] **Step 3: Re-check rules.**
+- [x] **Step 3: Re-check rules.**
   - Run `recheck` on the same ELR. A new revision is expected, with `changed=manual`.
   - Run `oracle-check` again with no change. Expected: `skip_unchanged`, and no new revision.
-- [ ] **Step 4: Fingerprint change (simulated).** In a unit-level script, feed the worker the same Oracle row with one `TOP_MARK` changed, through the fake source. Expected: `changed=oracle` and `changed_fields=['TOP_MARK2']`. **Do not** edit Oracle.
-- [ ] **Step 5: Safety checks.**
+- [x] **Step 4: Fingerprint change (simulated).** In a unit-level script, feed the worker the same Oracle row with one `TOP_MARK` changed, through the fake source. Expected: `changed=oracle` and `changed_fields=['TOP_MARK2']`. **Do not** edit Oracle.
+- [x] **Step 5: Safety checks.**
   - Row counts and `max(updated)` of runs 1–19 are unchanged.
   - Only INSERTs went into `mark_logic`, which you can check with the `pg_stat_user_tables` deltas.
   - Record everything in QA_LOG and HANDOFF (ELR numbers and counts only).
-- [ ] **Step 6:** Commit `test(worker): dev end-to-end of scan, oracle-check and recheck`, then push and wait for a green Jenkins build.
+- [x] **Step 6:** Commit `test(worker): dev end-to-end of scan, oracle-check and recheck`, then push and wait for a green Jenkins build.

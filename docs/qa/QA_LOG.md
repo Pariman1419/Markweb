@@ -1,5 +1,35 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Task 6 Steps 2–5 Complete: Migration 0008, Recheck Revision 2, Safety Checks
+
+### Context & Implementation
+1. **Migration 0008 (`migrations/0008_manual_revision.sql`)**:
+   - Replaced `elr_revision_fp_unique` with partial unique index `elr_revision_fp_auto_unique` on `(elr_no, oracle_fp, docs_fp) WHERE changed <> 'manual'`.
+   - Added partial unique index `notification_unread_unique` on `(elr_no, kind, coalesce(revision, 0)) WHERE read_at IS NULL`.
+   - Removed `begin;` and `commit;` from SQL migration files, giving full transaction control to `apply_migration_0008.py`.
+   - Verified dry-run rollback leaves 0 indexes on throwaway test schema `t0008_proof` and real DB.
+   - Applied and committed on live DB `10.151.28.2/mark_web`:
+     - Cleaned up notification row 1 (false alarm from missing oracledb fallback) and rows 2–4 (duplicate unread notifications) by marking them read (`read_at = NOW(), read_by = NULL`). Kept newest unread row 5.
+     - Created `elr_revision_fp_auto_unique` and `notification_unread_unique`.
+2. **Task 6 Step 3: Recheck Execution**:
+   - Work item 4 claimed by worker (`--once`).
+   - Resolved NAS documents, called live A100 inference, inserted `run_id: 24` (`auto-2026-11-06.2`).
+   - Wrote `elr_revision` 2: `changed = 'manual'`, `result_unchanged = true`, `run_id: 24`.
+   - `mark_app.work_item`: Item 4 updated to `state = 'done'`, `revision = 2`, `error = NULL`.
+   - `mark_app.latest_job_result` view confirmed: `('ADI2607006', 2, 24, 'manual', True, 'DONE')`.
+   - Called `POST /api/elrs/ADI2607006/oracle-check`: returned HTTP 200 `NOT_MARK_REVIEW_STEP`, did not duplicate unread notification.
+3. **Task 6 Step 4: Simulated Oracle Change**:
+   - `test_task6_step4_simulated_oracle_top_mark2_change`: unit test feeding worker modified Oracle row with `TOP_MARK2` altered.
+   - Verified worker produces revision with `changed = 'oracle'` and `changed_fields = ['TOP_MARK2']`.
+4. **Task 6 Step 5: Safety Verification**:
+   - `python scripts/check_trial_readonly.py --run 19`: 8/8 checks PASSED. Runs 1–19 completely untouched (16 runs, 402 ELRs, 866 TRUE, 214 WARNING, 41 ERROR, 34 HOLD).
+   - `pg_stat_user_tables`: `mark_logic.job_result` (`n_tup_upd = 0, n_tup_del = 0`), `mark_logic.line_result` (`n_tup_upd = 0, n_tup_del = 0`), `mark_app.elr_revision` (`n_tup_upd = 0, n_tup_del = 0`). Only INSERTs.
+
+### Verification
+- Full test suite: 474 unit tests passed (`pytest tests -q --ignore=tests/regression`).
+- Jenkins Build #55: SUCCESS.
+
+
 ## [2026-11-06] Task 6 Step 1 Cleanup & Step 2 Dev E2E Walkthrough (ADI2607006)
 
 ### Context & Implementation

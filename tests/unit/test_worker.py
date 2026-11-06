@@ -969,6 +969,62 @@ def test_changed_fields_uses_changed_oracle_fields_from_elr_snapshot(monkeypatch
     assert "PRODUCT_NO" in rev2["changed_fields"]
 
 
+def test_task6_step4_simulated_oracle_top_mark2_change(monkeypatch):
+    """Task 6 Step 4: Simulated Oracle change feeds worker row with TOP_MARK2 changed -> changed=oracle, changed_fields=['TOP_MARK2']."""
+    cur = FakePgCursor()
+    old_oracle_row = {
+        "ELR_NO": "ADI2607006",
+        "PRODUCT_NO": "PART1",
+        "STATUS": "A",
+        "CURRENT_STEP": "6",
+        "TOP_MARK1": "LINE1",
+        "TOP_MARK2": "ORIGINAL_MARK",
+    }
+    cur.snapshots.append({
+        "run_id": 100,
+        "elr_no": "ADI2607006",
+        "top_mark_id": 1,
+        "line_extra": json.dumps({"oracle_row": old_oracle_row}),
+    })
+    cur.revisions.append({
+        "elr_no": "ADI2607006",
+        "revision": 1,
+        "oracle_fp": "ofp_old_1",
+        "docs_fp": "dfp_nas_1",
+        "result_fp": "rfp_1",
+        "run_id": 100,
+        "docs_probe": {},
+    })
+
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2607006", "scan")
+
+    monkeypatch.setattr(
+        "services.worker.main.process_elr",
+        lambda *args, **kwargs: JobResult(
+            elr_no="ADI2607006",
+            processing_status=ProcessingStatus.DONE,
+            verification_status=VerificationStatus.MATCH_ALL,
+        ),
+    )
+
+    new_oracle_row = dict(old_oracle_row)
+    new_oracle_row["TOP_MARK2"] = "CHANGED_MARK"
+
+    result = run_worker_cycle(
+        cur,
+        q_cur,
+        oracle_row=new_oracle_row,
+        resolved_docs_fp="dfp_nas_1",
+    )
+    assert result == CycleResult.PROCESSED
+    assert len(cur.revisions) == 2
+    rev2 = cur.revisions[1]
+    assert rev2["changed"] == "oracle"
+    assert rev2["changed_fields"] == ["TOP_MARK2"]
+
+
 def test_main_connects_as_mark_worker_and_runs_once(monkeypatch):
     """(10) main() connects to Postgres with mark_worker and Oracle read-only, exits on --once."""
     from services.worker.main import main
