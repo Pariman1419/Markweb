@@ -137,7 +137,7 @@
 
 **Interfaces:**
 - **`oracle_source.py`:**
-  - `fetch_window(conn, from_ts: datetime, to_ts: datetime) -> list[dict]`: ELR rows with `LAST_TRAN` in the window. It reuses the field list and the join of `scripts/fetch_oracle_snapshot.py`; move that constant into `mark_engine/adapters/oracle_snapshot.py` so the script and the worker share it.
+  - `fetch_window(conn, from_ts: datetime, to_ts: datetime) -> list[dict]`: ELR rows with `LAST_DATE` in the window. It reuses the field list and the join of `scripts/fetch_oracle_snapshot.py`; move that constant into `mark_engine/adapters/oracle_snapshot.py` so the script and the worker share it.
   - `fetch_one(conn, elr_no: str) -> dict | None`
   - `fetch_pending_step(conn, review_step: str) -> list[dict]`: every ADI ELR at the step, with STATUS other than C. Used for the initial load.
   - `to_engine(row) -> tuple[ElrMeta, OracleMark, MarkLayout | None]`: through the existing `rows_to_meta` / `layout_json` path.

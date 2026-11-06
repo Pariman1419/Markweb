@@ -1570,3 +1570,9 @@ OK admin_reads admin_users (4), activity, audit_events (15) OK
 - Omit the port separator when Connection port is empty. After a successful POST, malformed JSON or unavailable summary is logged as `summary unavailable` and does not cause another scan attempt. The summary does not expose unexpected values.
 - All Mark DAG Python files and the focused test file were verified UTF-8 without BOM. Focused tests: 19 passed; full non-regression suite: 440 passed, one existing pynvml deprecation warning.
 - Published branch history is retained, per user request for a normal push without force. The fetched trial branch has advanced; no published commits were rebased. Real Airflow deployment and parse remain deferred.
+
+## 2026-11-06 — Oracle polling LAST_DATE correction
+
+- Red: `test_fetch_window_uses_read_only_and_bind_params` failed on the old `LAST_TRAN` predicate. Green: worker tests passed with `LAST_DATE` and naive Bangkok DATE binds; ambiguous naive input is rejected.
+- Read-only Oracle 10.2 check in the .17 API container with the candidate adapter returned 11 rows over a 24-hour UTC window ending 2026-11-06 08:55 UTC. No historical scans were modified.
+- Full non-regression suite: 497 passed, 3 skipped. Airflow host SSH from .17 was denied for the configured key; DAG trigger requires a working Airflow access path.

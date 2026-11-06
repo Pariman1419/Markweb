@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Mapping
+from zoneinfo import ZoneInfo
 
 from mark_engine.adapters.oracle_client import select
 from mark_engine.adapters.oracle_snapshot import (
@@ -22,9 +23,15 @@ def _clean_str(val: Any) -> str | None:
 
 
 def fetch_window(conn: Any, from_ts: datetime, to_ts: datetime) -> list[dict[str, Any]]:
-    """Fetch ELR rows with LAST_TRAN in [from_ts, to_ts) window using read-only select."""
-    query = f"{BASE_ELR_QUERY} AND e.LAST_TRAN >= :from_ts AND e.LAST_TRAN < :to_ts"
-    binds = {"from_ts": from_ts, "to_ts": to_ts}
+    """Fetch LAST_DATE in [from_ts, to_ts); bind aware instants as Thai Oracle DATEs."""
+    if from_ts.utcoffset() is None or to_ts.utcoffset() is None:
+        raise ValueError("scan window timestamps must be timezone-aware")
+    bangkok = ZoneInfo("Asia/Bangkok")
+    query = f"{BASE_ELR_QUERY} AND e.LAST_DATE >= :from_ts AND e.LAST_DATE < :to_ts"
+    binds = {
+        "from_ts": from_ts.astimezone(bangkok).replace(tzinfo=None),
+        "to_ts": to_ts.astimezone(bangkok).replace(tzinfo=None),
+    }
     return select(conn, query, binds)
 
 

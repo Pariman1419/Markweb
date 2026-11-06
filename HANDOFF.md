@@ -81,6 +81,9 @@
   - Airflow Connection `mark_api`: Set host/URL to `http://10.153.90.17:8093`.
   - Proceed with Airflow DAG scheduling (plan Tasks 3 & 4) targeting the production API endpoint.
 
+### 2026-11-06 — Oracle polling window uses LAST_DATE
+- `fetch_window` filters Oracle `LAST_DATE` with a half-open range. Timezone-aware instants are converted to naive Asia/Bangkok wall time before binding to Oracle DATE; naive inputs are rejected to avoid host-local timezone assumptions. Historical scan rows were not changed.
+- TDD: the updated predicate test failed against `LAST_TRAN` before the fix; worker tests passed after it. A read-only one-day query using the candidate adapter in the .17 API container returned 11 rows (2026-11-05 08:55 to 2026-11-06 08:55 UTC).
 
 ### 2026-11-06 — Jenkinsfile per-host defaults: build 66 red, build 67 green
 - Build 66 failed to compile: declarative `parameters{}` rejected `(env.MARK_DEFAULT_WORKER ?: 'false').toBoolean()` ("Expected a symbol @ line 19"). `78df6bf` uses `env.MARK_DEFAULT_WORKER == 'true'`; dev build 67 is green (499 passed, `MARK_WEB_PORT=8088`, `WORKER=false`, no worker container).

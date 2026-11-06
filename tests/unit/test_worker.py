@@ -66,9 +66,19 @@ def test_fetch_window_uses_read_only_and_bind_params(monkeypatch):
     assert len(rows) == 1
     assert len(recorded_selects) == 1
     query, binds = recorded_selects[0]
-    assert "LAST_TRAN >=" in query
-    assert "LAST_TRAN <" in query
-    assert binds == {"from_ts": from_ts, "to_ts": to_ts}
+    assert "LAST_DATE >=" in query
+    assert "LAST_DATE <" in query
+    assert binds == {
+        "from_ts": datetime(2026, 11, 1, 7),
+        "to_ts": datetime(2026, 11, 2, 7),
+    }
+
+
+def test_fetch_window_rejects_naive_timestamps():
+    conn = FakeOracleConn()
+    with pytest.raises(ValueError, match="timezone-aware"):
+        fetch_window(conn, datetime(2026, 11, 1), datetime(2026, 11, 2, tzinfo=timezone.utc))
+    assert not conn.queries
 
 
 def test_fetch_one(monkeypatch):

@@ -180,7 +180,7 @@ To optimize execution speed and server resource usage, validation checks are str
 ### Channel A: Scheduled Polling (Airflow)
 - **Airflow DAG**: `mark_elr_polling` runs every **15 minutes**.
 - **Sliding Watermark**:
-  - Scans Oracle `LAST_TRAN` from `(last_successful_watermark - 5 minutes)` up to `now()`.
+  - Scans Oracle `LAST_DATE` from `(last_successful_watermark - 5 minutes)` up to `now()`.
   - The 5-minute lookback prevents race conditions caused by database clock drift.
 - **Initial Load**:
   - Before turning on the 15-minute cron schedule, an initial sweep runs via `POST /api/scans?source=initial` to ingest all active Step 6 ELRs.
