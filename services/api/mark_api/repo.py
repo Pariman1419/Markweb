@@ -602,6 +602,7 @@ class Repo:
                     if cur.fetchone():
                         return
                 except Exception:
+                    logger.exception("Failed checking existing unread notification for %s (%s)", elr_no, kind)
                     conn.rollback()
 
                 try:
@@ -615,6 +616,7 @@ class Repo:
                     )
                     conn.commit()
                 except Exception:
+                    logger.exception("Failed inserting notification with unread partial unique index for %s (%s)", elr_no, kind)
                     conn.rollback()
                     try:
                         cur.execute(
@@ -627,7 +629,10 @@ class Repo:
                         )
                         conn.commit()
                     except Exception:
+                        logger.exception("Failed fallback notification insert for %s (%s)", elr_no, kind)
                         conn.rollback()
+
+    notify = add_notification
 
     def list_notifications(self, user_id: int, unread_only: bool = True) -> list[dict[str, Any]]:
         if unread_only:

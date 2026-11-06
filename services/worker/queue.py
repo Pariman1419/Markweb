@@ -24,14 +24,14 @@ class WorkItem:
     updated_at: datetime | None = None
 
 
-def enqueue(cur: Any, scan_id: int | None, elr_no: str, reason: str) -> bool:
+def enqueue(cur: Any, scan_id: int | None, elr_no: str, reason: str, schema: str = "mark_app") -> bool:
     """Insert a work item into the queue.
 
     If an active item ('queued', 'running', 'retry') already exists for this ELR,
     the insert is skipped due to partial unique index, returning False.
     """
-    sql = """
-    insert into mark_app.work_item (scan_id, elr_no, reason, state)
+    sql = f"""
+    insert into {schema}.work_item (scan_id, elr_no, reason, state)
     values (%s, %s, %s, 'queued')
     on conflict (elr_no) where state in ('queued', 'running', 'retry') do nothing
     returning item_id;
@@ -98,10 +98,10 @@ def claim(cur: Any, worker_id: str) -> WorkItem | None:
     )
 
 
-def finish(cur: Any, item_id: int, revision: int | None = None) -> None:
+def finish(cur: Any, item_id: int, revision: int | None = None, schema: str = "mark_app") -> None:
     """Mark a work item as done with the generated revision number."""
-    sql = """
-    update mark_app.work_item
+    sql = f"""
+    update {schema}.work_item
     set state = 'done',
         revision = %s,
         error = null,

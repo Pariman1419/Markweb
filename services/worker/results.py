@@ -277,6 +277,8 @@ def write_result(
     resolution: DocumentResolution | None,
     revision_info: dict[str, Any],
     files_root: Path | None = None,
+    schema_logic: str = "mark_logic",
+    schema_app: str = "mark_app",
 ) -> int:
     """Write job results, line results, elr_snapshot, and elr_revision in an INSERT-ONLY manner.
 
@@ -286,7 +288,7 @@ def write_result(
     elr_no = job.elr_no
 
     # 1. Determine next revision number for this ELR
-    cur.execute("select coalesce(max(revision), 0) from mark_app.elr_revision where elr_no = %s", (elr_no,))
+    cur.execute(f"select coalesce(max(revision), 0) from {schema_app}.elr_revision where elr_no = %s", (elr_no,))
     max_rev = cur.fetchone()[0]
     new_revision = max_rev + 1
 
@@ -308,8 +310,8 @@ def write_result(
     }
     jrow = job_row(run_id, jdict)
     cur.execute(
-        """
-        insert into mark_logic.job_result (
+        f"""
+        insert into {schema_logic}.job_result (
             run_id, elr_no, processing_status, hold_reason, hold_detail,
             review_detail, verification_status, approval_status, layout_source, abs_no
         ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
@@ -332,8 +334,8 @@ def write_result(
         }
         lrow = line_row(run_id, ldict, abs_no=abs_no, parity="NONE")
         cur.execute(
-            """
-            insert into mark_logic.line_result (
+            f"""
+            insert into {schema_logic}.line_result (
                 run_id, elr_no, abs_no, side, line_no, month,
                 final_mark, db_mark, status, cause, cause_detail,
                 system_status, final_status, review_detail, warning, hold_detail, layout_source
@@ -348,8 +350,8 @@ def write_result(
     ]
     line_extra = {"oracle_row": dict(oracle_row)}
     cur.execute(
-        """
-        insert into mark_app.elr_snapshot (
+        f"""
+        insert into {schema_app}.elr_snapshot (
             run_id, elr_no, top_mark_id, line_extra, oracle_top_raw, abs_file, abs_sha256
         ) values (%s, %s, %s, %s, %s, %s, %s);
         """,
@@ -367,8 +369,8 @@ def write_result(
     # 5. Insert elr_revision
     docs_probe_val = json.dumps(revision_info.get("docs_probe", {}))
     cur.execute(
-        """
-        insert into mark_app.elr_revision (
+        f"""
+        insert into {schema_app}.elr_revision (
             elr_no, revision, oracle_fp, docs_fp, version_fp, result_fp,
             changed, changed_fields, result_unchanged, docs_probe, run_id
         ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);

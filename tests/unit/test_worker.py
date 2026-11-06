@@ -1202,7 +1202,7 @@ def test_finish_resets_error_to_null():
 
 
 def test_probe_resolution_excludes_work_directory(tmp_path):
-    """(4) docs_probe keeps only files on NAS storage, strictly excluding extracted files in work\\."""
+    """(4) docs_probe keeps only files on NAS storage, strictly excluding paths starting with work_dir."""
     from mark_engine.domain.models import DocumentRef, DocumentResolution
     from services.worker.main import probe_resolution
 
@@ -1214,6 +1214,11 @@ def test_probe_resolution_excludes_work_directory(tmp_path):
     work_extracted_pdf.parent.mkdir(parents=True)
     work_extracted_pdf.write_bytes(b"extracted in work")
 
+    # Path containing substring 'work' (like 'network') but NOT starting with work_dir
+    nas_network_pdf = tmp_path / "nas" / "network" / "SLR245169.pdf"
+    nas_network_pdf.parent.mkdir(parents=True)
+    nas_network_pdf.write_bytes(b"nas network slr")
+
     res = DocumentResolution(
         elr_no="ADI2607006",
         decision="RESOLVED",
@@ -1221,17 +1226,18 @@ def test_probe_resolution_excludes_work_directory(tmp_path):
         slr=(
             DocumentRef(path=str(nas_pdf), doc_type="SLR", number="SLR245168", sha256="def"),
             DocumentRef(path=str(work_extracted_pdf), doc_type="SLR", number="SLR245168", sha256="ghi"),
+            DocumentRef(path=str(nas_network_pdf), doc_type="SLR", number="SLR245169", sha256="jkl"),
         ),
     )
 
     probe = probe_resolution(res, work_dir=tmp_path / "work" / "ADI2607006")
     assert str(nas_pdf) in probe
+    assert str(nas_network_pdf) in probe
     assert str(work_extracted_pdf) not in probe
-    assert all("work" not in k.lower() for k in probe.keys())
 
 
 def test_real_schema_enqueue_and_results_writer():
-    """(0) Integration test verifying enqueue_work_item and write_result SQL against real DB schema."""
+    """(0) Integration test verifying enqueue_work_item and write_result SQL against throwaway test schema."""
     import os
     import psycopg2
     from mark_engine.adapters.env import load_env
@@ -1243,97 +1249,184 @@ def test_real_schema_enqueue_and_results_writer():
     env_path = os.environ.get("ENV_FILE", "D:/CIM Project/mark-web/.env")
     load_env(Path(env_path) if Path(env_path).is_file() else None)
 
-    password = os.environ.get("MARK_WORKER_PG_PASSWORD")
+    password = os.environ.get("MARK_PG_PASSWORD") or os.environ.get("MARK_WORKER_PG_PASSWORD")
     if not password:
-        pytest.skip("MARK_WORKER_PG_PASSWORD not in environment, skipping live schema test")
+        pytest.skip("Database password not in environment, skipping live schema test")
 
+    user = os.environ.get("MARK_PG_USER", "postgres")
     try:
         conn = psycopg2.connect(
             host=os.getenv("PGHOST", "10.151.28.2"),
             port=int(os.getenv("PGPORT", 5432)),
             dbname=os.getenv("PGDATABASE", "mark_web"),
-            user=os.getenv("MARK_WORKER_PG_USER", "mark_worker"),
+            user=user,
             password=password,
             connect_timeout=3,
         )
     except psycopg2.OperationalError as exc:
         pytest.skip(f"Live DB unreachable: {exc}")
 
+    test_schema = "t_worker_test_enqueue"
     try:
-        with conn:
-            with conn.cursor() as cur:
-                # 1. Test enqueue with state='queued' and finish with error=null
-                test_elr = "ADI2699999"
-                cur.execute("DELETE FROM mark_app.work_item WHERE elr_no = %s;", (test_elr,))
-                ok = enqueue(cur, None, test_elr, "recheck")
-                assert ok is True
+        with conn.cursor() as cur:
+            cur.execute(f"DROP SCHEMA IF EXISTS {test_schema} CASCADE;")
+            cur.execute(f"CREATE SCHEMA {test_schema};")
+            cur.execute(f"""
+                CREATE TABLE {test_schema}.run (
+                    run_id bigint generated always as identity primary key,
+                    period text not null
+                );
+                CREATE TABLE {test_schema}.job_result (
+                    run_id bigint not null,
+                    elr_no text not null,
+                    processing_status text not null,
+                    hold_reason text,
+                    hold_detail text,
+                    review_detail text,
+                    verification_status text,
+                    approval_status text,
+                    layout_source text,
+                    abs_no text,
+                    primary key (run_id, elr_no)
+                );
+                CREATE TABLE {test_schema}.line_result (
+                    run_id bigint not null,
+                    elr_no text not null,
+                    abs_no text,
+                    side text not null,
+                    line_no int not null,
+                    month text,
+                    final_mark text,
+                    db_mark text,
+                    status text not null,
+                    cause text,
+                    cause_detail text,
+                    system_status text,
+                    final_status text,
+                    review_detail text,
+                    warning text,
+                    hold_detail text,
+                    layout_source text
+                );
+                CREATE TABLE {test_schema}.elr_snapshot (
+                    run_id bigint not null,
+                    elr_no text not null,
+                    top_mark_id int,
+                    line_extra jsonb,
+                    oracle_top_raw jsonb,
+                    abs_file text,
+                    abs_sha256 text,
+                    primary key (run_id, elr_no)
+                );
+                CREATE TABLE {test_schema}.elr_revision (
+                    elr_no text not null,
+                    revision int not null,
+                    oracle_fp text not null,
+                    docs_fp text not null,
+                    version_fp text not null,
+                    result_fp text not null,
+                    changed text not null,
+                    changed_fields text[],
+                    result_unchanged boolean not null default false,
+                    docs_probe jsonb,
+                    run_id bigint not null,
+                    created_at timestamptz not null default now(),
+                    primary key (elr_no, revision)
+                );
+                CREATE TABLE {test_schema}.work_item (
+                    item_id bigint generated always as identity primary key,
+                    scan_id bigint,
+                    elr_no text not null,
+                    state text not null check (state in ('queued', 'running', 'done', 'retry', 'failed')),
+                    reason text not null check (reason in ('scan', 'user', 'recheck', 'retry_docs')),
+                    attempts int not null default 0,
+                    next_attempt_at timestamptz not null default now(),
+                    revision int,
+                    error text,
+                    created_at timestamptz not null default now(),
+                    updated_at timestamptz not null default now()
+                );
+                CREATE UNIQUE INDEX work_item_active_elr_idx on {test_schema}.work_item (elr_no)
+                  where state in ('queued', 'running', 'retry');
+            """)
 
-                cur.execute("SELECT item_id, state, error FROM mark_app.work_item WHERE elr_no = %s;", (test_elr,))
-                item = cur.fetchone()
-                assert item[1] == "queued"
-                item_id = item[0]
+            # Insert run dynamically (NOT hardcoded 22!)
+            cur.execute(f"INSERT INTO {test_schema}.run (period) VALUES ('test-period') RETURNING run_id;")
+            dynamic_run_id = cur.fetchone()[0]
 
-                # Simulate prior error, then finish()
-                cur.execute("UPDATE mark_app.work_item SET error = 'stale error' WHERE item_id = %s;", (item_id,))
-                finish(cur, item_id, revision=99)
-                cur.execute("SELECT state, revision, error FROM mark_app.work_item WHERE item_id = %s;", (item_id,))
-                fin_row = cur.fetchone()
-                assert fin_row[0] == "done"
-                assert fin_row[1] == 99
-                assert fin_row[2] is None
+            # 1. Test enqueue with state='queued' and finish with error=null on test schema
+            test_elr = "ADI2699999"
+            ok = enqueue(cur, None, test_elr, "recheck", schema=test_schema)
+            assert ok is True
 
-                # 2. Test write_result SQL columns (job_result, line_result with final_mark/db_mark, elr_snapshot with jsonb)
-                job = JobResult(
-                    elr_no=test_elr,
-                    processing_status=ProcessingStatus.DONE,
-                    verification_status=VerificationStatus.MATCH_ALL,
-                    comparisons=(
-                        LineComparison(
-                            side=Side.TOP,
-                            line_no=1,
-                            expected="MARK1",
-                            oracle="MARK1",
-                            status=LineStatus.MATCH,
-                        ),
+            cur.execute(f"SELECT item_id, state, error FROM {test_schema}.work_item WHERE elr_no = %s;", (test_elr,))
+            item = cur.fetchone()
+            assert item[1] == "queued"
+            item_id = item[0]
+
+            # Simulate prior error, then finish()
+            cur.execute(f"UPDATE {test_schema}.work_item SET error = 'stale error' WHERE item_id = %s;", (item_id,))
+            finish(cur, item_id, revision=99, schema=test_schema)
+            cur.execute(f"SELECT state, revision, error FROM {test_schema}.work_item WHERE item_id = %s;", (item_id,))
+            fin_row = cur.fetchone()
+            assert fin_row[0] == "done"
+            assert fin_row[1] == 99
+            assert fin_row[2] is None
+
+            # 2. Test write_result with dynamic run_id on test schema
+            job = JobResult(
+                elr_no=test_elr,
+                processing_status=ProcessingStatus.DONE,
+                verification_status=VerificationStatus.MATCH_ALL,
+                comparisons=(
+                    LineComparison(
+                        side=Side.TOP,
+                        line_no=1,
+                        expected="MARK1",
+                        oracle="MARK1",
+                        status=LineStatus.MATCH,
                     ),
-                    layout_source="auto",
-                )
-                meta = ElrMeta(elr_no=test_elr, product_no="P99", top_mark_id=1, status="A", current_step="6")
-                oracle_row = {"ELR_NO": test_elr, "TOP_MARK1": "MARK1", "STATUS": "A"}
-                rev_info = {
-                    "run_id": 22,
-                    "oracle_fp": "ofp_test_schema",
-                    "docs_fp": "dfp_test_schema",
-                    "version_fp": "vfp_test_schema",
-                    "result_fp": "rfp_test_schema",
-                    "changed": "manual",
-                    "docs_probe": {"dummy": {"size": 1, "mtime": 1.0}},
-                }
+                ),
+                layout_source="auto",
+            )
+            meta = ElrMeta(elr_no=test_elr, product_no="P99", top_mark_id=1, status="A", current_step="6")
+            oracle_row = {"ELR_NO": test_elr, "TOP_MARK1": "MARK1", "STATUS": "A"}
+            rev_info = {
+                "run_id": dynamic_run_id,
+                "oracle_fp": "ofp_test_schema",
+                "docs_fp": "dfp_test_schema",
+                "version_fp": "vfp_test_schema",
+                "result_fp": "rfp_test_schema",
+                "changed": "manual",
+                "docs_probe": {"dummy": {"size": 1, "mtime": 1.0}},
+            }
 
-                # Test insertion of job_result, line_result, elr_snapshot without committing
-                new_rev = write_result(
-                    cur,
-                    job,
-                    meta,
-                    oracle_row,
-                    resolution=None,
-                    revision_info=rev_info,
-                )
-                assert new_rev >= 1
+            new_rev = write_result(
+                cur,
+                job,
+                meta,
+                oracle_row,
+                resolution=None,
+                revision_info=rev_info,
+                schema_logic=test_schema,
+                schema_app=test_schema,
+            )
+            assert new_rev == 1
 
-                # Verify line_result column values in DB
-                cur.execute(
-                    "SELECT final_mark, db_mark, status FROM mark_logic.line_result WHERE elr_no = %s;",
-                    (test_elr,),
-                )
-                l_res = cur.fetchall()
-                assert len(l_res) == 1
-                assert l_res[0][0].strip() == "MARK1"
-                assert l_res[0][1].strip() == "MARK1"
-                assert l_res[0][2] == "MATCH"
+            # Verify line_result column values in test schema
+            cur.execute(
+                f"SELECT final_mark, db_mark, status FROM {test_schema}.line_result WHERE elr_no = %s;",
+                (test_elr,),
+            )
+            l_res = cur.fetchall()
+            assert len(l_res) == 1
+            assert l_res[0][0].strip() == "MARK1"
+            assert l_res[0][1].strip() == "MARK1"
+            assert l_res[0][2] == "MATCH"
 
-                # Always rollback so no test data remains
-                conn.rollback()
+            # Clean up throwaway schema
+            cur.execute(f"DROP SCHEMA IF EXISTS {test_schema} CASCADE;")
+            conn.commit()
     finally:
         conn.close()
 
@@ -1365,9 +1458,10 @@ def test_manual_recheck_allows_same_fingerprint_but_auto_skips():
 
 
 def test_schema_migration_0008_manual_revision_partial_index():
-    """Verify on real PostgreSQL schema (in a rolled-back transaction) that:
+    """Verify on throwaway PostgreSQL schema (not real mark_web) that:
     1. Migration 0008 partial index allows duplicate (oracle_fp, docs_fp) when changed='manual'
     2. Automatic revisions (changed<>'manual') with duplicate fingerprints are rejected by partial unique index.
+    3. Dynamic run_id is used (never hard-coded 22).
     """
     import os
     import psycopg2
@@ -1386,54 +1480,85 @@ def test_schema_migration_0008_manual_revision_partial_index():
     except Exception:
         pytest.skip("PostgreSQL not reachable from this test runner")
 
+    test_schema = "t_worker_test_0008"
     try:
         with conn.cursor() as cur:
-            # Apply 0008 index within this transaction
-            cur.execute("alter table mark_app.elr_revision drop constraint if exists elr_revision_fp_unique;")
-            cur.execute("""
-                create unique index if not exists elr_revision_fp_auto_unique
-                  on mark_app.elr_revision (elr_no, oracle_fp, docs_fp)
-                  where changed <> 'manual';
+            cur.execute(f"DROP SCHEMA IF EXISTS {test_schema} CASCADE;")
+            cur.execute(f"CREATE SCHEMA {test_schema};")
+            cur.execute(f"""
+                CREATE TABLE {test_schema}.run (
+                    run_id bigint generated always as identity primary key,
+                    period text not null
+                );
+                CREATE TABLE {test_schema}.elr_revision (
+                    elr_no text not null,
+                    revision int not null,
+                    oracle_fp text not null,
+                    docs_fp text not null,
+                    version_fp text not null,
+                    result_fp text not null,
+                    changed text not null check (changed in ('new', 'oracle', 'docs', 'both', 'manual')),
+                    changed_fields text[],
+                    result_unchanged boolean not null default false,
+                    docs_probe jsonb,
+                    run_id bigint not null references {test_schema}.run(run_id),
+                    created_at timestamptz not null default now(),
+                    primary key (elr_no, revision),
+                    constraint elr_revision_fp_unique unique (elr_no, oracle_fp, docs_fp)
+                );
+            """)
+
+            # Dynamic run_id (no hardcoded 22)
+            cur.execute(f"INSERT INTO {test_schema}.run (period) VALUES ('test-run-0008') RETURNING run_id;")
+            dynamic_run_id = cur.fetchone()[0]
+
+            # Apply 0008 migration on test schema
+            cur.execute(f"ALTER TABLE {test_schema}.elr_revision DROP CONSTRAINT IF EXISTS elr_revision_fp_unique;")
+            cur.execute(f"""
+                CREATE UNIQUE INDEX elr_revision_fp_auto_unique
+                  ON {test_schema}.elr_revision (elr_no, oracle_fp, docs_fp)
+                  WHERE changed <> 'manual';
             """)
 
             test_elr = "T_0008_REV_TEST"
-            cur.execute("DELETE FROM mark_app.elr_revision WHERE elr_no = %s;", (test_elr,))
 
             # Insert rev 1 (manual)
-            cur.execute("""
-                INSERT INTO mark_app.elr_revision (
+            cur.execute(f"""
+                INSERT INTO {test_schema}.elr_revision (
                     elr_no, revision, oracle_fp, docs_fp, version_fp, result_fp, changed, run_id
-                ) VALUES (%s, 1, 'fp_o', 'fp_d', 'fp_v', 'fp_r1', 'manual', 22);
-            """, (test_elr,))
+                ) VALUES (%s, 1, 'fp_o', 'fp_d', 'fp_v', 'fp_r1', 'manual', %s);
+            """, (test_elr, dynamic_run_id))
 
-            # Insert rev 2 (manual) with identical oracle_fp and docs_fp -> must succeed!
-            cur.execute("""
-                INSERT INTO mark_app.elr_revision (
+            # Insert rev 2 (manual) with identical fingerprints -> must succeed!
+            cur.execute(f"""
+                INSERT INTO {test_schema}.elr_revision (
                     elr_no, revision, oracle_fp, docs_fp, version_fp, result_fp, changed, run_id
-                ) VALUES (%s, 2, 'fp_o', 'fp_d', 'fp_v', 'fp_r2', 'manual', 22);
-            """, (test_elr,))
+                ) VALUES (%s, 2, 'fp_o', 'fp_d', 'fp_v', 'fp_r2', 'manual', %s);
+            """, (test_elr, dynamic_run_id))
 
-            # Insert rev 3 (oracle / automatic) with same fingerprints -> succeeds as first automated row
-            cur.execute("""
-                INSERT INTO mark_app.elr_revision (
+            # Insert rev 3 (oracle / automatic) with same fingerprints -> succeeds as first non-manual
+            cur.execute(f"""
+                INSERT INTO {test_schema}.elr_revision (
                     elr_no, revision, oracle_fp, docs_fp, version_fp, result_fp, changed, run_id
-                ) VALUES (%s, 3, 'fp_o', 'fp_d', 'fp_v', 'fp_r3', 'oracle', 22);
-            """, (test_elr,))
+                ) VALUES (%s, 3, 'fp_o', 'fp_d', 'fp_v', 'fp_r3', 'oracle', %s);
+            """, (test_elr, dynamic_run_id))
 
-            # Insert rev 4 (oracle / automatic) with duplicate fingerprints -> must raise UniqueViolation on partial index!
+            # Insert rev 4 (oracle / automatic) with duplicate fingerprints -> must raise UniqueViolation!
             try:
-                cur.execute("""
-                    INSERT INTO mark_app.elr_revision (
+                cur.execute(f"""
+                    INSERT INTO {test_schema}.elr_revision (
                         elr_no, revision, oracle_fp, docs_fp, version_fp, result_fp, changed, run_id
-                    ) VALUES (%s, 4, 'fp_o', 'fp_d', 'fp_v', 'fp_r4', 'oracle', 22);
-                """, (test_elr,))
+                    ) VALUES (%s, 4, 'fp_o', 'fp_d', 'fp_v', 'fp_r4', 'oracle', %s);
+                """, (test_elr, dynamic_run_id))
                 pytest.fail("Expected UniqueViolation on elr_revision_fp_auto_unique for duplicate changed='oracle'")
             except psycopg2.IntegrityError:
                 # Expected!
-                pass
+                conn.rollback()
 
-            # Always rollback
-            conn.rollback()
+            # Clean up throwaway schema
+            with conn.cursor() as cur2:
+                cur2.execute(f"DROP SCHEMA IF EXISTS {test_schema} CASCADE;")
+                conn.commit()
     finally:
         conn.close()
 

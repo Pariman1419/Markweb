@@ -78,14 +78,21 @@ def probe_resolution(
         if slr_ref and slr_ref.path:
             paths.append(slr_ref.path)
 
+    work_p = Path(work_dir).resolve() if work_dir else None
+
     for p_str in sorted(set(paths)):
-        norm = p_str.replace("/", "\\").lower()
-        # Exclude extracted/temporary files inside the work directory
-        if norm.startswith("work\\") or norm.startswith(".\\work\\") or "\\work\\" in norm or "/work/" in norm.replace("\\", "/"):
-            continue
-        if work_dir and str(work_dir).replace("/", "\\").lower() in norm:
-            continue
         p = Path(p_str)
+        # Exclude extracted/temporary files: ตัดเฉพาะ path ที่ขึ้นต้นด้วย work_dir
+        if work_p:
+            try:
+                if p.resolve().is_relative_to(work_p):
+                    continue
+            except (ValueError, OSError):
+                norm_p = str(p.resolve()).replace("/", "\\").lower()
+                norm_w = str(work_p).replace("/", "\\").lower()
+                if norm_p.startswith(norm_w):
+                    continue
+
         try:
             st = p.stat()
             probe[p_str] = {
