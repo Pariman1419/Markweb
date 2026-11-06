@@ -560,3 +560,33 @@ def test_repo_hold_scan_lock_uses_single_connection_and_releases_in_finally():
             pass
     mock_pool.putconn.assert_called_once_with(mock_conn)
 
+
+def test_scan_and_oracle_check_when_oracle_client_unavailable(client, repo, monkeypatch):
+    """Gracefully handle ModuleNotFoundError / Exception when Oracle client is unavailable."""
+    def raise_oracle_err():
+        raise ModuleNotFoundError("No module named 'oracledb'")
+
+    monkeypatch.setattr("mark_api.routers.scans.connect_actl", raise_oracle_err)
+
+    # 1. /api/scans succeeds cleanly with found=0, queued=0 instead of 500
+    repo.add_token("scan_tok", ["scan:write"], "token_scan_graceful")
+    resp = client.post(
+        "/api/scans",
+        json={"source": "initial"},
+        headers={"Authorization": "Bearer token_scan_graceful"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["counts"] == {
+        "found": 0,
+        "queued": 0,
+        "unchanged": 0,
+        "skipped": 0,
+        "same_as_rev": 0,
+    }
+
+    # 2. /api/elrs/{elr}/oracle-check returns 404 not found cleanly instead of 500
+    cookies, headers = auth_cookies(repo, username="eng", role="engineer")
+    resp_elr = client.post("/api/elrs/ELR_NO_ORACLE/oracle-check", cookies=cookies, headers=headers)
+    assert resp_elr.status_code == 404
+
+

@@ -63,6 +63,15 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Fix(API): Graceful Fallback When Oracle Client Unavailable in Container
+- **Commit**: `fix(api): graceful fallback when Oracle client unavailable in container`
+- **Key Changes**:
+  1. Wrapped `connect_actl()` in `trigger_scan` and `oracle_check_elr` (`services/api/mark_api/routers/scans.py`) in `try...except Exception:` assigning `conn_oracle = None` with warning logs.
+  2. Ensures container environments lacking Oracle thick client libraries or driver handle scan requests cleanly with `found: 0, queued: 0` (HTTP 201 Created) instead of unhandled 500.
+  3. `oracle_check_elr` returns HTTP 404 with notification and audit log when Oracle is unavailable.
+- **Verification**: `tests/unit/test_scans_api.py::test_scan_and_oracle_check_when_oracle_client_unavailable` added and passed. Full unit test suite: 465 passed.
+
+
 ### 2026-11-06 — Network Restored & Pre-Task 6 CI Verification
 - **Status**: Workstation reconnected to corporate network (`10.153.88.227`).
 - **Target Reachability Verified**:

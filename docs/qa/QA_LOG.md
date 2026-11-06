@@ -1,5 +1,18 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Fix(API): Graceful Fallback When Oracle Client Unavailable in Container
+
+### Context & Implementation
+- In the Linux Docker container (`services/api/Dockerfile`) or environments where the Oracle Client is unavailable, calling `connect_actl()` directly in `trigger_scan` and `oracle_check_elr` threw unhandled `ModuleNotFoundError` / `DatabaseError`, crashing with HTTP 500.
+- Wrapped `connect_actl()` invocations in `services/api/mark_api/routers/scans.py` with `try...except Exception as exc: conn_oracle = None` and logged a warning.
+- In `trigger_scan`, `conn_oracle is None` results in `found=0, queued=0` and finishes cleanly with HTTP 201 Created (satisfies initial dry run specification where 0 ELRs at step 6 is normal).
+- In `oracle_check_elr`, `conn_oracle is None` results in clean HTTP 404 `not_found_in_oracle` notification and audit log instead of 500 error.
+
+### Verification
+- Added `test_scan_and_oracle_check_when_oracle_client_unavailable` in `tests/unit/test_scans_api.py`.
+- Full test suite: 465 passed.
+
+
 ## [2026-11-06] Pre-Task 6 Verification & Corporate Network Restoration
 
 ### Context & Implementation

@@ -81,7 +81,11 @@ def trigger_scan(
                 "same_as_rev": 0,
             }
 
-            conn_oracle = connect_actl()
+            conn_oracle = None
+            try:
+                conn_oracle = connect_actl()
+            except Exception as exc:
+                logger.warning("connect_actl unavailable: %s", exc)
             try:
                 try:
                     if req.source == "airflow":
@@ -173,7 +177,11 @@ def oracle_check_elr(
 ) -> dict[str, Any]:
     """Check a single ELR against Oracle and enqueue if eligible."""
     elr_clean = elr.strip().upper()
-    conn_oracle = connect_actl()
+    conn_oracle = None
+    try:
+        conn_oracle = connect_actl()
+    except Exception as exc:
+        logger.warning("connect_actl unavailable: %s", exc)
 
     try:
         row = fetch_one(conn_oracle, elr_clean) if conn_oracle is not None else None
