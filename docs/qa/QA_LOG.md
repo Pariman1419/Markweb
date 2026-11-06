@@ -1,5 +1,15 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Plan: deploy to 10.153.90.17
+
+### Context
+- B3 done; next is running API, web and worker on .17 so Airflow `.3` can reach the scan API (dev PC is unreachable inbound from the server subnet).
+
+### Decisions
+- Build on .17 from a GitHub clone (user: .17 can clone). Preflight checks PyPI/npm/Docker Hub/Oracle reachability, internal hosts (PG 5432, Oracle 1521, A100 50051, NAS 445), a free port (listeners, container ports, Windows excluded ranges), `.env` keys (names only) and the firewall rule.
+- Worker runs as a compose service behind profile `worker`; NAS mounted read-only via CIFS at `/mnt/elr`, `NAS_ROOT=/mnt/elr/ADI`.
+- Found: `docs_fp` hashes absolute document paths, so the mount change would mark every ELR as `changed=docs`. Fix: hash paths relative to the NAS root / work dir. ADI2607006 will get one `changed=docs` revision once; accepted.
+
 ## [2026-11-06] Task 6 Steps 2–5 Complete: Migration 0008, Recheck Revision 2, Safety Checks
 
 ### Context & Implementation

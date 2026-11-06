@@ -63,6 +63,12 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Plan: deploy to 10.153.90.17 (for the other agent)
+- **Plan:** `docs/superpowers/plans/2026-11-06-deploy-17.md`. B3 is finished (build 57 green at `05c0a31`).
+- **User facts:** .17 is Windows + Docker Desktop, can clone from GitHub; any free port (not 8088 NPIChecklist / 8080 Streamlit), chosen by a preflight script.
+- **Tasks:** (1) merge `phase2/airflow` into `phase2/trial`; (2) `docs_fp` independent of NAS mount path (today it hashes the absolute UNC path, so a container mount would re-check every ELR); (3) `worker` compose service (profile `worker`) with read-only CIFS mount of `//th1srnas03/ELR` and a start-up NAS check; (4) `scripts/deploy/preflight_17.ps1`; (5) **[USER]** clone, preflight, `docker compose -p mark-web --profile worker up -d --build`, smoke test, then Codex runs Airflow Task 3–4 against `http://10.153.90.17:<port>`.
+- **Rule:** after .17 is live, only one worker runs (not the dev PC).
+
 ### 2026-11-06 — Task 6 Steps 2–5 Complete: Migration 0008, Recheck Revision 2, Safety Checks
 - **Migration 0008 (`migrations/0008_manual_revision.sql`)**:
   - Replaced `elr_revision_fp_unique` with partial unique index `elr_revision_fp_auto_unique` on `(elr_no, oracle_fp, docs_fp) WHERE changed <> 'manual'`.
