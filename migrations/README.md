@@ -13,6 +13,9 @@ Plan and rationale: `docs/implementation/05-database-migration-plan.md`.
 | `0005_mark_app_trial.sql` | creates `mark_app` schema (app_user, user_session, api_token, elr_snapshot, line_review, approval, audit_log) and grants | schema only |
 | `0006_audit_context.sql` | adds `audit_context` session variable handling for audit logging | schema only |
 | `0007_auto_review.sql` | auto-review history (`elr_revision`), queue (`work_item`), scans (`scan`), notifications (`notification`), view `latest_job_result`, role `mark_worker` | schema only |
+| `0008_manual_revision.sql` | replace `elr_revision_fp_unique` with partial unique index `where changed <> 'manual'` for manual recheck; partial unique index `notification_unread_unique` on unread notifications | schema only |
+
+Note on `0008_manual_revision_down.sql`: Down migration drops the partial index and re-adds `elr_revision_fp_unique`. If multiple revisions exist with identical `(elr_no, oracle_fp, docs_fp)` where `changed = 'manual'`, the down migration will fail with a unique constraint violation until duplicate manual revisions are removed.
 
 Each `.sql` file has an `-- UP` section and a `-- DOWN` section. Run order: M0 → 0001 → 0002 → 0003, each in one transaction,
 first on a copy of `mark_web`, by a person with the DBA password (not by an app account).

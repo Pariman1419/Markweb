@@ -204,6 +204,11 @@ class FakeScansRepo:
         }
 
     def add_notification(self, elr_no: str, kind: str, run_id: int | None = None, revision: int | None = None, message: str = "") -> None:
+        rev_norm = revision or 0
+        for n in self.notifications:
+            n_rev = n.get("revision") or 0
+            if n.get("elr_no") == elr_no and n.get("kind") == kind and n_rev == rev_norm and not n.get("read_at"):
+                return
         notif_id = len(self.notifications) + 1
         self.notifications.append({
             "id": notif_id,
@@ -211,6 +216,7 @@ class FakeScansRepo:
             "kind": kind,
             "run_id": run_id,
             "revision": revision,
+            "read_at": None,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
@@ -599,5 +605,24 @@ def test_scan_and_oracle_check_when_oracle_unavailable_fails_loudly_with_503(cli
     assert resp_elr.status_code == 503
     assert "Oracle connection unavailable" in resp_elr.json()["detail"]
     assert len(repo.notifications) == 0
+
+
+def test_add_notification_deduplicates_unread_per_elr_and_kind():
+    repo = FakeScansRepo()
+    # First notification inserted
+    repo.add_notification("ADI2607006", "not_eligible", message="msg 1")
+    assert len(repo.notifications) == 1
+
+    # Duplicate unread notification is skipped
+    repo.add_notification("ADI2607006", "not_eligible", message="msg 2")
+    assert len(repo.notifications) == 1
+
+    # Different kind is inserted
+    repo.add_notification("ADI2607006", "hold", message="hold msg")
+    assert len(repo.notifications) == 2
+
+    # Different revision is inserted
+    repo.add_notification("ADI2607006", "not_eligible", revision=2, message="rev 2 msg")
+    assert len(repo.notifications) == 3
 
 

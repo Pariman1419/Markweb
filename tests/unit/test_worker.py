@@ -1338,5 +1338,106 @@ def test_real_schema_enqueue_and_results_writer():
         conn.close()
 
 
+def test_manual_recheck_allows_same_fingerprint_but_auto_skips():
+    from mark_engine.history.decide import RevisionKey, decide
+
+    rev1 = RevisionKey(1, "ofp_old", "dfp_same")
+    rev2 = RevisionKey(2, "ofp_new", "dfp_same")
+
+    # 1. Automatic run on same fp as latest (rev2) -> skip_unchanged
+    d_auto_latest = decide(None, [rev1, rev2], "ofp_new", "dfp_same", manual=False)
+    assert d_auto_latest.action == "skip_unchanged"
+
+    # 2. Automatic run on same fp as older revision (rev1) -> skip_same_as_rev
+    d_auto_old = decide(None, [rev1, rev2], "ofp_old", "dfp_same", manual=False)
+    assert d_auto_old.action == "skip_same_as_rev"
+    assert d_auto_old.same_as_rev == 1
+
+    # 3. Manual recheck on same fp as latest -> check, changed="manual"
+    d_manual_latest = decide(None, [rev1, rev2], "ofp_new", "dfp_same", manual=True)
+    assert d_manual_latest.action == "check"
+    assert d_manual_latest.changed == "manual"
+
+    # 4. Manual recheck on same fp as older revision -> check, changed="manual"
+    d_manual_old = decide(None, [rev1, rev2], "ofp_old", "dfp_same", manual=True)
+    assert d_manual_old.action == "check"
+    assert d_manual_old.changed == "manual"
+
+
+def test_schema_migration_0008_manual_revision_partial_index():
+    """Verify on real PostgreSQL schema (in a rolled-back transaction) that:
+    1. Migration 0008 partial index allows duplicate (oracle_fp, docs_fp) when changed='manual'
+    2. Automatic revisions (changed<>'manual') with duplicate fingerprints are rejected by partial unique index.
+    """
+    import os
+    import psycopg2
+    from dotenv import load_dotenv
+
+    load_dotenv("D:/CIM Project/mark-web/.env")
+    host = os.environ.get("MARK_PG_HOST", "10.151.28.2")
+    db = os.environ.get("MARK_PG_DB", "mark_web")
+    user = os.environ.get("MARK_PG_USER", "postgres")
+    password = os.environ.get("MARK_PG_PASSWORD", "")
+
+    try:
+        conn = psycopg2.connect(
+            host=host, port=5432, dbname=db, user=user, password=password, connect_timeout=5
+        )
+    except Exception:
+        pytest.skip("PostgreSQL not reachable from this test runner")
+
+    try:
+        with conn.cursor() as cur:
+            # Apply 0008 index within this transaction
+            cur.execute("alter table mark_app.elr_revision drop constraint if exists elr_revision_fp_unique;")
+            cur.execute("""
+                create unique index if not exists elr_revision_fp_auto_unique
+                  on mark_app.elr_revision (elr_no, oracle_fp, docs_fp)
+                  where changed <> 'manual';
+            """)
+
+            test_elr = "T_0008_REV_TEST"
+            cur.execute("DELETE FROM mark_app.elr_revision WHERE elr_no = %s;", (test_elr,))
+
+            # Insert rev 1 (manual)
+            cur.execute("""
+                INSERT INTO mark_app.elr_revision (
+                    elr_no, revision, oracle_fp, docs_fp, version_fp, result_fp, changed, run_id
+                ) VALUES (%s, 1, 'fp_o', 'fp_d', 'fp_v', 'fp_r1', 'manual', 22);
+            """, (test_elr,))
+
+            # Insert rev 2 (manual) with identical oracle_fp and docs_fp -> must succeed!
+            cur.execute("""
+                INSERT INTO mark_app.elr_revision (
+                    elr_no, revision, oracle_fp, docs_fp, version_fp, result_fp, changed, run_id
+                ) VALUES (%s, 2, 'fp_o', 'fp_d', 'fp_v', 'fp_r2', 'manual', 22);
+            """, (test_elr,))
+
+            # Insert rev 3 (oracle / automatic) with same fingerprints -> succeeds as first automated row
+            cur.execute("""
+                INSERT INTO mark_app.elr_revision (
+                    elr_no, revision, oracle_fp, docs_fp, version_fp, result_fp, changed, run_id
+                ) VALUES (%s, 3, 'fp_o', 'fp_d', 'fp_v', 'fp_r3', 'oracle', 22);
+            """, (test_elr,))
+
+            # Insert rev 4 (oracle / automatic) with duplicate fingerprints -> must raise UniqueViolation on partial index!
+            try:
+                cur.execute("""
+                    INSERT INTO mark_app.elr_revision (
+                        elr_no, revision, oracle_fp, docs_fp, version_fp, result_fp, changed, run_id
+                    ) VALUES (%s, 4, 'fp_o', 'fp_d', 'fp_v', 'fp_r4', 'oracle', 22);
+                """, (test_elr,))
+                pytest.fail("Expected UniqueViolation on elr_revision_fp_auto_unique for duplicate changed='oracle'")
+            except psycopg2.IntegrityError:
+                # Expected!
+                pass
+
+            # Always rollback
+            conn.rollback()
+    finally:
+        conn.close()
+
+
+
 
 

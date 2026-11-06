@@ -584,15 +584,50 @@ class Repo:
     def add_notification(self, elr_no: str, kind: str, message: str = "", run_id: int | None = None, revision: int | None = None) -> None:
         if not message:
             message = f"ELR {elr_no}: {kind}"
-        self._execute(
-            """
-            insert into mark_app.notification (elr_no, run_id, revision, kind, message)
-            values (%s, %s, %s, %s, %s)
-            on conflict (elr_no, kind, revision) do nothing;
-            """,
-            (elr_no, run_id, revision, kind, message),
-            commit=True,
-        )
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                # Defense-in-depth: skip if unread notification for (elr_no, kind, coalesce(revision, 0)) exists
+                try:
+                    cur.execute(
+                        """
+                        select 1 from mark_app.notification
+                        where elr_no = %s
+                          and kind = %s
+                          and coalesce(revision, 0) = coalesce(%s, 0)
+                          and read_at is null
+                        limit 1;
+                        """,
+                        (elr_no, kind, revision),
+                    )
+                    if cur.fetchone():
+                        return
+                except Exception:
+                    conn.rollback()
+
+                try:
+                    cur.execute(
+                        """
+                        insert into mark_app.notification (elr_no, run_id, revision, kind, message)
+                        values (%s, %s, %s, %s, %s)
+                        on conflict (elr_no, kind, coalesce(revision, 0)) where read_at is null do nothing;
+                        """,
+                        (elr_no, run_id, revision, kind, message),
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    try:
+                        cur.execute(
+                            """
+                            insert into mark_app.notification (elr_no, run_id, revision, kind, message)
+                            values (%s, %s, %s, %s, %s)
+                            on conflict (elr_no, kind, revision) do nothing;
+                            """,
+                            (elr_no, run_id, revision, kind, message),
+                        )
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
 
     def list_notifications(self, user_id: int, unread_only: bool = True) -> list[dict[str, Any]]:
         if unread_only:
