@@ -14,7 +14,8 @@ pipeline {
 
   parameters {
     booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Run docker compose up and the smoke test after CI')
-    string(name: 'MARK_WEB_PORT', defaultValue: '8088', description: 'Host port for NGINX (80 on 10.153.90.17; 8088 on the workstation)')
+    booleanParam(name: 'WORKER', defaultValue: false, description: 'Include the background auto-review worker in docker compose build and deploy')
+    string(name: 'MARK_WEB_PORT', defaultValue: '8088', description: 'Host port for NGINX')
     string(name: 'MARK_FILES_HOST_DIR', defaultValue: 'D:/CIM Project/mark-web/data/files', description: 'Host folder with the ABS images (git-ignored; mounted read-only)')
     string(name: 'MARK_LOG_HOST_DIR', defaultValue: 'D:/CIM Project/mark-web/logs', description: 'Host folder for persistent API logs')
     string(name: 'ENV_FILE', defaultValue: 'D:/CIM Project/mark-web/.env', description: 'Path of the .env on the agent host')
@@ -63,7 +64,13 @@ pipeline {
 
     stage('Docker images') {
       steps {
-        bat 'docker compose build'
+        script {
+          if (params.WORKER) {
+            bat 'docker compose --profile worker build'
+          } else {
+            bat 'docker compose build'
+          }
+        }
       }
     }
 
@@ -74,7 +81,13 @@ pipeline {
         withEnv(["MARK_ENV_FILE=${params.ENV_FILE.replace('/', '\\')}"]) {
           bat 'if not exist "%MARK_ENV_FILE%" (echo ENV_FILE not found: %MARK_ENV_FILE% & exit /b 1)'
           bat 'copy /Y "%MARK_ENV_FILE%" .env >nul'
-          bat 'docker compose up -d --remove-orphans'
+          script {
+            if (params.WORKER) {
+              bat 'docker compose --profile worker up -d --remove-orphans'
+            } else {
+              bat 'docker compose up -d --remove-orphans'
+            }
+          }
         }
       }
       post {

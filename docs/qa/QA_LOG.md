@@ -1,5 +1,29 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Deploy 17 Task 4: Preflight Script, Host-Neutral Jenkinsfile, Deploy Guide
+
+### Context & Implementation
+- Created scripts/deploy/preflight_17.ps1 in PowerShell 5.1 using built-in cmdlets to validate the .17 deployment target prior to running Jenkins builds.
+- Preflight evaluates 8 categories:
+  1. Checkout: working tree clean and synchronized with origin/phase2/trial.
+  2. Tooling: Python 3.12.x, Node.js, Git, Java 17+ (checks $env:JAVA, PATH, and common JDK install locations), Docker with linux OSType.
+  3. Disk: drive free space >= 10 GB.
+  4. Port: candidate port range scan, filtering out listening TCP connections, docker published ports, and Windows 
+etsh excluded port ranges. Supports -WritePort to update .env.
+  5. Internal network: TCP connectivity to Postgres (5432), Oracle ACTL (1521), A100 inference service (50051), and NAS storage (445).
+  6. External downloads: PyPI, npm, Docker Hub (401 accepted as reachable), Oracle downloads, GitHub.
+  7. Secrets: presence of 7 required keys in .env without printing secret values.
+  8. Firewall: checks inbound TCP allow rules for the selected port via 
+etsh advfirewall, printing New-NetFirewallRule warning if missing.
+- Updated Jenkinsfile with WORKER parameter (default alse) controlling --profile worker during build and deploy stages. Descriptions made host-neutral.
+- Updated scripts/jenkins-agent.bat to support environment variable overrides (JENKINS_URL, AGENT_NAME, WORKDIR, JAVA).
+- Authored scripts/deploy/README.md containing end-to-end instructions for Task 5 execution on 10.153.90.17.
+
+### Verification
+- Executed .\scripts\deploy\preflight_17.ps1 -Ports 8088,8090 on dev PC: port 8088 correctly identified as busy, port 8090 selected, all network and download checks passed.
+- Verified negative test: uncommitted tracked file causes preflight checkout stage to report [FAIL] and script exits with code 1.
+
+
 ## [2026-11-06] Deploy 17 Task 3: Worker Service and Read-Only CIFS NAS Mount in Compose
 
 ### Context & Implementation

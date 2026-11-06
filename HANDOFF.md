@@ -63,6 +63,19 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Deploy 17 Task 4: Preflight Script, Host-Neutral Jenkinsfile, Deploy Guide
+- **Preflight Script (scripts/deploy/preflight_17.ps1)**:
+  - Implemented PowerShell 5.1 preflight check verifying: clean checkout matching origin/phase2/trial, tooling versions (Python 3.12, Node, Git, Java >=17, Docker linux engine), disk free space >= 10 GB, automatic port discovery avoiding listeners/containers/Windows excluded port ranges, internal network reachability (PG 5432, Oracle 1521, A100 50051, NAS 445), download reachability (PyPI, npm, Docker Hub, Oracle, GitHub), .env required keys (names only, secrets never printed), and inbound firewall rule check (prints New-NetFirewallRule warning if missing).
+  - Tested on dev PC: -Ports 8088,8090 detected 8088 busy, selected free port 8090, verified all PASS. Verified negative case: checkout fails with exit 1 on uncommitted tracked changes.
+- **Host-Neutral Jenkinsfile & Inbound Agent Script**:
+  - Added WORKER boolean parameter (default alse) to Jenkinsfile. When true, runs docker compose --profile worker build and docker compose --profile worker up -d --remove-orphans.
+  - Removed host names from parameter descriptions while keeping dev workstation default values.
+  - Updated scripts/jenkins-agent.bat to read JENKINS_URL, AGENT_NAME, WORKDIR, JAVA from environment variables, falling back to dev PC defaults when unset.
+- **Deployment Documentation**:
+  - Authored scripts/deploy/README.md covering prerequisites, preflight execution, Jenkins agent configuration on .17, and first deployment steps (Task 5 instructions).
+  - Updated services/README.md with pointer to scripts/deploy/README.md.
+
+
 ### 2026-11-06 — Deploy 17 Task 3: Worker Service and Read-Only CIFS NAS Mount in Compose
 - **Startup Check (`check_nas_root`)**:
   - Implemented in `services/worker/main.py`: verifies `ELR Online 2026` folder exists and contains entries; exits with exit code 2 if unreadable or empty.

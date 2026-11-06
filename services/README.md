@@ -67,7 +67,8 @@ One-time setup:
 
 Parameters:
 - `DEPLOY`: default true.
-- `MARK_WEB_PORT`: 8088 on the workstation (IIS uses 80, Jenkins uses 8080); 80 on 10.153.90.17.
+- WORKER: default false on dev workstation; set true on production host 10.153.90.17 (see [scripts/deploy/README.md](../scripts/deploy/README.md)).
+- MARK_WEB_PORT: 8088 on the workstation (IIS uses 80, Jenkins uses 8080); dynamic port on 10.153.90.17 chosen by scripts/deploy/preflight_17.ps1 (see [scripts/deploy/README.md](../scripts/deploy/README.md)).
 - `MARK_FILES_HOST_DIR`: the folder with the ABS images, which are not in git.
 - `PYTHON_EXE`: full path if `python` is not on the service PATH.
 

@@ -3,10 +3,10 @@ rem Start the Jenkins agent "mark-web-local" under the current Windows user, so 
 rem use this user's Python, Node and Docker Desktop (the Jenkins service runs as LocalSystem).
 rem The agent secret is read from %USERPROFILE%\.jenkins-agent-secret (never commit it).
 setlocal
-set JENKINS_URL=http://localhost:8080
-set AGENT_NAME=mark-web-local
-set WORKDIR=D:\jenkins-agent
-set JAVA="C:\Program Files\Java\jdk-25.0.5+8\bin\java.exe"
+if "%JENKINS_URL%"=="" set JENKINS_URL=http://localhost:8080
+if "%AGENT_NAME%"=="" set AGENT_NAME=mark-web-local
+if "%WORKDIR%"=="" set WORKDIR=D:\jenkins-agent
+if "%JAVA%"=="" set JAVA="C:\Program Files\Java\jdk-25.0.5+8\bin\java.exe"
 
 if not exist "%WORKDIR%" mkdir "%WORKDIR%"
 if not exist "%WORKDIR%\agent.jar" curl -fsS -o "%WORKDIR%\agent.jar" %JENKINS_URL%/jnlpJars/agent.jar || goto :fail
