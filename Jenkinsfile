@@ -12,14 +12,16 @@ pipeline {
     timeout(time: 45, unit: 'MINUTES')
   }
 
+  // Per-host defaults come from Jenkins global environment variables (Manage Jenkins > System > Global
+  // properties); fallbacks are the dev workstation values. Declared parameters reset to these every build.
   parameters {
     booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Run docker compose up and the smoke test after CI')
-    booleanParam(name: 'WORKER', defaultValue: false, description: 'Include the background auto-review worker in docker compose build and deploy')
-    string(name: 'MARK_WEB_PORT', defaultValue: '8088', description: 'Host port for NGINX')
-    string(name: 'MARK_FILES_HOST_DIR', defaultValue: 'D:/CIM Project/mark-web/data/files', description: 'Host folder with the ABS images (git-ignored; mounted read-only)')
-    string(name: 'MARK_LOG_HOST_DIR', defaultValue: 'D:/CIM Project/mark-web/logs', description: 'Host folder for persistent API logs')
-    string(name: 'ENV_FILE', defaultValue: 'D:/CIM Project/mark-web/.env', description: 'Path of the .env on the agent host')
-    string(name: 'PYTHON_EXE', defaultValue: 'python', description: 'Python 3.12 executable (full path if the Jenkins service PATH lacks it)')
+    booleanParam(name: 'WORKER', defaultValue: (env.MARK_DEFAULT_WORKER ?: 'false').toBoolean(), description: 'Include the background auto-review worker in docker compose build and deploy')
+    string(name: 'MARK_WEB_PORT', defaultValue: env.MARK_DEFAULT_WEB_PORT ?: '8088', description: 'Host port for NGINX')
+    string(name: 'MARK_FILES_HOST_DIR', defaultValue: env.MARK_DEFAULT_FILES_DIR ?: 'D:/CIM Project/mark-web/data/files', description: 'Host folder with the ABS images (git-ignored; mounted read-only)')
+    string(name: 'MARK_LOG_HOST_DIR', defaultValue: env.MARK_DEFAULT_LOG_DIR ?: 'D:/CIM Project/mark-web/logs', description: 'Host folder for persistent API logs')
+    string(name: 'ENV_FILE', defaultValue: env.MARK_DEFAULT_ENV_FILE ?: 'D:/CIM Project/mark-web/.env', description: 'Path of the .env on the agent host')
+    string(name: 'PYTHON_EXE', defaultValue: env.MARK_DEFAULT_PYTHON ?: 'python', description: 'Python 3.12 executable (full path if the Jenkins service PATH lacks it)')
   }
 
   environment {

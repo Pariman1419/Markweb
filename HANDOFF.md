@@ -63,6 +63,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — fix(ci): per-host parameter defaults from Jenkins global env
+- Problem: Jenkins resets parameters declared in `Jenkinsfile` to `defaultValue` on every build, so a Poll SCM build on .17 would deploy with port 8088, dev paths and `WORKER=false`.
+- `Jenkinsfile`: `defaultValue` of `MARK_WEB_PORT`, `MARK_FILES_HOST_DIR`, `MARK_LOG_HOST_DIR`, `ENV_FILE`, `PYTHON_EXE`, `WORKER` now reads `env.MARK_DEFAULT_WEB_PORT`, `MARK_DEFAULT_FILES_DIR`, `MARK_DEFAULT_LOG_DIR`, `MARK_DEFAULT_ENV_FILE`, `MARK_DEFAULT_PYTHON`, `MARK_DEFAULT_WORKER`; fallbacks are the dev values (dev PC sets nothing).
+- `scripts/deploy/README.md`: table of the global env variables to set on .17 (port 8093, `D:/mark-web/...`, worker true).
+
 ### 2026-11-06 — Deploy 17 Task 4: Preflight Script, Host-Neutral Jenkinsfile, Deploy Guide
 - **Preflight Script (scripts/deploy/preflight_17.ps1)**:
   - Implemented PowerShell 5.1 preflight check verifying: clean checkout matching origin/phase2/trial, tooling versions (Python 3.12, Node, Git, Java >=17, Docker linux engine), disk free space >= 10 GB, automatic port discovery avoiding listeners/containers/Windows excluded port ranges, internal network reachability (PG 5432, Oracle 1521, A100 50051, NAS 445), download reachability (PyPI, npm, Docker Hub, Oracle, GitHub), .env required keys (names only, secrets never printed), and inbound firewall rule check (prints New-NetFirewallRule warning if missing).

@@ -1,5 +1,11 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] fix(ci): per-host parameter defaults from Jenkins global env
+
+- **Q:** Why would Poll SCM builds on .17 deploy with the dev settings?
+- **A:** Declared pipeline parameters are reset to their `defaultValue` on every build, so values typed into "Build with Parameters" do not persist. Fix: compute `defaultValue` from Jenkins global environment variables with dev fallbacks.
+- **Check:** dev build with no global env must still use 8088 and `WORKER=false`.
+
 ## [2026-11-06] Deploy 17 Task 4: Preflight Script, Host-Neutral Jenkinsfile, Deploy Guide
 
 ### Context & Implementation

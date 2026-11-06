@@ -91,17 +91,27 @@ The Jenkins controller runs as a Linux container and cannot directly run Windows
      - Repository URL: `https://github.com/Pariman1419/Markweb.git`
      - Branch Specifier: `*/phase2/trial`
      - Script Path: `Jenkinsfile`
-2. **First Run & Parameter Defaults**:
-   - Trigger "Build with Parameters" once to populate defaults, then ensure:
-     - `DEPLOY`: `true`
-     - `WORKER`: `true` (enables worker container with CIFS NAS mount)
-     - `MARK_WEB_PORT`: `<selected port from preflight>`
-     - `MARK_FILES_HOST_DIR`: `D:/mark-web/data/files`
-     - `MARK_LOG_HOST_DIR`: `D:/mark-web/logs`
-     - `ENV_FILE`: `D:/mark-web-secrets/.env`
-     - `PYTHON_EXE`: `python`
+2. **Parameter defaults**: do not type values into "Build with Parameters" (a Poll SCM build resets them).
+   Set the per-host defaults as Jenkins global environment variables, see "Per-host parameter defaults" below.
 
 ---
+
+### Per-host parameter defaults (Jenkins global environment variables)
+
+Jenkins resets every parameter declared in `Jenkinsfile` to its `defaultValue` on each build, so a build started by Poll SCM never keeps values typed into "Build with Parameters". The defaults therefore come from the Jenkins global environment; the fallbacks are the dev workstation values (the dev PC needs nothing set).
+
+On .17 set these under Manage Jenkins -> System -> Global properties -> Environment variables:
+
+| Variable | Value on .17 | Parameter |
+|---|---|---|
+| `MARK_DEFAULT_WEB_PORT` | `8093` | `MARK_WEB_PORT` (fallback `8088`) |
+| `MARK_DEFAULT_FILES_DIR` | `D:/mark-web/data/files` | `MARK_FILES_HOST_DIR` |
+| `MARK_DEFAULT_LOG_DIR` | `D:/mark-web/logs` | `MARK_LOG_HOST_DIR` |
+| `MARK_DEFAULT_ENV_FILE` | `D:/mark-web-secrets/.env` | `ENV_FILE` |
+| `MARK_DEFAULT_PYTHON` | `C:\Users\ProautomationSV\AppData\Local\Programs\Python\Python312\python.exe` | `PYTHON_EXE` (fallback `python`) |
+| `MARK_DEFAULT_WORKER` | `true` | `WORKER` (fallback `false`) |
+
+Save, then run the job once manually: Jenkins re-reads the parameter definitions only after a build has started, so the first build after a change of these variables may still show the old defaults. Check the parameters page of the next build (and `docker ps` for `mark-web-worker-1`).
 
 ## 5. Decommissioning Dev PC Deployment
 
