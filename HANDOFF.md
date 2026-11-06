@@ -67,6 +67,7 @@
 - Merged origin/phase2/airflow into phase2/trial for deployment to 10.153.90.17.
 - Retained both changelogs in chronological order.
 - Airflow DAGs and client tests merged; 493 unit tests passed.
+- Fixed `ZoneInfoNotFoundError: 'No time zone found with key Asia/Bangkok'` on Windows by adding `tzdata` to `pyproject.toml[dev]` and fallback in `test_mark_api_client.py`.
 - Airflow work branches will originate from phase2/trial going forward.
 
 ### 2026-11-06 — Plan: deploy to 10.153.90.17 (for the other agent)

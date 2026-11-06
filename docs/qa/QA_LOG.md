@@ -10,6 +10,7 @@
 
 ### Verification
 - 493 unit tests passed (pytest tests -q --ignore=tests/regression), including all Airflow client tests.
+- Fixed `ZoneInfoNotFoundError: 'No time zone found with key Asia/Bangkok'` on Windows by adding `tzdata` to `pyproject.toml[dev]` and fallback in `test_mark_api_client.py`.
 
 ## [2026-11-06] Plan: deploy to 10.153.90.17
 

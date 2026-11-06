@@ -126,6 +126,12 @@ def test_task_maps_busy_and_auth_without_leaking_token(monkeypatch):
 def test_dag_configuration_without_airflow_or_network(monkeypatch, filename, schedule, path, body, retries):
     import runpy
     import types
+    import zoneinfo
+    from datetime import timezone, timedelta
+    try:
+        zoneinfo.ZoneInfo('Asia/Bangkok')
+    except Exception:
+        monkeypatch.setattr(zoneinfo, 'ZoneInfo', lambda name: timezone(timedelta(hours=7)))
     root = Path(__file__).resolve().parents[2] / 'airflow' / 'dags'
     monkeypatch.syspath_prepend(str(root))
     captured = {}
