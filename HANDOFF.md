@@ -63,6 +63,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Jenkinsfile per-host defaults: build 66 red, build 67 green
+- Build 66 failed to compile: declarative `parameters{}` rejected `(env.MARK_DEFAULT_WORKER ?: 'false').toBoolean()` ("Expected a symbol @ line 19"). `78df6bf` uses `env.MARK_DEFAULT_WORKER == 'true'`; dev build 67 is green (499 passed, `MARK_WEB_PORT=8088`, `WORKER=false`, no worker container).
+- Not validated against Jenkins `/pipeline-model-converter/validate` (needs a login; no token available to the agent). A variant with top-level `def DEF_*` was dropped unpushed.
+- **.17 steps (user):** set the six `MARK_DEFAULT_*` global env variables from `scripts/deploy/README.md` (8093, `D:/mark-web/...`, worker `true`), pull `phase2/trial`, run the job once by hand, check the next build's parameters (8093, WORKER ticked) and `docker ps` for `mark-web-worker-1`; then set `DEPLOY=false` on the dev job so only one worker runs.
+
 ### 2026-11-06 — fix(deploy): agent bat quoting, NAS notes, preflight -PythonExe
 - `scripts/jenkins-agent.bat`: `if not defined X set ...` instead of `if "%X%"==""`; `JAVA` is stripped of quotes and invoked as `"%JAVA%"`.
 - `scripts/deploy/README.md`: NAS volume section (credentials live in the volume options; changing them needs `docker volume rm mark-web_nas_elr`; no "," in NAS_USER/NAS_PASSWORD; NAS down means worker exits 2 and restarts in a loop).

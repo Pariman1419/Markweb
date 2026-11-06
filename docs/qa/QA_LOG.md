@@ -1,5 +1,11 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Declarative parameters{} rejects expressions
+
+- **Q:** Why did build 66 fail with "Expected a symbol @ line 19"?
+- **A:** `parameters{}` accepts plain values; `(env.X ?: 'false').toBoolean()` is not accepted. `env.X ?: 'y'` for string parameters and `env.X == 'true'` for the boolean compiled in build 67.
+- **Gap:** the fix was pushed without `/pipeline-model-converter/validate` (needs a Jenkins login). Validate a `Jenkinsfile` change before pushing when a token is available.
+
 ## [2026-11-06] fix(deploy): agent bat quoting, NAS notes, preflight -PythonExe
 
 - **Why:** `if "%JAVA%"==""` breaks when the value contains quotes/spaces. CIFS options are comma-separated, so a "," in the NAS user or password silently corrupts the mount options. A rule with LocalPort Any is not evidence that the chosen port is open.
