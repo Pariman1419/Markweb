@@ -1,5 +1,17 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] B3 Task 6 Step 1: Initial Load Dry Run Completed
+
+### Context & Implementation
+- Generated `MARK_SCAN_WRITE_TOKEN` with scope `scan:write` via `mark_app.api_token` and saved to `.env`.
+- Invoked `POST http://localhost:8088/api/scans` with payload `{"source": "initial"}`.
+- Received HTTP 201 Created:
+  - `scan_id`: 2
+  - `counts`: `{'found': 0, 'queued': 0, 'unchanged': 0, 'skipped': 0, 'same_as_rev': 0}`
+- Conforms to plan B3 Task 6 Step 1 (Zero ELRs at step 6 is normal per spec §2.4).
+- Awaiting user input for Task 6 Step 2: real ELR name at step 6.
+
+
 ## [2026-11-06] Fix(API): Graceful Fallback When Oracle Client Unavailable in Container
 
 ### Context & Implementation

@@ -63,6 +63,14 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — B3 Task 6 Step 1: Initial Load Dry Run Completed
+- **Status**: Completed Step 1 of Task 6.
+- **Results**:
+  - `POST http://localhost:8088/api/scans` with `{"source": "initial"}` returned HTTP 201 Created.
+  - Scan result: `scan_id=2`, `counts={'found': 0, 'queued': 0, 'unchanged': 0, 'skipped': 0, 'same_as_rev': 0}`.
+- **Next**: Task 6 Step 2 is `[USER]`. Awaiting user to specify a real ELR at step 6 (or recently was).
+
+
 ### 2026-11-06 — Fix(API): Graceful Fallback When Oracle Client Unavailable in Container
 - **Commit**: `fix(api): graceful fallback when Oracle client unavailable in container`
 - **Key Changes**:
