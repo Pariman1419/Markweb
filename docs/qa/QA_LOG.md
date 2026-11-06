@@ -1,5 +1,11 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] Jenkins on .17 runs as a Linux container
+
+- **Q:** Can the existing `Jenkinsfile` run on the .17 Jenkins (`jenkins/jenkins:lts-jdk21` in Docker Desktop)?
+- **A:** Not on the controller: the file uses `bat`/`powershell` and needs Windows Python, Node and Docker Desktop. Keep the dev-PC pattern: a Windows inbound agent (`scripts/jenkins-agent.bat`, WebSocket to `http://localhost:8080`) under the user's account, label `mark-web`. One `Jenkinsfile` serves both hosts; `WORKER=true` only on .17.
+- **Check:** `--remove-orphans` is scoped to compose project `mark-web`, so it does not remove the `jenkins` container.
+
 ## [2026-11-06] Deploy 17 Task 1: Merge phase2/airflow into phase2/trial
 
 ### Context & Implementation

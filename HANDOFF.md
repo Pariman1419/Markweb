@@ -63,6 +63,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Deploy plan updated: development moves to .17, Jenkins on .17
+- **User:** day-to-day work moves to .17 after this plan; Jenkins is already installed there as Docker container `jenkins` (`jenkins/jenkins:lts-jdk21`, host 8080, volume `jenkins_home`).
+- **Plan change** (`docs/superpowers/plans/2026-11-06-deploy-17.md`): Task 4 adds a `WORKER` parameter to `Jenkinsfile`, env-driven `scripts/jenkins-agent.bat`, and tool/GitHub checks in `preflight_17.ps1`. Task 5 now sets up a Windows agent `mark-web-local` on the .17 host (the Linux controller cannot run `bat`), job polling `phase2/trial` every 5 min, then the first build is the deploy. The dev PC Jenkins becomes CI-only (`DEPLOY=false`).
+- **Port note:** 8080 on .17 is now Jenkins (memory said Streamlit; preflight decides).
+
 ### 2026-11-06 — Deploy 17 Task 1: Merge phase2/airflow into phase2/trial
 - Merged origin/phase2/airflow into phase2/trial for deployment to 10.153.90.17.
 - Retained both changelogs in chronological order.
