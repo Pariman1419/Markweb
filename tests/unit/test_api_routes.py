@@ -537,13 +537,14 @@ def test_elr_detail_fixed_query_count(client, fake_repo):
     assert fake_repo.call_count <= 4
 
 
-def test_dashboard_cached_per_run(client, fake_repo):
+def test_dashboard_without_redis_uses_database(client, fake_repo, monkeypatch):
+    monkeypatch.setattr("mark_api.routers.validation.get_redis", lambda: None)
     clear_dashboard_cache()
     _login(client)
     initial_lines_calls = fake_repo.lines_call_count
     client.get("/api/dashboard?run=18")
     client.get("/api/dashboard?run=18")
-    assert fake_repo.lines_call_count == initial_lines_calls + 1
+    assert fake_repo.lines_call_count == initial_lines_calls + 2
 
 
 def test_elrs_paged(client, fake_repo):
@@ -825,10 +826,112 @@ def test_review_uses_line_key_not_snapshot_abs(client, fake_repo):
     assert r.status_code == 404 and len(fake_repo.reviews_data) == n
 
 
-def test_dashboard_cache_lru_8(client, fake_repo):
-    from mark_api.routers import validation
+def test_review_invalidates_dashboard_after_save(client, monkeypatch):
+    from mark_api.routers import workflow
+    events = []
+    monkeypatch.setattr(workflow, "notify_revision", lambda *args: events.append(args), raising=False)
+    csrf = _login(client)
+    body = {"run_id": 18, "elr_no": "ADI2607001", "line_no": 1, "reason": "OTHER"}
+    assert client.post("/api/reviews", json=body, headers={"X-CSRF-Token": csrf}).status_code == 200
+    assert events == [(18, "ADI2607001", None)]
+
+
+def test_dashboard_without_redis_accepts_multiple_runs(client, fake_repo, monkeypatch):
+    monkeypatch.setattr("mark_api.routers.validation.get_redis", lambda: None)
     _login(client)
-    for run in range(100, 109):                       # 9 distinct runs (FakeRepo returns empty data → still cached)
-        client.get(f"/api/dashboard?run={run}")
-    assert len(validation._dashboard_cache) == 8 and 100 not in validation._dashboard_cache
+    for run in range(100, 109):
+        assert client.get(f"/api/dashboard?run={run}").status_code == 200
+
+
+def test_websocket_requires_session(client):
+    from starlette.websockets import WebSocketDisconnect
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/api/ws/events", headers={"origin": "http://testserver"}):
+            pass
+
+
+def test_websocket_rejects_cross_origin(client):
+    from starlette.websockets import WebSocketDisconnect
+    _login(client)
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/api/ws/events", headers={"origin": "http://other.example"}):
+            pass
+
+
+def test_websocket_sends_revision_event_for_authenticated_user(client, fake_repo, monkeypatch):
+    from mark_api.routers import ws
+
+    class PubSub:
+        async def subscribe(self, channel):
+            assert channel == "mark_events"
+        async def get_message(self, **kwargs):
+            return {"type": "message", "data": '{"run_id": 21}'}
+        async def aclose(self):
+            pass
+
+    class Redis:
+        def pubsub(self):
+            return PubSub()
+
+    monkeypatch.setattr(ws, "get_async_redis", lambda: Redis())
+    _login(client)
+    touches = []
+    monkeypatch.setattr(fake_repo, "touch_session", lambda *args: touches.append(1))
+    with client.websocket_connect("/api/ws/events", headers={"origin": "http://testserver"}) as socket:
+        assert socket.receive_json()["run_id"] == 21
+    assert touches == []
+
+
+def test_websocket_revalidates_without_disconnecting_valid_session(client, monkeypatch):
+    import asyncio
+    from mark_api.routers import ws
+
+    class PubSub:
+        calls = 0
+        async def subscribe(self, channel):
+            pass
+        async def get_message(self, **kwargs):
+            await asyncio.sleep(0.01)
+            self.calls += 1
+            return {"type": "message", "data": '{"run_id": 21}'} if self.calls == 5 else None
+        async def aclose(self):
+            pass
+
+    class Redis:
+        def pubsub(self):
+            return PubSub()
+
+    checks = []
+    monkeypatch.setattr(ws, "_session_authorized", lambda socket: checks.append(1) or True)
+    monkeypatch.setattr(ws, "REVALIDATE_INTERVAL", 0.02)
+    monkeypatch.setattr(ws, "get_async_redis", lambda: Redis())
+    with client.websocket_connect("/api/ws/events", headers={"origin": "http://testserver"}) as socket:
+        assert socket.receive_json()["run_id"] == 21
+    assert len(checks) >= 2
+
+
+def test_websocket_closes_when_session_is_revoked(client, monkeypatch):
+    import asyncio
+    from mark_api.routers import ws
+    from starlette.websockets import WebSocketDisconnect
+
+    class PubSub:
+        async def subscribe(self, channel):
+            pass
+        async def get_message(self, **kwargs):
+            await asyncio.sleep(0.01)
+        async def aclose(self):
+            pass
+
+    class Redis:
+        def pubsub(self):
+            return PubSub()
+
+    statuses = iter([True, False])
+    monkeypatch.setattr(ws, "_session_authorized", lambda socket: next(statuses))
+    monkeypatch.setattr(ws, "REVALIDATE_INTERVAL", 0.02)
+    monkeypatch.setattr(ws, "get_async_redis", lambda: Redis())
+    with client.websocket_connect("/api/ws/events", headers={"origin": "http://testserver"}) as socket:
+        with pytest.raises(WebSocketDisconnect):
+            socket.receive_json()
 

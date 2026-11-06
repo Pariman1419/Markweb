@@ -1,4 +1,16 @@
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    expose:
+      - "6379"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   api:
     build:
       context: .
@@ -12,6 +24,7 @@ services:
       - ${MARK_LOG_HOST_DIR:-./logs}:/app/logs
     environment:
       - MARK_FILES_ROOT=/app/data/files
+      - REDIS_URL=redis://redis:6379/0
       - MARK_WORK_ROOT=/app/work
       - MARK_LOG_DIR=/app/logs
       - PYTHONPATH=/app:/app/services/api
@@ -55,6 +68,7 @@ services:
       - ./work:/app/work
     environment:
       - NAS_ROOT=/mnt/elr/ADI
+      - REDIS_URL=redis://redis:6379/0
       - MARK_INFERENCE=service
       - PYTHONPATH=/app:/app/services/api
       - ORACLE_CLIENT_DIR=/opt/oracle/instantclient_21_13

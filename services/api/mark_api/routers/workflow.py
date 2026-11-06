@@ -10,6 +10,7 @@ from mark_api.grouping import classify_job
 from mark_api.logging import log_event
 from mark_api.repo import Repo
 from mark_api.workflow import approve_blockers
+from mark_engine.adapters.redis_cache import notify_revision
 
 router = APIRouter(tags=["workflow"])
 
@@ -50,6 +51,7 @@ def add_review(req: ReviewRequest, request: Request, user: dict[str, Any] = Depe
         reviewer_id=user["user_id"],
         is_draft=req.is_draft,
     )
+    notify_revision(req.run_id, req.elr_no, None)
     repo.audit(
         user["user_id"],
         "review.saved",
@@ -86,6 +88,7 @@ def add_approval(req: ApprovalRequest, request: Request, user: dict[str, Any] = 
             return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"blocked_lines": blockers})
 
     app_id = repo.add_approval(req.run_id, req.elr_no, req.decision, user["user_id"])
+    notify_revision(req.run_id, req.elr_no, None)
     repo.audit(user["user_id"], "approval.saved", run_id=req.run_id, elr_no=req.elr_no, detail={"decision": req.decision}, **audit_ctx(request))
     log_event("approval.saved", run_id=req.run_id, elr_no=req.elr_no, decision=req.decision)
     return {"status": "ok", "approval_id": app_id, "decision": req.decision}

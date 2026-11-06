@@ -6,12 +6,14 @@ import {
 } from '../api';
 import { ActivelGrid } from '../components/ActivelGrid';
 import { LineReviewForm } from '../components/LineReviewForm';
+import { useEvents } from '../hooks/useEvents';
 
 export const Preview: React.FC = () => {
   const { elr } = useParams<{ elr: string }>();
   const [searchParams] = useSearchParams();
   const runId = Number(searchParams.get('run')) || 19;
   const navigate = useNavigate();
+  const eventVersion = useEvents();
 
   const [data, setData] = useState<ElrDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,7 +39,7 @@ export const Preview: React.FC = () => {
 
   useEffect(() => {
     fetchDetail();
-  }, [elr, runId]);
+  }, [elr, runId, eventVersion]);
 
   const handleSaveReview = async (reviewData: {
     line_no: number;

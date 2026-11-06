@@ -7,6 +7,7 @@ from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
 from mark_engine.adapters.oracle_client import select
+from mark_engine.adapters.redis_cache import cache_json, get_redis
 from mark_engine.adapters.oracle_snapshot import (
     BASE_ELR_QUERY,
     rows_to_meta,
@@ -50,7 +51,7 @@ def fetch_layout(conn: Any, mark_id: int) -> list[dict[str, Any]]:
     """Fetch layout rows for a given MARK_ID."""
     query = "SELECT MARK_ID, MARK_ROW, MARK_COLUMN, MARK_DATA FROM ACTLDBA.MARK_ID_LAYOUT WHERE MARK_ID = :mark_id"
     binds = {"mark_id": mark_id}
-    return select(conn, query, binds)
+    return cache_json(get_redis(), f"mark:layout:{mark_id}", 86400, lambda: select(conn, query, binds))
 
 
 def fetch_pending_step(conn: Any, review_step: str) -> list[dict[str, Any]]:

@@ -33,6 +33,7 @@ from mark_engine.adapters.inference_service import (
     load_service_inference_for_pdf,
 )
 from mark_engine.adapters.oracle_client import connect_actl
+from mark_engine.adapters.redis_cache import notify_revision, optional_lock
 from mark_engine.documents.resolve import resolve_documents
 from mark_engine.domain.models import (
     ApprovalStatus,
@@ -164,6 +165,7 @@ def run_worker_cycle(
     worker_id: str = "worker-1",
     today: Any = None,
     conn_pg: Any = None,
+    pending_notifications: list[tuple[int, str, int]] | None = None,
 ) -> CycleResult:
     """Execute one item from the work queue.
 
@@ -174,6 +176,9 @@ def run_worker_cycle(
     item = claim(cur_queue, worker_id)
     if not item:
         return CycleResult.NO_ITEM
+
+    work_lock = optional_lock(f"mark:lock:work:{item.item_id}")
+    work_lock.__enter__()
 
     try:
         elr_no = item.elr_no
@@ -402,6 +407,8 @@ def run_worker_cycle(
 
         # 15. Mark work item finished
         finish(cur_queue, item.item_id, revision=new_rev)
+        if pending_notifications is not None:
+            pending_notifications.append((run_id, elr_no, new_rev))
         return CycleResult.PROCESSED
 
     except Exception as exc:
@@ -419,6 +426,8 @@ def run_worker_cycle(
         except Exception as queue_exc:
             logger.exception("Failed to record error backoff for item %s: %s", item.item_id, queue_exc)
         return CycleResult.ERROR
+    finally:
+        work_lock.__exit__(None, None, None)
 
 
 def check_nas_root(root: Path) -> None:
@@ -438,6 +447,20 @@ def check_nas_root(root: Path) -> None:
         logger.error("NAS root not readable: %s", root)
         sys.stderr.write(f"NAS root not readable: {root}\n")
         raise SystemExit(2)
+
+
+def run_transaction(conn_pg: Any, conn_oracle: Any, worker_id: str) -> CycleResult:
+    """Only publish after the database transaction commits successfully."""
+    pending_notifications: list[tuple[int, str, int]] = []
+    with conn_pg:
+        with conn_pg.cursor() as cur:
+            result = run_worker_cycle(
+                cur, cur, conn_oracle=conn_oracle, worker_id=worker_id,
+                conn_pg=conn_pg, pending_notifications=pending_notifications,
+            )
+    for event in pending_notifications:
+        notify_revision(*event)
+    return result
 
 
 def main() -> None:
@@ -467,15 +490,7 @@ def main() -> None:
         while True:
             cycle_err = False
             try:
-                with conn_pg:
-                    with conn_pg.cursor() as cur:
-                        res = run_worker_cycle(
-                            cur,
-                            cur,
-                            conn_oracle=conn_oracle,
-                            worker_id=args.worker_id,
-                            conn_pg=conn_pg,
-                        )
+                res = run_transaction(conn_pg, conn_oracle, args.worker_id)
             except Exception as loop_exc:
                 logger.exception("Worker cycle loop error: %s", loop_exc)
                 cycle_err = True

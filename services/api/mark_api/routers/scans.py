@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from mark_api.deps import current_user, get_repo, require_any_role, require_scope, safe_audit
 from mark_api.repo import Repo, ScanLockConflict
 from mark_engine.adapters.oracle_client import connect_actl
+from mark_engine.adapters.redis_cache import optional_lock
 from mark_engine.history.decide import decide
 from mark_engine.history.fingerprint import oracle_fp
 from mark_engine.select import pending_reason
@@ -43,7 +44,7 @@ def trigger_scan(
     """Trigger an airflow or initial scan for new/changed ELRs."""
     # 1. Enforce single active scan via single connection advisory lock
     try:
-        with repo.hold_scan_lock():
+        with optional_lock("mark:lock:scan"), repo.hold_scan_lock():
             review_step = os.environ.get("MARK_REVIEW_STEP", "6")
             now = datetime.now(timezone.utc)
             from_ts = req.from_ts

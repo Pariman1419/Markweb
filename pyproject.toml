@@ -9,6 +9,7 @@ description = "Mark verification and expectation engine for ELR packages"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "redis>=5.0.0",
     "pymupdf>=1.24.0",
     "openpyxl>=3.1.0",
     "Pillow>=10.0.0",
@@ -42,7 +43,7 @@ include = ["mark_engine*", "mark_api*"]
 "mark_engine.encode" = ["data/*.json", "data/*.csv"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = [".", "services/api"]
 testpaths = ["tests"]
 markers = [
     "regression: needs MARK_R0_ROOT",

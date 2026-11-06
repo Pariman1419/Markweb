@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   apiFetch,
@@ -11,11 +11,13 @@ import { StatusCards } from '../components/StatusCards';
 import { MonthlyChart } from '../components/MonthlyChart';
 import { CauseChart } from '../components/CauseChart';
 import { ElrTable } from '../components/ElrTable';
+import { useEvents } from '../hooks/useEvents';
 
 export const Dashboard: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [runs, setRuns] = useState<Run[]>([]);
   const [selectedRun, setSelectedRun] = useState<number | null>(null);
+  const newestRun = useRef<number | null>(null);
 
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
@@ -33,6 +35,7 @@ export const Dashboard: React.FC = () => {
   const [page, setPage] = useState(1);
 
   const navigate = useNavigate();
+  const eventVersion = useEvents();
 
   // 1. Debounce search 300ms
   useEffect(() => {
@@ -43,26 +46,31 @@ export const Dashboard: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // 2. Fetch User & Runs
+  // 2. Fetch User and refresh runs when events arrive.
   useEffect(() => {
     apiFetch<User>('/api/auth/me')
       .then(setUser)
       .catch(() => navigate('/login'));
+  }, [navigate]);
 
+  useEffect(() => {
     apiFetch<Run[]>('/api/runs')
       .then((data) => {
         setRuns(data);
         setLoadError(null);
         if (data.length > 0) {
           // Select newest run by default
-          setSelectedRun(data[0].run_id);
+          const previousNewest = newestRun.current;
+          const nextNewest = data[0].run_id;
+          newestRun.current = nextNewest;
+          setSelectedRun(current => current === null || current === previousNewest ? nextNewest : current);
         }
       })
       .catch((err) => {
         console.error('Failed to load runs:', err);
         setLoadError('โหลดรายการ run ไม่สำเร็จ');
       });
-  }, [navigate]);
+  }, [eventVersion]);
 
   // 3. Fetch Dashboard data when selectedRun changes
   useEffect(() => {
@@ -76,7 +84,7 @@ export const Dashboard: React.FC = () => {
         console.error('Failed to load dashboard:', err);
         setLoadError('โหลด Dashboard ไม่สำเร็จ');
       });
-  }, [selectedRun]);
+  }, [selectedRun, eventVersion]);
 
   // 4. Fetch ELR Table rows when run, filters, or page changes
   useEffect(() => {
@@ -101,7 +109,7 @@ export const Dashboard: React.FC = () => {
         setLoadError('โหลดรายการ ELR ไม่สำเร็จ (เซิร์ฟเวอร์ผิดพลาด) — ลองใหม่อีกครั้ง');
       })
       .finally(() => setLoadingTable(false));
-  }, [selectedRun, page, selectedMonth, selectedResult, selectedCause, debouncedSearch]);
+  }, [selectedRun, page, selectedMonth, selectedResult, selectedCause, debouncedSearch, eventVersion]);
 
   const handleLogout = async () => {
     try {
