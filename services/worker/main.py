@@ -10,6 +10,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import sys
 import time
 from typing import Any, Callable, Mapping, Sequence
 
@@ -59,6 +60,7 @@ class CycleResult(str, Enum):
     NO_ITEM = "NO_ITEM"
     PROCESSED = "PROCESSED"
     SKIPPED = "SKIPPED"
+    ERROR = "ERROR"
 
 
 def probe_resolution(resolution: DocumentResolution | None) -> dict[str, dict[str, Any]]:
@@ -389,7 +391,7 @@ def run_worker_cycle(
                 conn.commit()
         except Exception as queue_exc:
             logger.exception("Failed to record error backoff for item %s: %s", item.item_id, queue_exc)
-        return CycleResult.PROCESSED
+        return CycleResult.ERROR
 
 
 def main() -> None:
@@ -412,8 +414,10 @@ def main() -> None:
     )
     conn_oracle = connect_actl()
 
+    consecutive_cycle_errors = 0
     try:
         while True:
+            cycle_err = False
             try:
                 with conn_pg:
                     with conn_pg.cursor() as cur:
@@ -426,8 +430,17 @@ def main() -> None:
                         )
             except Exception as loop_exc:
                 logger.exception("Worker cycle loop error: %s", loop_exc)
-                res = CycleResult.PROCESSED
+                cycle_err = True
+                res = CycleResult.ERROR
                 time.sleep(args.poll_seconds)
+
+            if cycle_err or res == CycleResult.ERROR:
+                consecutive_cycle_errors += 1
+                if args.once and consecutive_cycle_errors >= 5:
+                    logger.error("5 consecutive cycle errors encountered in --once mode; exiting with exit code 1")
+                    sys.exit(1)
+            else:
+                consecutive_cycle_errors = 0
 
             if res == CycleResult.NO_ITEM:
                 if args.once:

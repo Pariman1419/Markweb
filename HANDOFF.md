@@ -63,21 +63,16 @@
 
 ## 4. Live Changelog & Session Updates
 
-### 2026-11-06 — B3 Task 6 Step 1: Initial Load Dry Run Completed
-- **Status**: Completed Step 1 of Task 6.
-- **Results**:
-  - `POST http://localhost:8088/api/scans` with `{"source": "initial"}` returned HTTP 201 Created.
-  - Scan result: `scan_id=2`, `counts={'found': 0, 'queued': 0, 'unchanged': 0, 'skipped': 0, 'same_as_rev': 0}`.
-- **Next**: Task 6 Step 2 is `[USER]`. Awaiting user to specify a real ELR at step 6 (or recently was).
-
-
-### 2026-11-06 — Fix(API): Graceful Fallback When Oracle Client Unavailable in Container
-- **Commit**: `fix(api): graceful fallback when Oracle client unavailable in container`
+### 2026-11-06 — Fix(API, Worker): Fail Loudly Without Oracle & Retry Attempts Integrity
+- **Commit**: `fix(api,worker): fail loudly without Oracle, retry attempts`
 - **Key Changes**:
-  1. Wrapped `connect_actl()` in `trigger_scan` and `oracle_check_elr` (`services/api/mark_api/routers/scans.py`) in `try...except Exception:` assigning `conn_oracle = None` with warning logs.
-  2. Ensures container environments lacking Oracle thick client libraries or driver handle scan requests cleanly with `found: 0, queued: 0` (HTTP 201 Created) instead of unhandled 500.
-  3. `oracle_check_elr` returns HTTP 404 with notification and audit log when Oracle is unavailable.
-- **Verification**: `tests/unit/test_scans_api.py::test_scan_and_oracle_check_when_oracle_client_unavailable` added and passed. Full unit test suite: 465 passed.
+  1. Reverted soft fallback: `POST /api/scans` fails loudly with HTTP 503, records error in `mark_app.scan` (watermark unchanged) when Oracle is unavailable.
+  2. `oracle-check` returns HTTP 503 when Oracle fails, preventing false `not_in_oracle` notifications.
+  3. Added `oracledb>=2.0.0` to `pyproject.toml[api]` and installed Oracle Instant Client 21.13 in `services/api/Dockerfile` with `libaio1t64` and `ldconfig`. Overrode `ORACLE_CLIENT_DIR` in `docker-compose.yml`.
+  4. Fixed worker retry attempts: `fail()` and `fail_with_backoff()` in `services/worker/queue.py` persist `attempts = item.attempts` directly into DB, preventing rolled-back attempts from stalling retries. Tested 4th attempt transitions to `failed`. Added 5 consecutive cycle error exit with code 1 in `--once` mode.
+  5. Invalidation & Re-scan: Marked `scan_id=2` as invalid. Re-ran Task 6 Step 1 with live Oracle inside container -> `scan_id: 3`, queried Oracle ACTL, confirmed actual `found: 0, queued: 0`.
+- **Verification**: 467 unit tests passed (`pytest tests -q --ignore=tests/regression`). Live Oracle verified inside `api` container.
+
 
 
 ### 2026-11-06 — Network Restored & Pre-Task 6 CI Verification

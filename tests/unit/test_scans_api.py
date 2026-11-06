@@ -561,32 +561,43 @@ def test_repo_hold_scan_lock_uses_single_connection_and_releases_in_finally():
     mock_pool.putconn.assert_called_once_with(mock_conn)
 
 
-def test_scan_and_oracle_check_when_oracle_client_unavailable(client, repo, monkeypatch):
-    """Gracefully handle ModuleNotFoundError / Exception when Oracle client is unavailable."""
+def test_scan_and_oracle_check_when_oracle_unavailable_fails_loudly_with_503(client, repo, monkeypatch):
+    """When connect_actl raises, scan returns 503, records error, watermark unchanged; oracle-check returns 503 with no notification."""
     def raise_oracle_err():
-        raise ModuleNotFoundError("No module named 'oracledb'")
+        raise RuntimeError("Oracle connection refused")
 
     monkeypatch.setattr("mark_api.routers.scans.connect_actl", raise_oracle_err)
 
-    # 1. /api/scans succeeds cleanly with found=0, queued=0 instead of 500
-    repo.add_token("scan_tok", ["scan:write"], "token_scan_graceful")
+    # 1. Existing successful scan establishing a watermark
+    t_prev = datetime(2026, 11, 4, 10, 0, 0, tzinfo=timezone.utc)
+    s0_id = repo.create_scan("initial", "admin", None, t_prev)
+    repo.finish_scan(s0_id, {"found": 5, "queued": 5, "unchanged": 0, "skipped": 0, "same_as_rev": 0})
+    assert repo.last_successful_scan()["to_ts"] == t_prev
+
+    # 2. POST /api/scans fails with 503
+    repo.add_token("scan_tok", ["scan:write"], "token_scan_503")
     resp = client.post(
         "/api/scans",
         json={"source": "initial"},
-        headers={"Authorization": "Bearer token_scan_graceful"},
+        headers={"Authorization": "Bearer token_scan_503"},
     )
-    assert resp.status_code == 201
-    assert resp.json()["counts"] == {
-        "found": 0,
-        "queued": 0,
-        "unchanged": 0,
-        "skipped": 0,
-        "same_as_rev": 0,
-    }
+    assert resp.status_code == 503
+    assert "Oracle connection unavailable" in resp.json()["detail"]
 
-    # 2. /api/elrs/{elr}/oracle-check returns 404 not found cleanly instead of 500
+    # Verify scan row in repo has error and finished_at
+    latest_scan = repo.scans[-1]
+    assert latest_scan["error"] is not None
+    assert "Oracle connection unavailable" in latest_scan["error"]
+    assert latest_scan["finished_at"] is not None
+
+    # Watermark must NOT advance
+    assert repo.last_successful_scan()["to_ts"] == t_prev
+
+    # 3. oracle-check returns 503 and does NOT create a notification
     cookies, headers = auth_cookies(repo, username="eng", role="engineer")
-    resp_elr = client.post("/api/elrs/ELR_NO_ORACLE/oracle-check", cookies=cookies, headers=headers)
-    assert resp_elr.status_code == 404
+    resp_elr = client.post("/api/elrs/ADI2607006/oracle-check", cookies=cookies, headers=headers)
+    assert resp_elr.status_code == 503
+    assert "Oracle connection unavailable" in resp_elr.json()["detail"]
+    assert len(repo.notifications) == 0
 
 

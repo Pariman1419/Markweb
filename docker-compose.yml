@@ -13,6 +13,8 @@ services:
       - MARK_FILES_ROOT=/app/data/files
       - MARK_LOG_DIR=/app/logs
       - PYTHONPATH=/app:/app/services/api
+      - ORACLE_CLIENT_DIR=/opt/oracle/instantclient_21_13
+      - LD_LIBRARY_PATH=/opt/oracle/instantclient_21_13
     logging:
       driver: json-file
       options:

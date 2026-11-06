@@ -29,6 +29,7 @@ api = [
     "grpcio-tools==1.85.1",
     "protobuf==7.36.0",
     "pynvml>=11.5.0",
+    "oracledb>=2.0.0",
 ]
 
 [tool.setuptools.packages.find]

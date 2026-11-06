@@ -110,36 +110,65 @@ def finish(cur: Any, item_id: int, revision: int | None = None) -> None:
     cur.execute(sql, (revision, item_id))
 
 
-def fail(cur: Any, item_id: int, error: str, retry_in: timedelta | None = None) -> None:
+def fail(
+    cur: Any,
+    item_id: int,
+    error: str,
+    retry_in: timedelta | None = None,
+    attempts: int | None = None,
+) -> None:
     """Mark a work item as retry (if retry_in provided) or failed."""
     if retry_in is not None:
         seconds = int(retry_in.total_seconds())
-        sql = """
-        update mark_app.work_item
-        set state = 'retry',
-            error = %s,
-            next_attempt_at = now() + %s * interval '1 second',
-            updated_at = now()
-        where item_id = %s;
-        """
-        cur.execute(sql, (error, seconds, item_id))
+        if attempts is not None:
+            sql = """
+            update mark_app.work_item
+            set state = 'retry',
+                attempts = %s,
+                error = %s,
+                next_attempt_at = now() + %s * interval '1 second',
+                updated_at = now()
+            where item_id = %s;
+            """
+            cur.execute(sql, (attempts, error, seconds, item_id))
+        else:
+            sql = """
+            update mark_app.work_item
+            set state = 'retry',
+                error = %s,
+                next_attempt_at = now() + %s * interval '1 second',
+                updated_at = now()
+            where item_id = %s;
+            """
+            cur.execute(sql, (error, seconds, item_id))
     else:
-        sql = """
-        update mark_app.work_item
-        set state = 'failed',
-            error = %s,
-            updated_at = now()
-        where item_id = %s;
-        """
-        cur.execute(sql, (error, item_id))
+        if attempts is not None:
+            sql = """
+            update mark_app.work_item
+            set state = 'failed',
+                attempts = %s,
+                error = %s,
+                updated_at = now()
+            where item_id = %s;
+            """
+            cur.execute(sql, (attempts, error, item_id))
+        else:
+            sql = """
+            update mark_app.work_item
+            set state = 'failed',
+                error = %s,
+                updated_at = now()
+            where item_id = %s;
+            """
+            cur.execute(sql, (error, item_id))
 
 
 def fail_with_backoff(cur: Any, item_id: int, attempts: int, error: str) -> str:
     """Fail a work item with exponential backoff (1m, 5m, 15m), or transition to 'failed' after 3 attempts."""
     if attempts <= len(RETRY_DELAYS):
         delay_minutes = RETRY_DELAYS[attempts - 1]
-        fail(cur, item_id, error, retry_in=timedelta(minutes=delay_minutes))
+        fail(cur, item_id, error, retry_in=timedelta(minutes=delay_minutes), attempts=attempts)
         return "retry"
     else:
-        fail(cur, item_id, error, retry_in=None)
+        fail(cur, item_id, error, retry_in=None, attempts=attempts)
         return "failed"

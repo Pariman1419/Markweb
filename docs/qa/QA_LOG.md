@@ -1,28 +1,37 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
-## [2026-11-06] B3 Task 6 Step 1: Initial Load Dry Run Completed
+## [2026-11-06] Fix(API, Worker): Fail Loudly Without Oracle & Retry Attempts Integrity
 
 ### Context & Implementation
-- Generated `MARK_SCAN_WRITE_TOKEN` with scope `scan:write` via `mark_app.api_token` and saved to `.env`.
-- Invoked `POST http://localhost:8088/api/scans` with payload `{"source": "initial"}`.
-- Received HTTP 201 Created:
-  - `scan_id`: 2
-  - `counts`: `{'found': 0, 'queued': 0, 'unchanged': 0, 'skipped': 0, 'same_as_rev': 0}`
-- Conforms to plan B3 Task 6 Step 1 (Zero ELRs at step 6 is normal per spec §2.4).
-- Awaiting user input for Task 6 Step 2: real ELR name at step 6.
-
-
-## [2026-11-06] Fix(API): Graceful Fallback When Oracle Client Unavailable in Container
-
-### Context & Implementation
-- In the Linux Docker container (`services/api/Dockerfile`) or environments where the Oracle Client is unavailable, calling `connect_actl()` directly in `trigger_scan` and `oracle_check_elr` threw unhandled `ModuleNotFoundError` / `DatabaseError`, crashing with HTTP 500.
-- Wrapped `connect_actl()` invocations in `services/api/mark_api/routers/scans.py` with `try...except Exception as exc: conn_oracle = None` and logged a warning.
-- In `trigger_scan`, `conn_oracle is None` results in `found=0, queued=0` and finishes cleanly with HTTP 201 Created (satisfies initial dry run specification where 0 ELRs at step 6 is normal).
-- In `oracle_check_elr`, `conn_oracle is None` results in clean HTTP 404 `not_found_in_oracle` notification and audit log instead of 500 error.
+1. **Fail Loudly Without Oracle (503 Service Unavailable)**:
+   - Reverted soft fallback in `POST /api/scans` and `oracle-check`.
+   - `POST /api/scans`: wrapped `connect_actl()` in try-block calling `repo.fail_scan(scan_id, err, counts)` which records `finished_at = now()` and `error`, preventing watermark from advancing. Responds with HTTP 503.
+   - `oracle-check`: if `connect_actl()` fails, responds with HTTP 503 directly; strictly does NOT notify `not_in_oracle` and does not create false notifications.
+   - Unit tests in `tests/unit/test_scans_api.py` verify 503 responses, scan error recording, watermark preservation, and absence of notifications.
+2. **Oracle Client in Docker Image (`mark-web-api`)**:
+   - Added `oracledb>=2.0.0` to `pyproject.toml[api]`.
+   - Updated `services/api/Dockerfile`: installs `libaio1t64`, `unzip`, downloads Oracle Instant Client Basic Lite 21.13 (`/opt/oracle/instantclient_21_13`), configures `libaio.so.1` symlink and `ldconfig`.
+   - Updated `docker-compose.yml` to set `ORACLE_CLIENT_DIR=/opt/oracle/instantclient_21_13` and `LD_LIBRARY_PATH`.
+   - Tested live inside the rebuilt container: `connect_actl()` connects to Oracle ACTL in thick mode; `fetch_pending_step(conn, '6')` executes cleanly.
+3. **Scan ID 2 Invalidation**:
+   - Previous `scan_id=2` recorded `found: 0` because Oracle was never queried due to missing `oracledb` in container. Marked invalid.
+   - Prepared SQL update: `UPDATE mark_app.scan SET error = 'invalid: oracle unavailable (oracledb missing)' WHERE scan_id = 2;`.
+4. **Worker Rollback & Attempts Count Fix**:
+   - In `services/worker/queue.py`, updated `fail()` and `fail_with_backoff()` to accept and persist `attempts = %s` directly into `mark_app.work_item`.
+   - Prevents transaction rollback from resetting `attempts` counter to previous values, ensuring failing jobs advance through retry backoffs (1m, 5m, 15m) and transition to `failed` on the 4th attempt.
+   - Added unit test in `tests/unit/test_worker.py` proving an exploding task transitions to `failed` on attempt 4 with `attempts == 4`.
+   - In `services/worker/main.py`, `--once` mode tracks consecutive cycle errors; if 5 consecutive errors occur, exits with code 1.
+5. **Re-run Task 6 Step 1 (Real Oracle Scan)**:
+   - Re-executed `POST /api/scans` with `{"source": "initial"}` on live container with Oracle enabled.
+   - Generated `scan_id: 3`:
+     - Real live Oracle ACTL query executed (`duration_ms: 3536ms`).
+     - Counts: `{'found': 0, 'queued': 0, 'unchanged': 0, 'skipped': 0, 'same_as_rev': 0}`.
+     - Confirmed genuine zero ELRs currently at step 6 in Oracle ACTL.
 
 ### Verification
-- Added `test_scan_and_oracle_check_when_oracle_client_unavailable` in `tests/unit/test_scans_api.py`.
-- Full test suite: 465 passed.
+- `pytest tests -q --ignore=tests/regression`: 467 passed.
+- Image `mark-web-api` rebuilt with Instant Client 21.13 + `oracledb`. Container tests confirmed live Oracle connection.
+
 
 
 ## [2026-11-06] Pre-Task 6 Verification & Corporate Network Restoration

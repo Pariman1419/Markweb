@@ -214,7 +214,11 @@ class InMemoryQueueStore:
                 self.store.locked_ids.discard(item_id)
 
             elif "update mark_app.work_item" in sql_clean and "state = 'retry'" in sql_clean:
-                error, retry_sec, item_id = params[0], params[1], params[2]
+                if len(params) == 4:
+                    attempts, error, retry_sec, item_id = params
+                    self.store.items[item_id]["attempts"] = attempts
+                else:
+                    error, retry_sec, item_id = params
                 item = self.store.items[item_id]
                 item["state"] = "retry"
                 item["error"] = error
@@ -223,11 +227,16 @@ class InMemoryQueueStore:
                 self.store.locked_ids.discard(item_id)
 
             elif "update mark_app.work_item" in sql_clean and "state = 'failed'" in sql_clean:
-                error, item_id = params[0], params[1]
+                if len(params) == 3:
+                    attempts, error, item_id = params
+                    self.store.items[item_id]["attempts"] = attempts
+                else:
+                    error, item_id = params
                 item = self.store.items[item_id]
                 item["state"] = "failed"
                 item["error"] = error
                 item["updated_at"] = now
+                self.store.locked_ids.discard(item_id)
                 self.store.locked_ids.discard(item_id)
 
         def fetchone(self):
@@ -1086,12 +1095,66 @@ def test_worker_recovers_from_unhandled_item_exception(monkeypatch):
         resolved_docs_fp="dfp_test",
         worker_id="worker-test",
     )
-    # Worker returns PROCESSED (item claimed & handled), cur rolled back, item set to retry
-    assert res == CycleResult.PROCESSED
+    # Worker returns ERROR (item claimed & handled as error), cur rolled back, item set to retry
+    assert res == CycleResult.ERROR
     assert cur.rolled_back is True
     item = queue_store.items[1]
     assert item["state"] == "retry"
     assert "Unexpected pipeline crash!" in item["error"]
+
+
+def test_worker_rollback_retains_attempts_and_fails_on_4th_attempt(monkeypatch):
+    """(4) Worker rollback does not lose attempts; item transitions to failed after 4 attempts."""
+    cur = FakePgCursor()
+    queue_store = InMemoryQueueStore()
+    q_cur = queue_store.Cursor(queue_store)
+    enqueue(q_cur, 1, "ADI2601001", "scan")
+
+    def mock_exploding_process_elr(*args, **kwargs):
+        cur.job_results.append({"dirty": True})
+        raise RuntimeError("Crash!")
+
+    monkeypatch.setattr("services.worker.main.process_elr", mock_exploding_process_elr)
+    oracle_row = {"ELR_NO": "ADI2601001", "PRODUCT_NO": "AD1", "STATUS": "A", "CURRENT_STEP": "6"}
+
+    # Run 4 cycles
+    for attempt in range(1, 5):
+        # Reset next_attempt_at to past so claim() can pick it up
+        queue_store.items[1]["next_attempt_at"] = datetime.now(timezone.utc) - timedelta(seconds=1)
+        res = run_worker_cycle(
+            cur,
+            q_cur,
+            oracle_row=oracle_row,
+            resolved_docs_fp="dfp_test",
+            worker_id="worker-test",
+        )
+        assert res == CycleResult.ERROR
+        assert cur.rolled_back is True
+        item = queue_store.items[1]
+        assert item["attempts"] == attempt
+        if attempt < 4:
+            assert item["state"] == "retry"
+        else:
+            assert item["state"] == "failed"
+
+
+def test_worker_once_exits_with_error_code_after_5_consecutive_errors(monkeypatch):
+    """(4) In --once mode, if cycle errors occur 5 times consecutively, worker exits with code 1."""
+    import sys
+    from services.worker.main import main
+
+    def mock_failing_cycle(*args, **kwargs):
+        return CycleResult.ERROR
+
+    monkeypatch.setattr("services.worker.main.run_worker_cycle", mock_failing_cycle)
+    monkeypatch.setattr("psycopg2.connect", lambda **kw: FakePgCursor())
+    monkeypatch.setattr("services.worker.main.connect_actl", lambda: FakePgCursor())
+    monkeypatch.setattr("sys.argv", ["main.py", "--once"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
 
 
 def test_worker_once_mode_loops_until_no_item(monkeypatch):

@@ -81,12 +81,17 @@ def trigger_scan(
                 "same_as_rev": 0,
             }
 
-            conn_oracle = None
             try:
-                conn_oracle = connect_actl()
-            except Exception as exc:
-                logger.warning("connect_actl unavailable: %s", exc)
-            try:
+                try:
+                    conn_oracle = connect_actl()
+                except Exception as ora_exc:
+                    logger.exception("Oracle ACTL connection failed during scan: %s", ora_exc)
+                    repo.fail_scan(scan_id, f"Oracle connection unavailable: {ora_exc}", counts=counts)
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail=f"Oracle connection unavailable: {ora_exc}",
+                    )
+
                 try:
                     if req.source == "airflow":
                         rows = fetch_window(conn_oracle, from_ts, to_ts) if conn_oracle is not None else []
@@ -133,6 +138,8 @@ def trigger_scan(
 
                 return {"scan_id": scan_id, "counts": counts}
 
+            except HTTPException:
+                raise
             except Exception as scan_exc:
                 logger.exception("Scan failed: %s", scan_exc)
                 repo.fail_scan(scan_id, str(scan_exc), counts=counts)
@@ -177,14 +184,17 @@ def oracle_check_elr(
 ) -> dict[str, Any]:
     """Check a single ELR against Oracle and enqueue if eligible."""
     elr_clean = elr.strip().upper()
-    conn_oracle = None
     try:
         conn_oracle = connect_actl()
-    except Exception as exc:
-        logger.warning("connect_actl unavailable: %s", exc)
+    except Exception as ora_exc:
+        logger.exception("Oracle ACTL connection failed during oracle-check for %s: %s", elr_clean, ora_exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Oracle connection unavailable: {ora_exc}",
+        )
 
     try:
-        row = fetch_one(conn_oracle, elr_clean) if conn_oracle is not None else None
+        row = fetch_one(conn_oracle, elr_clean)
         if not row:
             repo.add_notification(elr_clean, "not_in_oracle", message=f"ELR {elr_clean} not found in Oracle")
             safe_audit(repo, user.get("user_id"), "elr.oracle_check", request, elr_no=elr_clean, detail={"found": False})
