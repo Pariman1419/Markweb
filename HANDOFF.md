@@ -63,6 +63,11 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — fix(deploy): agent bat quoting, NAS notes, preflight -PythonExe
+- `scripts/jenkins-agent.bat`: `if not defined X set ...` instead of `if "%X%"==""`; `JAVA` is stripped of quotes and invoked as `"%JAVA%"`.
+- `scripts/deploy/README.md`: NAS volume section (credentials live in the volume options; changing them needs `docker volume rm mark-web_nas_elr`; no "," in NAS_USER/NAS_PASSWORD; NAS down means worker exits 2 and restarts in a loop).
+- `scripts/deploy/preflight_17.ps1`: `-PythonExe <path>` (default `python`); FAIL if `NAS_USER`/`NAS_PASSWORD` contain ","; a firewall PASS from a rule without a port restriction is now WARN.
+
 ### 2026-11-06 — fix(ci): per-host parameter defaults from Jenkins global env
 - Problem: Jenkins resets parameters declared in `Jenkinsfile` to `defaultValue` on every build, so a Poll SCM build on .17 would deploy with port 8088, dev paths and `WORKER=false`.
 - `Jenkinsfile`: `defaultValue` of `MARK_WEB_PORT`, `MARK_FILES_HOST_DIR`, `MARK_LOG_HOST_DIR`, `ENV_FILE`, `PYTHON_EXE`, `WORKER` now reads `env.MARK_DEFAULT_WEB_PORT`, `MARK_DEFAULT_FILES_DIR`, `MARK_DEFAULT_LOG_DIR`, `MARK_DEFAULT_ENV_FILE`, `MARK_DEFAULT_PYTHON`, `MARK_DEFAULT_WORKER`; fallbacks are the dev values (dev PC sets nothing).

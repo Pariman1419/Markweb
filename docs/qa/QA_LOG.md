@@ -1,5 +1,10 @@
 # Mark Automation — Technical Q&A & Knowledge Base Log
 
+## [2026-11-06] fix(deploy): agent bat quoting, NAS notes, preflight -PythonExe
+
+- **Why:** `if "%JAVA%"==""` breaks when the value contains quotes/spaces. CIFS options are comma-separated, so a "," in the NAS user or password silently corrupts the mount options. A rule with LocalPort Any is not evidence that the chosen port is open.
+- **Fix:** see HANDOFF section 4 of the same date; preflight now fails/warns on these.
+
 ## [2026-11-06] fix(ci): per-host parameter defaults from Jenkins global env
 
 - **Q:** Why would Poll SCM builds on .17 deploy with the dev settings?

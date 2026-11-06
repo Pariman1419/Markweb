@@ -4,6 +4,7 @@
 param(
     [string[]]$Ports = @("8090..8099"),
     [string]$EnvFile = ".\.env",
+    [string]$PythonExe = "python",
     [switch]$WritePort
 )
 
@@ -45,9 +46,9 @@ if ($headCommit -and $originCommit -and ($headCommit -eq $originCommit)) {
 Write-Host "`n--- 2. Tools ---" -ForegroundColor Yellow
 
 # Python 3.12.x
-$pyVer = cmd /c "python --version 2>&1"
+$pyVer = cmd /c "`"$PythonExe`" --version 2>&1"
 if ($pyVer -match 'Python 3\.12\.\d+') {
-    Write-Host "[PASS] Python: $pyVer" -ForegroundColor Green
+    Write-Host "[PASS] Python: $pyVer [$PythonExe]" -ForegroundColor Green
 } else {
     Write-Host "[FAIL] Python: expected 3.12.x, got '$pyVer'" -ForegroundColor Red
     $hasError = $true
@@ -272,6 +273,13 @@ if (-not (Test-Path $EnvFile)) {
         }
     }
 
+    foreach ($k in @("NAS_USER", "NAS_PASSWORD")) {
+        if ($envMap.ContainsKey($k) -and $envMap[$k].Contains(",")) {
+            Write-Host "[FAIL] .env key: $k contains ',' which breaks the CIFS volume options (comma-separated)" -ForegroundColor Red
+            $hasError = $true
+        }
+    }
+
     foreach ($k in $requiredKeys) {
         if ($envMap.ContainsKey($k) -and [string]::IsNullOrWhiteSpace($envMap[$k]) -eq $false) {
             Write-Host "[PASS] .env key: $k is set" -ForegroundColor Green
@@ -287,26 +295,22 @@ if (-not (Test-Path $EnvFile)) {
 # -----------------------------------------------------------------------------
 Write-Host "`n--- 8. Firewall Rule ---" -ForegroundColor Yellow
 if ($chosenPort) {
-    $hasFwRule = $false
+    $fwPortRule = $false   # enabled inbound TCP allow rule naming the chosen port
+    $fwAnyRule = $false    # enabled inbound TCP allow rule with no port restriction
     try {
         $fwOut = netsh advfirewall firewall show rule name=all dir=in
-        $curEnabled = ""
-        $curAction = ""
-        $curProtocol = ""
-        $curLocalPort = ""
-
-        foreach ($line in $fwOut) {
+        $curEnabled = ""; $curAction = ""; $curProtocol = ""; $curLocalPort = ""
+        $ruleLines = @($fwOut) + @("Rule Name: __end__")
+        foreach ($line in $ruleLines) {
             if ($line -match '^Rule Name:\s*(.*)') {
-                if ($curEnabled -eq "Yes" -and $curAction -eq "Allow" -and $curProtocol -eq "TCP") {
-                    if ($curLocalPort -match "(^|,|\s)$chosenPort(,|`$|\s)" -or $curLocalPort -eq "Any") {
-                        $hasFwRule = $true
-                        break
+                if ($curEnabled -eq "Yes" -and $curAction -eq "Allow" -and ($curProtocol -eq "TCP" -or $curProtocol -eq "Any")) {
+                    if ($curLocalPort -eq "Any") {
+                        $fwAnyRule = $true
+                    } elseif ($curProtocol -eq "TCP" -and $curLocalPort -match "(^|,|\s)$chosenPort(,|`$|\s)") {
+                        $fwPortRule = $true
                     }
                 }
-                $curEnabled = ""
-                $curAction = ""
-                $curProtocol = ""
-                $curLocalPort = ""
+                $curEnabled = ""; $curAction = ""; $curProtocol = ""; $curLocalPort = ""
             } elseif ($line -match '^\s*Enabled:\s*(.*)') {
                 $curEnabled = $matches[1].Trim()
             } elseif ($line -match '^\s*Action:\s*(.*)') {
@@ -317,17 +321,16 @@ if ($chosenPort) {
                 $curLocalPort = $matches[1].Trim()
             }
         }
-        if (-not $hasFwRule -and $curEnabled -eq "Yes" -and $curAction -eq "Allow" -and $curProtocol -eq "TCP") {
-            if ($curLocalPort -match "(^|,|\s)$chosenPort(,|`$|\s)" -or $curLocalPort -eq "Any") {
-                $hasFwRule = $true
-            }
-        }
     } catch {
         # continue to warn
     }
 
-    if ($hasFwRule) {
+    if ($fwPortRule) {
         Write-Host "[PASS] Firewall: inbound rule allows TCP port $chosenPort" -ForegroundColor Green
+    } elseif ($fwAnyRule) {
+        Write-Host "[WARN] Firewall: only a rule without a port restriction matches port $chosenPort (program-based or all ports); confirm it applies to this port and profile" -ForegroundColor Yellow
+        Write-Host "       To be explicit, run as administrator:" -ForegroundColor Yellow
+        Write-Host "       New-NetFirewallRule -DisplayName `"Mark Web $chosenPort`" -Direction Inbound -Protocol TCP -LocalPort $chosenPort -Action Allow" -ForegroundColor Yellow
     } else {
         Write-Host "[WARN] Firewall: no enabled inbound allow rule covers port $chosenPort" -ForegroundColor Yellow
         Write-Host "       Run as administrator to allow:" -ForegroundColor Yellow

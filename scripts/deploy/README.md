@@ -36,7 +36,7 @@ This document details the one-time setup and deployment of Mark Automation (API,
 
 3. **Run Preflight Verification**:
    ```powershell
-   .\scripts\deploy\preflight_17.ps1 -EnvFile D:\mark-web-secrets\.env -WritePort
+   .\scripts\deploy\preflight_17.ps1 -EnvFile D:\mark-web-secrets\.env -PythonExe "<path to python.exe>" -WritePort
    ```
    - Preflight verifies:
      - Clean checkout matching `origin/phase2/trial`
@@ -112,6 +112,14 @@ On .17 set these under Manage Jenkins -> System -> Global properties -> Environm
 | `MARK_DEFAULT_WORKER` | `true` | `WORKER` (fallback `false`) |
 
 Save, then run the job once manually: Jenkins re-reads the parameter definitions only after a build has started, so the first build after a change of these variables may still show the old defaults. Check the parameters page of the next build (and `docker ps` for `mark-web-worker-1`).
+
+### NAS volume (`nas_elr`)
+
+- The worker reads the NAS through the compose volume `nas_elr` (CIFS, read-only, `//th1srnas03/ELR` mounted at `/mnt/elr`). The credentials are stored in the volume options, not in the container: Docker creates the volume once, from `NAS_DOMAIN`/`NAS_USER`/`NAS_PASSWORD` in `.env` at that moment.
+- After changing the NAS password (or user/domain) the volume still holds the old one. Remove it and redeploy: `docker compose --profile worker stop worker`, `docker volume rm mark-web_nas_elr`, then run the Jenkins build again.
+- `NAS_USER` and `NAS_PASSWORD` must not contain "," (the CIFS options are comma-separated). `preflight_17.ps1` fails when they do.
+- `NAS_USER` is the plain user name; the domain goes in `NAS_DOMAIN` (default `TH`).
+- If the NAS is down or the credentials are wrong, the worker exits with code 2 (`NAS root not readable`) and `restart: unless-stopped` restarts it in a loop until the NAS is back; check `docker logs mark-web-worker-1`.
 
 ## 5. Decommissioning Dev PC Deployment
 
