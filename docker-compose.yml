@@ -8,10 +8,11 @@ services:
       - .env
     volumes:
       - ${MARK_FILES_HOST_DIR:-./data/files}:/app/data/files:ro
-      - ./work:/app/data/files/work:ro
+      - ./work:/app/work:ro
       - ${MARK_LOG_HOST_DIR:-./logs}:/app/logs
     environment:
       - MARK_FILES_ROOT=/app/data/files
+      - MARK_WORK_ROOT=/app/work
       - MARK_LOG_DIR=/app/logs
       - PYTHONPATH=/app:/app/services/api
       - ORACLE_CLIENT_DIR=/opt/oracle/instantclient_21_13

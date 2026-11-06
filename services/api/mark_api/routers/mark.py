@@ -176,11 +176,20 @@ def get_elr(elr: str, run: int = Query(...), user: dict[str, Any] = Depends(requ
         for l in lines_raw
     ]
 
-    files_root = Path(os.getenv("MARK_FILES_ROOT", "data/files"))
-    image_avail = False
-    if snapshot and snapshot.get("image_path"):
-        img_p = safe_file(files_root, snapshot["image_path"])
-        image_avail = img_p is not None
+    def _resolve_image(snap: dict[str, Any] | None) -> Path | None:
+        if not snap or not snap.get("image_path"):
+            return None
+        raw_path = str(snap["image_path"])
+        f_root = Path(os.getenv("MARK_FILES_ROOT", "data/files"))
+        p = safe_file(f_root, raw_path)
+        if p:
+            return p
+        w_root = Path(os.getenv("MARK_WORK_ROOT", "/app/work" if Path("/app/work").exists() else "work"))
+        rel = raw_path[5:] if raw_path.startswith("work/") else raw_path
+        return safe_file(w_root, rel)
+
+    img_p = _resolve_image(snapshot)
+    image_avail = img_p is not None
 
     return {
         "snapshot": snapshot,
@@ -204,8 +213,19 @@ def get_abs_file(
     if not snapshot or not snapshot.get("image_path"):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
 
-    files_root = Path(os.getenv("MARK_FILES_ROOT", "data/files"))
-    resolved = safe_file(files_root, snapshot["image_path"])
+    def _resolve_image(snap: dict[str, Any] | None) -> Path | None:
+        if not snap or not snap.get("image_path"):
+            return None
+        raw_path = str(snap["image_path"])
+        f_root = Path(os.getenv("MARK_FILES_ROOT", "data/files"))
+        p = safe_file(f_root, raw_path)
+        if p:
+            return p
+        w_root = Path(os.getenv("MARK_WORK_ROOT", "/app/work" if Path("/app/work").exists() else "work"))
+        rel = raw_path[5:] if raw_path.startswith("work/") else raw_path
+        return safe_file(w_root, rel)
+
+    resolved = _resolve_image(snapshot)
     if not resolved:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image path invalid or outside root")
 
