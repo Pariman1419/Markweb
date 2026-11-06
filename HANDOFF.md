@@ -63,6 +63,12 @@
 
 ## 4. Live Changelog & Session Updates
 
+### 2026-11-06 — Deploy 17 Task 1: Merge phase2/airflow into phase2/trial
+- Merged origin/phase2/airflow into phase2/trial for deployment to 10.153.90.17.
+- Retained both changelogs in chronological order.
+- Airflow DAGs and client tests merged; 493 unit tests passed.
+- Airflow work branches will originate from phase2/trial going forward.
+
 ### 2026-11-06 — Plan: deploy to 10.153.90.17 (for the other agent)
 - **Plan:** `docs/superpowers/plans/2026-11-06-deploy-17.md`. B3 is finished (build 57 green at `05c0a31`).
 - **User facts:** .17 is Windows + Docker Desktop, can clone from GitHub; any free port (not 8088 NPIChecklist / 8080 Streamlit), chosen by a preflight script.
@@ -206,6 +212,10 @@
   - Verified UP -> DOWN -> UP on throwaway schema `t0007_test2`.
 - **Note for Task 4**: In worker runner, after resolving documents and computing actual `docs_fp`, invoke `decide()` again with real `docs_fp`. If `skip_same_as_rev`, do not create a revision. Test: `test_oracle_reverted_to_old_rev_after_docs_resolved_creates_nothing`.
 
+### 2026-11-06 — Airflow safe summary and optional port
+- Connection URLs omit the port separator when port is empty. Successful POST responses with unreadable JSON or invalid summary fields produce summary unavailable rather than retrying the scan; no response data is logged.
+- Mark DAG Python files and the client test are UTF-8 without BOM. Focused tests: 19 passed; full non-regression suite: 440 passed, one existing pynvml warning.
+- User requested one normal push and no history rewrite or force push. The fetched origin/phase2/trial has moved since the previous push; no rebase of published airflow commits was attempted. Deployment and real Airflow parse remain deferred to .17.
 
 ### 2026-11-06 — B3 Task 2: Input Fingerprints & Re-check Decision Table (Spec §4)
 - **Implemented**: `mark_engine/history/__init__.py`, `mark_engine/history/fingerprint.py`, `mark_engine/history/decide.py`, `tests/unit/test_history.py`.
@@ -226,6 +236,26 @@
   - Role `mark_worker`: least-privilege worker role granted work item queue control, scan/revision/notification insert, and insert-only on `mark_logic.run`, `mark_logic.job_result`, `mark_logic.line_result`.
 - **Validation**: Tested UP/DOWN migration idempotency on throwaway schema `t0007_20261106` on `10.151.28.2:5432/mark_web`. UP succeeded, DOWN removed all objects cleanly, second UP verified clean re-execution, and all 16 historical runs (IDs 1–19) in `mark_logic.run` were verified untouched.
 - **[USER] Step**: Migration 0007 is ready for DBA execution on real database (`mark_app` schema). In parallel, proceeding with Task 2 (Fingerprints and Decision Table).
+
+### 2026-11-06 - Airflow DAG offline implementation (phase2/airflow)
+- User deferred Task 3-4 to .17 deployment: .3 to 10.151.97.18 is network-blocked; user reports .3 to 10.153.90.17 works and .17:8088 is occupied by another app. API port remains to be decided. The direct host probe returned HTTP 000.
+- Key-only SSH worked; Airflow scheduler and webserver were observed as active systemd services. Version, DAG folder, timezone and CLI access remain unknown; no service or DAG changed.
+- Added the three paused DAGs and an HTTP client. Scheme, host, port and token come from Airflow Connection `mark_api`; no endpoint is hard-coded. 409 skips; 401/403 fail without retry; other failures retry.
+- Verification: after rebase onto B3 Task 2, the full non-regression suite passed 433 tests (one existing pynvml deprecation warning). Before rebase, 12 focused tests passed; `python -m pytest tests -q --ignore=tests/regression -p no:cacheprovider` passed 403 tests with one existing pynvml deprecation warning.
+- No deployment or server parse check has been performed. Task 3 requires B3 Task 5 green and migration 0007 applied to the real DB; Task 4 additionally requires B3 Task 6 and user-triggered initial load/unpause.
+
+### 2026-11-06 — Airflow DAG plan for Codex (branch `phase2/airflow`)
+- **Plan:** `docs/superpowers/plans/2026-11-06-airflow-dags.md`. Codex works in worktree `D:\CIM Project\mark-web-airflow` on branch `phase2/airflow`; agy keeps `phase2/trial` for B3.
+- **DAGs:**
+  - `mark_elr_polling`: every 15 min, calls `POST /api/scans`.
+  - `mark_pending_job_retry`: every 10 min, calls `POST /api/scans/retry`.
+  - `mark_initial_load`: manual trigger.
+- **How they run:**
+  - All three call the API on the dev PC `http://10.151.97.18:8088` through the Airflow Connection `mark_api`.
+  - The token lives only in that Connection and in `.env`.
+  - The DAGs are deployed paused; unpausing is a user step.
+- **Deploy:** waits for B3 Task 5 and migration 0007. Enabling the schedule waits for B3 Task 6 and the initial load.
+- **Access:** SSH to 10.151.28.3 as `itadmin` uses key auth only. The user installs the key once with a script.
 
 ### 2026-11-05 — B3 plan: history, queue, worker, scan API (for the other agent)
 - **Plan:** `docs/superpowers/plans/2026-11-05-b3-history-queue-worker-api.md` (spec §9 step 3). Its tasks:

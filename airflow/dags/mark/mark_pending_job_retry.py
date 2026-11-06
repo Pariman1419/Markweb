@@ -1,0 +1,17 @@
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from mark.mark_tasks import run_scan
+
+with DAG(
+    dag_id='mark_pending_job_retry', schedule_interval='*/10 * * * *',
+    start_date=datetime(2026, 11, 1, tzinfo=ZoneInfo('Asia/Bangkok')),
+    catchup=False, max_active_runs=1, max_active_tasks=1,
+    is_paused_upon_creation=True, tags=['mark'],
+    default_args={'retries': 2, 'retry_delay': timedelta(minutes=2),
+                  'execution_timeout': timedelta(minutes=10)},
+) as dag:
+    PythonOperator(task_id='retry', python_callable=run_scan,
+                   op_kwargs={'path': '/api/scans/retry', 'body': {}},
+                   do_xcom_push=False)
