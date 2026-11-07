@@ -72,6 +72,17 @@ class CycleResult(str, Enum):
     ERROR = "ERROR"
 
 
+def worker_redis_status(client, *, configured: bool) -> str:
+    if not configured:
+        return "unconfigured"
+    if client is None:
+        return "offline"
+    try:
+        return "online" if client.ping() else "offline"
+    except Exception:
+        return "offline"
+
+
 def probe_resolution(
     resolution: DocumentResolution | None,
     work_dir: Path | str | None = None,
@@ -530,12 +541,15 @@ def main() -> None:
     load_env()
     nas_root = Path(os.environ.get("NAS_ROOT", "."))
     check_nas_root(nas_root)
+    redis_status = worker_redis_status(get_redis(), configured=bool(os.getenv("REDIS_URL")))
+    logger.info("Worker Redis connectivity: %s", redis_status)
     conn_pg = psycopg2.connect(
         host=os.environ.get("PGHOST", "10.151.28.2"),
         port=int(os.environ.get("PGPORT", "5432")),
         dbname=os.environ.get("PGDATABASE", "mark_web"),
         user=os.environ.get("MARK_WORKER_PG_USER", "mark_worker"),
         password=os.environ.get("MARK_WORKER_PG_PASSWORD", ""),
+        application_name=f"mark_worker:redis_{redis_status}",
     )
     conn_oracle = connect_actl()
 

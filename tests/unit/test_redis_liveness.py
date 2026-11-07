@@ -138,3 +138,14 @@ def test_worker_status_reports_degraded_when_redis_is_available_but_heartbeat_mi
 def test_evicted_active_job_falls_back_to_database():
     redis = FakeRedis()
     assert redis_cache.get_active_job(redis, 'ADI1', lambda: True) is True
+
+
+def test_worker_identifies_redis_connectivity_in_postgres_session(monkeypatch):
+    from services.worker import main as worker
+    assert worker.worker_redis_status(None, configured=False) == 'unconfigured'
+    class Online:
+        def ping(self): return True
+    class Offline:
+        def ping(self): raise ConnectionError('offline')
+    assert worker.worker_redis_status(Online(), configured=True) == 'online'
+    assert worker.worker_redis_status(Offline(), configured=True) == 'offline'
