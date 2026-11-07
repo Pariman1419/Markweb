@@ -191,3 +191,20 @@
 | **Stale Session After Revocation** | High | Immediate invalidation: `/api/auth/logout` explicitly deletes the Redis key. Admin account lock/unlock calls `invalidate_user_sessions()`. |
 | **Redis Memory Exhaustion** | Medium | Hard cap `--maxmemory 256mb` and `--maxmemory-policy allkeys-lru`. Every key has an explicit TTL (sessions max 15m, heartbeats max 30s). Total memory consumption for 1,000 sessions is <1MB. |
 | **Cross-Host Clock Drift** | Low | All TTLs and timestamps use UTC (`datetime.now(timezone.utc)`) and Redis relative expiration (`EXPIRE` in seconds) rather than absolute timestamps. |
+
+## 6. Implementation Closeout — 2026-11-07
+
+**Implementation status: CLOSED.** The Redis session cache, worker heartbeat and active-job tracking, typed real-time events, rate limiting, and graceful Redis fallback are implemented on `phase2/trial`.
+
+### Delivery evidence
+
+- All three source checkouts are aligned at commit `670f054b3e539bf374013a65bef0236d60586a62` (`fix(worker): launch as module to avoid stdlib shadowing`): this development checkout, `D:\mark-web`, and `C:\jenkins-agent\workspace\mark-web`.
+- `docker-compose.yml` in all three checkouts launches the worker as `python -m services.worker.main`; this avoids `services/worker/queue.py` shadowing Python's standard-library `queue` module.
+- The development checkout and `D:\mark-web` are on `phase2/trial` and clean for tracked files. Jenkins' workspace is detached at the same commit; its generated `web@tmp/` directory is left untouched.
+- Production checks against `http://10.153.90.17:8093`: `/api/ready` returned HTTP 200; login returned HTTP 200; `/api/worker/status` returned HTTP 200 with `status=alive` and a heartbeat (`worker-1`, version `0.4.0`).
+- Verification recorded for the implementation: 563 unit tests passed, 4 skipped; Run 19 read-only integrity 8/8; production E2E 7/7; load benchmark 400/400 HTTP 200. Load latency warnings were reported in the benchmark; these results establish zero HTTP 500 responses in that run, not a universal latency guarantee.
+- No PostgreSQL Run 1–19 records were modified. Production's `.env` remains in place and is ignored by Git.
+
+### CI note
+
+The Jenkins workspace has checked out this exact commit, but the Jenkins UI/result for Build #23 was not independently observed in this session. The previously reported Build #22 success predates `670f054`. This is an external CI status follow-up and does not change the verified checkout consistency or the live readiness/worker checks above.
