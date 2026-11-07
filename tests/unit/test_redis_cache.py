@@ -123,6 +123,27 @@ def test_revision_notification_does_not_fail_when_redis_is_down(monkeypatch):
     redis_cache.notify_revision(21, "ADI123", 2)
 
 
+def test_redis_client_factory_retries_after_startup_failure(monkeypatch):
+    from mark_engine.adapters import redis_cache
+
+    attempts = []
+    client = object()
+
+    def build(url):
+        attempts.append(url)
+        if len(attempts) == 1:
+            raise ImportError("temporary Redis client initialization failure")
+        return client
+
+    monkeypatch.setenv("REDIS_URL", "redis://redis:6379/0")
+    redis_cache.get_redis.cache_clear()
+    monkeypatch.setattr(redis_cache, "_build_redis_client", build)
+
+    assert redis_cache.get_redis() is None
+    assert redis_cache.get_redis() is client
+    assert attempts == ["redis://redis:6379/0", "redis://redis:6379/0"]
+
+
 def test_worker_publishes_only_after_transaction_commits(monkeypatch):
     from services.worker import main
 

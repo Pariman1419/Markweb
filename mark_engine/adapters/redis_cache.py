@@ -238,20 +238,35 @@ def optional_lock(key, ttl=120):
                 logger.warning("Redis lock release failed")
 
 
+def _build_redis_client(url):
+    import redis
+    from redis.backoff import NoBackoff
+    from redis.retry import Retry
+    return redis.Redis.from_url(url, socket_connect_timeout=0.3, socket_timeout=0.3,
+                                retry=Retry(NoBackoff(), 0), retry_on_timeout=False)
+
+
 @lru_cache(maxsize=1)
+def _cached_redis_client(url):
+    return _build_redis_client(url)
+
+
 def get_redis():
     url = os.getenv("REDIS_URL")
     if not url:
         return None
     try:
-        import redis
-        from redis.backoff import NoBackoff
-        from redis.retry import Retry
-        return redis.Redis.from_url(url, socket_connect_timeout=0.3, socket_timeout=0.3,
-                                    retry=Retry(NoBackoff(), 0), retry_on_timeout=False)
-    except Exception:
-        logger.warning("Redis client unavailable")
+        # Exceptions are not cached, so a worker that starts before optional
+        # Redis dependencies/configuration are available can recover on its
+        # next heartbeat instead of keeping a cached None forever.
+        return _cached_redis_client(url)
+    except Exception as exc:
+        logger.warning("Redis client unavailable (%s)", type(exc).__name__)
         return None
+
+
+# Keep the existing integration-test and operational cache reset hook.
+get_redis.cache_clear = _cached_redis_client.cache_clear
 
 
 def cache_json(client, key, ttl, load):
