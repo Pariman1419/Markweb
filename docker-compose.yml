@@ -59,7 +59,7 @@ services:
       dockerfile: services/api/Dockerfile
     profiles:
       - worker
-    command: ["python", "services/worker/main.py"]
+    command: ["python", "-m", "services.worker.main"]
     restart: unless-stopped
     env_file:
       - .env
