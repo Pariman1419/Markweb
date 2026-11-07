@@ -33,9 +33,17 @@ export const Dashboard: React.FC = () => {
   const [loadingTable, setLoadingTable] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [liveNotice, setLiveNotice] = useState('');
 
   const navigate = useNavigate();
-  const eventVersion = useEvents();
+  const eventVersion = useEvents(event => {
+    if (event.event === 'revision_saved' && typeof event.data.elr_no === 'string') {
+      setLiveNotice(`Updated ${event.data.elr_no}`);
+    } else if (event.event === 'job_progress' &&
+               typeof event.data.completed === 'number' && typeof event.data.total === 'number') {
+      setLiveNotice(`Scan progress: ${event.data.completed} / ${event.data.total}`);
+    }
+  });
 
   // 1. Debounce search 300ms
   useEffect(() => {
@@ -193,6 +201,7 @@ export const Dashboard: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1 w-full">
+        {liveNotice && <div role="status" className="rounded border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-800">{liveNotice}</div>}
         {/* Status Cards */}
         {dashboard && (
           <StatusCards

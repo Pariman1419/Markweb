@@ -12,11 +12,12 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from mark_api.auth import csrf_ok
-from mark_api.deps import get_cookie_name, get_repo, require
+from mark_api.deps import get_cookie_name, get_repo, require, session_for_token
 from mark_api.logging import current_request_id, log_event
 from mark_api.metrics import metrics
 from mark_api.repo import Repo
 from mark_api.routers import admin, auth, mark, scans, validation, workflow, ws
+from mark_engine.adapters.redis_cache import get_redis, get_worker_heartbeat
 
 app = FastAPI(title="Mark API", version="0.3.0")
 
@@ -72,7 +73,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 if sess_token:
                     repo = request.app.dependency_overrides.get(get_repo, get_repo)()
                     token_hash = hashlib.sha256(sess_token.encode("utf-8")).hexdigest()
-                    res = repo.session_user(token_hash)
+                    res = session_for_token(repo, token_hash, sliding=False)
                     if res:
                         session_data, _ = res
                         header_hash = hashlib.sha256(csrf_header.encode("utf-8")).hexdigest()
@@ -106,6 +107,20 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(RequestContextMiddleware)
+
+
+@app.get("/api/worker/status")
+def worker_status(user: dict[str, Any] = Depends(require("read"))):
+    client = get_redis()
+    heartbeat = get_worker_heartbeat(client)
+    worker_state = "alive" if heartbeat else "unknown"
+    if not heartbeat and client is not None:
+        try:
+            if client.ping():
+                worker_state = "degraded"
+        except Exception:
+            pass
+    return {"status": worker_state, "heartbeat": heartbeat}
 
 # Include routers under /api
 app.include_router(auth.router, prefix="/api")

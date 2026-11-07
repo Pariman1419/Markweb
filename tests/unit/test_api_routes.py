@@ -935,3 +935,133 @@ def test_websocket_closes_when_session_is_revoked(client, monkeypatch):
         with pytest.raises(WebSocketDisconnect):
             socket.receive_json()
 
+
+
+def test_session_cache_auth_hit_logout_and_display_name(client, fake_repo, monkeypatch):
+    import fakeredis
+    from mark_api import deps
+    from mark_engine.adapters import redis_cache
+    redis_cache.reset_session_cache_state()
+    cache = fakeredis.FakeRedis()
+    monkeypatch.setattr(deps, 'get_redis', lambda: cache)
+    csrf = _login(client)
+    token = client.cookies.get('mark_session')
+    calls = []
+    original = fake_repo.session_user
+    def lookup(digest):
+        calls.append(digest)
+        return original(digest)
+    monkeypatch.setattr(fake_repo, 'session_user', lookup)
+    assert client.get('/api/runs').status_code == 200
+    assert client.get('/api/runs').status_code == 200
+    assert len(calls) == 1
+    assert client.get('/api/auth/me').json()['display_name'] == 'Engineer One'
+    assert client.post('/api/auth/logout', headers={'X-CSRF-Token': csrf}).status_code == 200
+    client.cookies.set('mark_session', token, path='/api')
+    assert client.get('/api/runs').status_code == 401
+
+
+def test_account_lock_invalidates_warm_sessions(client, fake_repo, monkeypatch):
+    import fakeredis
+    from mark_api import deps
+    from mark_engine.adapters import redis_cache
+    redis_cache.reset_session_cache_state()
+    cache = fakeredis.FakeRedis()
+    monkeypatch.setattr(deps, 'get_redis', lambda: cache)
+    _login(client)
+    assert client.get('/api/runs').status_code == 200
+    for _ in range(5):
+        assert client.post('/api/auth/login', json={'username': 'engineer1', 'password': 'wrong'}).status_code == 401
+    assert client.get('/api/runs').status_code in (401, 423)
+
+
+def test_failed_lock_update_cannot_leave_warm_session_authorized(client, fake_repo, monkeypatch):
+    import fakeredis
+    from mark_api import deps
+    from mark_engine.adapters import redis_cache
+    redis_cache.reset_session_cache_state()
+    cache = fakeredis.FakeRedis()
+    monkeypatch.setattr(deps, 'get_redis', lambda: cache)
+    _login(client)
+    assert client.get('/api/runs').status_code == 200
+    def fail_after_commit(user_id, ok):
+        fake_repo.users['engineer1']['locked_until'] = datetime.now(timezone.utc) + timedelta(minutes=15)
+        raise RuntimeError('post-commit failure')
+    monkeypatch.setattr(fake_repo, 'record_login', fail_after_commit)
+    with pytest.raises(RuntimeError, match='post-commit failure'):
+        client.post('/api/auth/login', json={'username': 'engineer1', 'password': 'wrong'})
+    assert client.get('/api/runs').status_code == 423
+
+
+def test_logout_during_redis_outage_remains_revoked_after_recovery(client, fake_repo, monkeypatch):
+    import fakeredis
+    from mark_api import deps
+    from mark_engine.adapters import redis_cache
+    redis_cache.reset_session_cache_state()
+    server = fakeredis.FakeServer()
+    cache = fakeredis.FakeRedis(server=server)
+    monkeypatch.setattr(deps, 'get_redis', lambda: cache)
+    csrf = _login(client)
+    token = client.cookies.get('mark_session')
+    assert client.get('/api/runs').status_code == 200
+    server.connected = False
+    assert client.post('/api/auth/logout', headers={'X-CSRF-Token': csrf}).status_code == 200
+    server.connected = True
+    client.cookies.set('mark_session', token, path='/api')
+    assert client.get('/api/runs').status_code == 401
+
+
+def test_admin_password_reset_revokes_warm_session(client, fake_repo, monkeypatch):
+    import fakeredis
+    from mark_api import deps
+    from mark_api.auth import verify_password
+    from mark_engine.adapters import redis_cache
+    redis_cache.reset_session_cache_state()
+    cache = fakeredis.FakeRedis()
+    monkeypatch.setattr(deps, 'get_redis', lambda: cache)
+    engineer = client
+    _login(engineer)
+    assert engineer.get('/api/runs').status_code == 200
+    admin = TestClient(app)
+    csrf = _login(admin, username='admin1')
+    def reset(user_id, password_hash):
+        user = fake_repo.user_by_id(user_id)
+        if not user:
+            return False
+        user['password_hash'] = password_hash
+        fake_repo.delete_user_sessions(user_id)
+        return True
+    monkeypatch.setattr(fake_repo, 'reset_user_password', reset, raising=False)
+    response = admin.post('/api/admin/users/1/password', json={'password': 'NewPassword123!'}, headers={'X-CSRF-Token': csrf})
+    assert response.status_code == 200
+    assert verify_password(fake_repo.users['engineer1']['password_hash'], 'NewPassword123!')
+    assert engineer.get('/api/runs').status_code == 401
+
+
+def test_admin_reset_during_redis_outage_cannot_restore_session(client, fake_repo, monkeypatch):
+    import fakeredis
+    from mark_api import deps
+    from mark_engine.adapters import redis_cache
+    redis_cache.reset_session_cache_state()
+    server = fakeredis.FakeServer()
+    cache = fakeredis.FakeRedis(server=server)
+    monkeypatch.setattr(deps, 'get_redis', lambda: cache)
+    _login(client)
+    assert client.get('/api/runs').status_code == 200
+    admin = TestClient(app)
+    csrf = _login(admin, username='admin1')
+    def reset(user_id, password_hash):
+        fake_repo.users['engineer1']['password_hash'] = password_hash
+        fake_repo.delete_user_sessions(user_id)
+        return True
+    monkeypatch.setattr(fake_repo, 'reset_user_password', reset, raising=False)
+    server.connected = False
+    assert admin.post('/api/admin/users/1/password', json={'password': 'NewPassword123!'}, headers={'X-CSRF-Token': csrf}).status_code == 200
+    server.connected = True
+    assert client.get('/api/runs').status_code == 401
+
+
+def test_password_reset_requires_admin(client):
+    csrf = _login(client)
+    resp = client.post('/api/admin/users/2/password', json={'password': 'NewPassword123!'}, headers={'X-CSRF-Token': csrf})
+    assert resp.status_code == 403

@@ -6,15 +6,22 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 
-from mark_api.auth import login_state
+from mark_api.auth import login_state, hash_password
+from pydantic import BaseModel, Field
 from mark_api.deps import current_user, get_repo, require, safe_audit
 from mark_api.logging import log_event
 from mark_api.repo import Repo
+from mark_api import deps
+from mark_engine.adapters.redis_cache import invalidate_user_sessions, session_cache_lock
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require("admin"))])
 
 # Asia/Bangkok is UTC+7 with no DST; a fixed offset avoids needing tzdata on Windows.
 BKK_TZ = timezone(timedelta(hours=7))
+
+
+class PasswordResetRequest(BaseModel):
+    password: str = Field(min_length=12, max_length=1024)
 
 
 def _resolve_date_range(from_d: date | None, to_d: date | None) -> tuple[date, date]:
@@ -48,11 +55,29 @@ def unlock_user(
     current_admin: dict[str, Any] = Depends(require("admin")),
     repo: Repo = Depends(get_repo),
 ) -> dict[str, str]:
-    ok = repo.unlock_user(user_id)
+    with session_cache_lock:
+        invalidate_user_sessions(deps.get_redis(), user_id)
+        ok = repo.unlock_user(user_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     safe_audit(repo, current_admin["user_id"], "admin.unlock", request, detail={"target_user_id": user_id})
     log_event("admin.unlock", admin_id=current_admin["user_id"], target_user_id=user_id)
+    return {"status": "ok"}
+
+
+@router.post("/users/{user_id}/password")
+def reset_user_password(
+    user_id: int, req: PasswordResetRequest, request: Request,
+    current_admin: dict[str, Any] = Depends(require("admin")),
+    repo: Repo = Depends(get_repo),
+) -> dict[str, str]:
+    password_hash = hash_password(req.password)
+    with session_cache_lock:
+        invalidate_user_sessions(deps.get_redis(), user_id)
+        ok = repo.reset_user_password(user_id, password_hash)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    safe_audit(repo, current_admin["user_id"], "admin.password_reset", request, detail={"target_user_id": user_id})
     return {"status": "ok"}
 
 

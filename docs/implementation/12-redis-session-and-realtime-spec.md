@@ -170,3 +170,34 @@ Redis Sorted Set (`ZADD`, `ZREMRANGEBYSCORE`, `ZCARD`, `EXPIRE`):
 - [ ] `services/worker/main.py`: Add worker heartbeat loop and active job markers.
 - [ ] `web/src/hooks/useEvents.ts`: Add typed event dispatching.
 - [ ] `tests/unit/test_redis_session.py`: Comprehensive unit tests.
+
+## 5. Implementation and deployment constraints
+
+- Session cache coherence is supported for the deployed **single API process and
+  single API replica** (`uvicorn --workers 1` in the API Dockerfile and the
+  default Compose replica count). Each process trusts only sessions that it
+  loaded from PostgreSQL itself. Revocation and cache fills are serialized in
+  that process; restart and Redis errors discard that process's trust. Do not
+  add API workers or replicas until invalidation is coordinated across them.
+- User session, password, role, and activation changes must use the API while
+  it is running. In particular, password resets use `python
+  scripts/create_app_user.py USER --reset --api-url http://HOST:PORT`; the
+  command prompts for administrator credentials and calls the admin API. Direct
+  SQL changes or older reset scripts bypass process-local invalidation.
+- Cached session JSON contains only `user_id`, `username`, `role`, `csrf_hash`,
+  `active`, and `expires_at`. `/auth/me` fetches the display name from
+  PostgreSQL when necessary. Session activity is persisted to PostgreSQL at
+  most once per minute; WebSocket revalidation does not renew idle time.
+- If Redis is unavailable, ELR liveness is read from the worker's
+  transaction-scoped PostgreSQL advisory lock. The rate limiter falls back to
+  recent successful scan/recheck audit records. That fallback is best effort:
+  failed requests are not all present in the audit log, and concurrent checks
+  are not atomic. Redis is required for the strict sliding-window guarantee.
+- `/api/worker/status` reports `alive`, `degraded` when Redis is reachable but
+  the heartbeat is absent, or `unknown` when Redis is unavailable. A heartbeat
+  reflects process liveness; it does not prove that a particular job is making
+  progress.
+- The existing scan endpoint is `/api/scans`; `/api/scans/trigger` is an alias
+  with the same authorization and per-user rate limit. Web clients use the
+  existing event-driven refetch hook (this application does not use React
+  Query).

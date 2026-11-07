@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from mark_api.auth import can, login_state, session_status
-from mark_api.deps import get_cookie_name, get_repo
+from mark_api.deps import get_cookie_name, get_repo, session_for_token
 from mark_api.redis_client import get_async_redis
 
 router = APIRouter()
@@ -23,7 +23,7 @@ def _session_authorized(socket: WebSocket) -> bool:
         return False
     repo_factory = socket.app.dependency_overrides.get(get_repo, get_repo)
     digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
-    result = repo_factory().session_user(digest)
+    result = session_for_token(repo_factory(), digest, sliding=False)
     now = datetime.now(timezone.utc)
     return bool(result and session_status(result[0], now) == "ok"
                 and login_state(result[1], now) == "OK"

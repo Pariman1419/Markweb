@@ -13,6 +13,8 @@ from mark_api.deps import audit_ctx, current_user, get_cookie_name, get_repo, sa
 from mark_api.logging import log_event
 from mark_api.metrics import metrics
 from mark_api.repo import Repo
+from mark_api import deps
+from mark_engine.adapters.redis_cache import invalidate_session, invalidate_user_sessions, session_cache_lock
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,8 +48,14 @@ def login(req: LoginRequest, request: Request, repo: Repo = Depends(get_repo)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account inactive")
 
     if not verify_password(user["password_hash"], req.password):
-        repo.record_login(user["user_id"], False)
-        updated_user = repo.user_by_id(user["user_id"]) or {}
+        with session_cache_lock:
+            # Drop trust before the database write: it may commit and then fail
+            # before the caller can observe the new account state.
+            invalidate_user_sessions(deps.get_redis(), user["user_id"])
+            repo.record_login(user["user_id"], False)
+            updated_user = repo.user_by_id(user["user_id"]) or {}
+            if login_state(updated_user, now) == "LOCKED":
+                repo.delete_user_sessions(user["user_id"])
         failed_count = updated_user.get("failed_count", (user.get("failed_count", 0) or 0) + 1)
         safe_audit(repo, user["user_id"], "auth.login_failed", request, detail={"reason": "bad_password", "failed_count": failed_count})
         log_event("auth.login_failed", user_id=user["user_id"])
@@ -58,7 +66,6 @@ def login(req: LoginRequest, request: Request, repo: Repo = Depends(get_repo)):
             safe_audit(repo, user["user_id"], "auth.locked", request, detail={"locked_until": iso_str})
             log_event("auth.locked", user_id=user["user_id"])
             metrics.inc("login_locked")
-            repo.delete_user_sessions(user["user_id"])
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     # Rotate session: delete old session if present
@@ -66,7 +73,9 @@ def login(req: LoginRequest, request: Request, repo: Repo = Depends(get_repo)):
     old_cookie = request.cookies.get(sess_cookie_name) or request.cookies.get("mark_session")
     if old_cookie:
         old_hash = hashlib.sha256(old_cookie.encode("utf-8")).hexdigest()
-        repo.delete_session(old_hash)
+        with session_cache_lock:
+            invalidate_session(deps.get_redis(), old_hash)
+            repo.delete_session(old_hash)
 
     # Login ok
     repo.record_login(user["user_id"], True)
@@ -118,7 +127,9 @@ def login(req: LoginRequest, request: Request, repo: Repo = Depends(get_repo)):
 def logout(request: Request, user: dict[str, Any] = Depends(current_user), repo: Repo = Depends(get_repo)):
     sess = getattr(request.state, "session", None)
     if sess:
-        repo.delete_session(sess["token_hash"])
+        with session_cache_lock:
+            invalidate_session(deps.get_redis(), sess["token_hash"])
+            repo.delete_session(sess["token_hash"])
     safe_audit(repo, user["user_id"], "auth.logout", request)
     log_event("auth.logout", user_id=user["user_id"])
 
@@ -133,10 +144,12 @@ def logout(request: Request, user: dict[str, Any] = Depends(current_user), repo:
 
 
 @router.get("/me")
-def me(user: dict[str, Any] = Depends(current_user)):
+def me(user: dict[str, Any] = Depends(current_user), repo: Repo = Depends(get_repo)):
+    if "display_name" not in user:
+        user = repo.user_by_id(user["user_id"]) or user
     return {
         "user_id": user["user_id"],
         "username": user["username"],
-        "display_name": user["display_name"],
+        "display_name": user.get("display_name", user["username"]),
         "role": user["role"],
     }

@@ -542,6 +542,8 @@ def test_repo_hold_scan_lock_uses_single_connection_and_releases_in_finally():
 
     repo = Repo.__new__(Repo)
     repo.pool = mock_pool
+    from threading import BoundedSemaphore
+    repo._pool_slots = BoundedSemaphore(10)
 
     executed_sqls = []
     def mock_execute(sql):
@@ -626,3 +628,32 @@ def test_add_notification_deduplicates_unread_per_elr_and_kind():
     assert len(repo.notifications) == 3
 
 
+
+
+def test_scan_publishes_started_and_completed(client, repo, monkeypatch):
+    from mark_api.routers import scans
+    events = []
+    repo.add_token('scanner', ['scan:write'], 'scan-events-token')
+    monkeypatch.setattr(scans, 'connect_actl', lambda: object())
+    monkeypatch.setattr(scans, 'fetch_window', lambda *args: [])
+    monkeypatch.setattr(scans, 'publish_event', lambda client, name, data: events.append((name, data)))
+    response = client.post('/api/scans', json={'source': 'airflow'}, headers={'Authorization': 'Bearer scan-events-token'})
+    assert response.status_code == 201
+    assert [event[0] for event in events] == ['scan_started', 'scan_completed']
+    assert events[0][1]['total_elrs'] == 0
+
+
+def test_scan_trigger_alias_enforces_per_user_limit(client, repo, monkeypatch):
+    import fakeredis
+    from mark_api.routers import scans
+    redis = fakeredis.FakeRedis()
+    monkeypatch.setattr(scans, 'get_redis', lambda: redis)
+    monkeypatch.setattr(scans, 'connect_actl', lambda: object())
+    monkeypatch.setattr(scans, 'fetch_window', lambda *args: [])
+    repo.add_token('scanner', ['scan:write'], 'scan-rate-token')
+    headers = {'Authorization': 'Bearer scan-rate-token'}
+    for _ in range(5):
+        assert client.post('/api/scans/trigger', json={'source': 'airflow'}, headers=headers).status_code == 201
+    response = client.post('/api/scans/trigger', json={'source': 'airflow'}, headers=headers)
+    assert response.status_code == 429
+    assert int(response.headers['Retry-After']) > 0

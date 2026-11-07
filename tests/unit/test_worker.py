@@ -1674,3 +1674,21 @@ def test_write_result_records_worker_image_path():
     snapshot = next((sql, params) for sql, params in cur.executed if 'insert into mark_app.elr_snapshot' in sql.lower())
     assert 'image_path' in snapshot[0].lower()
     assert image_path in snapshot[1]
+
+
+def test_worker_never_writes_protected_runs():
+    cur = FakePgCursor()
+    meta = ElrMeta(elr_no='ADI2601001', product_no='AD999')
+    job = JobResult(elr_no='ADI2601001', processing_status=ProcessingStatus.DONE)
+    with pytest.raises(ValueError, match='protected'):
+        write_result(cur, job, meta, {}, resolution=None, revision_info={'run_id': 19})
+    assert not cur.executed
+
+
+def test_daily_run_does_not_reuse_protected_run():
+    cur = FakePgCursor()
+    day = datetime(2026, 11, 6).date()
+    cur.runs[19] = {'run_id': 19, 'period': 'auto-2026-11-06'}
+    run_id = day_run_for(cur, 'ADI2601001', day)
+    assert run_id > 19
+    assert cur.runs[run_id]['period'] == 'auto-2026-11-06.2'

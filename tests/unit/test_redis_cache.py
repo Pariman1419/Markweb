@@ -106,7 +106,7 @@ def test_revision_notification_invalidates_dashboard_and_publishes(monkeypatch):
     assert redis.deleted == ["mark:dashboard:21"]
     assert redis.published[0][0] == "mark_events"
     import json
-    assert json.loads(redis.published[0][1])["run_id"] == 21
+    assert json.loads(redis.published[0][1])["data"]["run_id"] == 21
 
 
 def test_revision_notification_does_not_fail_when_redis_is_down(monkeypatch):
@@ -200,3 +200,53 @@ def test_redis_lock_contention_still_uses_database_lock(monkeypatch):
     monkeypatch.setattr(redis_cache, "get_redis", lambda: Busy())
     with redis_cache.optional_lock("mark:test:scan"):
         pass
+
+
+def test_revision_event_uses_typed_envelope(monkeypatch):
+    import json
+    from mark_engine.adapters import redis_cache
+    sent = []
+    class Redis:
+        def delete(self, key): pass
+        def publish(self, channel, payload): sent.append(json.loads(payload))
+    monkeypatch.setattr(redis_cache, 'get_redis', lambda: Redis())
+    redis_cache.notify_revision(21, 'ADI1', 2)
+    assert sent[0]['event'] == 'revision_saved'
+    assert sent[0]['data'] == {'run_id': 21, 'elr_no': 'ADI1', 'revision': 2}
+    assert sent[0]['timestamp']
+
+
+def test_worker_publishes_progress_after_commit(monkeypatch):
+    from services.worker import main
+    events = []
+    class Cursor:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def execute(self, query, params): events.append(('query', params))
+        def fetchone(self): return (2, 4)
+    class Conn:
+        def __enter__(self): return self
+        def __exit__(self, *args): events.append(('commit',))
+        def cursor(self): return Cursor()
+    def cycle(*args, pending_progress, **kwargs):
+        pending_progress.append((142, 'ADI1'))
+        return main.CycleResult.PROCESSED
+    monkeypatch.setattr(main, 'run_worker_cycle', cycle)
+    monkeypatch.setattr(main, 'get_redis', lambda: object())
+    monkeypatch.setattr(main, 'publish_event', lambda client, event, data: events.append((event, data)))
+    main.run_transaction(Conn(), None, 'worker-1')
+    progress = next(item[1] for item in events if item[0] == 'job_progress')
+    assert progress == {'scan_id': 142, 'completed': 2, 'total': 4, 'current_elr': 'ADI1', 'percent': 50.0}
+    assert events.index(('commit',)) < next(i for i, item in enumerate(events) if item[0] == 'job_progress')
+
+
+def test_worker_revision_event_contains_dashboard_result(monkeypatch):
+    import json
+    from mark_engine.adapters import redis_cache
+    events = []
+    class Redis:
+        def delete(self, key): pass
+        def publish(self, channel, payload): events.append(json.loads(payload))
+    monkeypatch.setattr(redis_cache, 'get_redis', lambda: Redis())
+    redis_cache.notify_revision(21, 'ADI1', 2, 'TRUE')
+    assert events[0]['data']['result'] == 'TRUE'

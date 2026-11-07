@@ -3,8 +3,10 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 import json
 import logging
+import math
 import os
 import time
+from threading import BoundedSemaphore
 from typing import Any
 
 import psycopg2
@@ -40,14 +42,16 @@ class Repo:
             connect_timeout=8,
             options="-c statement_timeout=5000"
         )
+        self._pool_slots = BoundedSemaphore(10)
 
     @contextmanager
     def _conn(self):
-        conn = self.pool.getconn()
-        try:
-            yield conn
-        finally:
-            self.pool.putconn(conn)
+        with self._pool_slots:
+            conn = self.pool.getconn()
+            try:
+                yield conn
+            finally:
+                self.pool.putconn(conn)
 
     def _execute(self, query: str, params: Any = None, fetch_one: bool = False, fetch_all: bool = False, commit: bool = False):
         t0 = time.perf_counter()
@@ -292,6 +296,31 @@ class Repo:
         row = self._execute(q, fetch_one=True)
         return int(row["cnt"]) if row and "cnt" in row else 0
 
+    def is_elr_processing(self, elr_no: str) -> bool:
+        row = self._execute(
+            "select exists (select 1 from pg_locks where locktype = 'advisory' and granted "
+            "and database = (select oid from pg_database where datname = current_database()) "
+            "and objsubid = 2 "
+            "and classid::bigint = (hashtext('mark_active_job')::bigint & 4294967295) "
+            "and objid::bigint = (hashtext(%s)::bigint & 4294967295)) as running",
+            (elr_no,), fetch_one=True,
+        )
+        return bool(row and row["running"])
+
+    def rate_limit_status(self, user_id: int, action: str, limit: int, window_sec: int):
+        # Audit history is a best-effort fallback; failed attempts are not audited
+        # in the same way as successful triggers and may be undercounted.
+        row = self._execute(
+            "select count(*) as count, extract(epoch from "
+            "(min(created_at) + %s * interval '1 second' - now())) as retry "
+            "from mark_app.audit_log where user_id = %s and action = %s "
+            "and created_at > now() - %s * interval '1 second'",
+            (window_sec, user_id, action, window_sec), fetch_one=True,
+        )
+        if row and row["count"] >= limit:
+            return False, max(1, math.ceil(row["retry"]))
+        return True, 0
+
     def token_by_hash(self, token_hash: str) -> dict[str, Any] | None:
         q = """
         select token_id, name, token_hash, scopes, created_by, expires_at
@@ -332,6 +361,22 @@ class Repo:
         """
         res = self._execute(q, (user_id,), fetch_one=True, commit=True)
         return res is not None
+
+    def reset_user_password(self, user_id: int, password_hash: str) -> bool:
+        with self._conn() as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("update mark_app.app_user set password_hash = %s, failed_count = 0, "
+                                "locked_until = null where user_id = %s returning user_id",
+                                (password_hash, user_id))
+                    found = cur.fetchone() is not None
+                    if found:
+                        cur.execute("delete from mark_app.user_session where user_id = %s", (user_id,))
+                conn.commit()
+                return found
+            except Exception:
+                conn.rollback()
+                raise
 
     def activity(self, date_from: Any, date_to: Any, run_id: int) -> dict[str, Any]:
         q_user = """
@@ -429,23 +474,22 @@ class Repo:
     @contextmanager
     def hold_scan_lock(self):
         """Borrow one connection from the pool, acquire session advisory lock, yield conn, unlock on SAME conn, return to pool."""
-        conn = self.pool.getconn()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("select pg_try_advisory_lock(hashtext('mark_scan_lock')) as locked;")
-                row = cur.fetchone()
-                locked = bool(row and (row[0] if isinstance(row, (tuple, list)) else row.get("locked")))
-            if not locked:
-                raise ScanLockConflict("A scan is already running")
-            yield conn
-        finally:
+        with self._conn() as conn:
             try:
                 with conn.cursor() as cur:
-                    cur.execute("select pg_advisory_unlock(hashtext('mark_scan_lock'));")
-                conn.commit()
-            except Exception as exc:
-                logger.warning("Error releasing scan advisory lock: %s", exc)
-            self.pool.putconn(conn)
+                    cur.execute("select pg_try_advisory_lock(hashtext('mark_scan_lock')) as locked;")
+                    row = cur.fetchone()
+                    locked = bool(row and (row[0] if isinstance(row, (tuple, list)) else row.get("locked")))
+                if not locked:
+                    raise ScanLockConflict("A scan is already running")
+                yield conn
+            finally:
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute("select pg_advisory_unlock(hashtext('mark_scan_lock'));")
+                    conn.commit()
+                except Exception as exc:
+                    logger.warning("Error releasing scan advisory lock: %s", exc)
 
     def try_scan_lock(self) -> bool:
         row = self._execute("select pg_try_advisory_lock(hashtext('mark_scan_lock')) as locked", fetch_one=True)

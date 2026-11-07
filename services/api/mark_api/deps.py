@@ -9,8 +9,14 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from mark_api.auth import can, login_state, session_status, session_valid
 from mark_api.logging import log_event
 from mark_api.repo import Repo
+from mark_engine.adapters.redis_cache import cache_session, get_redis, session_touch_due
 
 _global_repo: Repo | None = None
+
+
+def session_for_token(repo: Repo, token_hash: str, *, sliding: bool = True):
+    return cache_session(get_redis(), token_hash, 900,
+                         lambda: repo.session_user(token_hash), sliding=sliding)
 
 
 def get_repo() -> Repo:
@@ -79,7 +85,7 @@ def current_user(request: Request, authorization: str | None = Header(None), rep
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-    res = repo.session_user(token_hash)
+    res = session_for_token(repo, token_hash)
     if not res:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
 
@@ -96,7 +102,8 @@ def current_user(request: Request, authorization: str | None = Header(None), rep
     if state == "INACTIVE":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account inactive")
 
-    repo.touch_session(token_hash)
+    if session_touch_due(get_redis(), token_hash):
+        repo.touch_session(token_hash)
     request.state.session = session
     request.state.user = user
     return user

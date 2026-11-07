@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from mark_api.deps import current_user, get_repo, require_any_role, require_scope, safe_audit
 from mark_api.repo import Repo, ScanLockConflict
 from mark_engine.adapters.oracle_client import connect_actl
-from mark_engine.adapters.redis_cache import optional_lock
+from mark_engine.adapters.redis_cache import optional_lock, get_redis, check_rate_limit, publish_event
 from mark_engine.history.decide import decide
 from mark_engine.history.fingerprint import oracle_fp
 from mark_engine.select import pending_reason
@@ -28,6 +28,17 @@ logger = logging.getLogger("mark_api.scans")
 router = APIRouter(tags=["scans"])
 
 
+def _enforce_rate_limit(user, action, limit, repo):
+    db_action = {"scan_trigger": "scan.started", "recheck_elr": "elr.recheck"}[action]
+    def fallback():
+        if not hasattr(repo, "rate_limit_status"):
+            return True, 0
+        return repo.rate_limit_status(user.get("user_id"), db_action, limit, 60)
+    allowed, retry = check_rate_limit(get_redis(), user.get("user_id"), action, limit, 60, fallback)
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded", headers={"Retry-After": str(retry)})
+
+
 class ScanRequest(BaseModel):
     source: Literal["airflow", "initial"]
     from_ts: datetime | None = None
@@ -35,6 +46,7 @@ class ScanRequest(BaseModel):
 
 
 @router.post("/scans", status_code=status.HTTP_201_CREATED)
+@router.post("/scans/trigger", status_code=status.HTTP_201_CREATED)
 def trigger_scan(
     req: ScanRequest,
     request: Request,
@@ -42,6 +54,7 @@ def trigger_scan(
     repo: Repo = Depends(get_repo),
 ) -> dict[str, Any]:
     """Trigger an airflow or initial scan for new/changed ELRs."""
+    _enforce_rate_limit(user, "scan_trigger", 5, repo)
     # 1. Enforce single active scan via single connection advisory lock
     try:
         with optional_lock("mark:lock:scan"), repo.hold_scan_lock():
@@ -106,6 +119,7 @@ def trigger_scan(
                             pass
 
                 counts["found"] = len(rows)
+                publish_event(get_redis(), "scan_started", {"scan_id": scan_id, "total_elrs": len(rows), "run_id": None})
 
                 for row in rows:
                     meta, _, _ = to_engine(row)
@@ -128,6 +142,7 @@ def trigger_scan(
 
                 # Requirement (2): On completion, UPDATE finished_at and counts
                 repo.finish_scan(scan_id, counts)
+                publish_event(get_redis(), "scan_completed", {"scan_id": scan_id, "counts": counts})
 
                 safe_audit(
                     repo,
@@ -247,6 +262,7 @@ def recheck_elr(
     repo: Repo = Depends(get_repo),
 ) -> dict[str, Any]:
     """Manually force re-check for an ELR (bypasses unchanged skips)."""
+    _enforce_rate_limit(user, "recheck_elr", 10, repo)
     elr_clean = elr.strip().upper()
     queued = repo.enqueue_work_item(None, elr_clean, reason="recheck")
     safe_audit(repo, user.get("user_id"), "elr.recheck", request, elr_no=elr_clean, detail={"queued": queued})

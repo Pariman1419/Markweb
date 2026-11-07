@@ -10,6 +10,7 @@ from mark_api.deps import current_user, get_repo, require
 from mark_api.files import safe_file
 from mark_api.grouping import classify_line, classify_job
 from mark_api.repo import Repo
+from mark_engine.adapters.redis_cache import get_active_job, get_redis
 
 router = APIRouter(tags=["mark"])
 
@@ -198,6 +199,8 @@ def get_elr(elr: str, run: int = Query(...), user: dict[str, Any] = Depends(requ
         "reviews": reviews,
         "approval": approval,
         "image_available": image_avail,
+        "is_processing": bool(get_active_job(get_redis(), elr,
+            lambda: repo.is_elr_processing(elr) if hasattr(repo, "is_elr_processing") else False)),
     }
 
 

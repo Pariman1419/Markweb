@@ -17,6 +17,7 @@ from functools import partial
 import json
 import logging
 import time
+import threading
 from typing import Any, Callable, Mapping, Sequence
 
 import psycopg2
@@ -33,7 +34,8 @@ from mark_engine.adapters.inference_service import (
     load_service_inference_for_pdf,
 )
 from mark_engine.adapters.oracle_client import connect_actl
-from mark_engine.adapters.redis_cache import notify_revision, optional_lock
+from mark_engine.adapters.redis_cache import (notify_revision, optional_lock, get_redis,
+    record_worker_heartbeat, set_active_job, clear_active_job, publish_event)
 from mark_engine.documents.resolve import resolve_documents
 from mark_engine.domain.models import (
     ApprovalStatus,
@@ -58,7 +60,7 @@ from mark_engine.rules.ruleset import RuleSet
 from mark_engine.select import pending_reason
 from services.worker.oracle_source import fetch_layout, fetch_one, to_engine
 from services.worker.queue import claim, fail, fail_with_backoff, finish
-from services.worker.results import day_run_for, notify_for, write_result
+from services.worker.results import day_run_for, notify_for, write_result, dashboard_result
 
 logger = logging.getLogger("mark_worker")
 
@@ -165,7 +167,9 @@ def run_worker_cycle(
     worker_id: str = "worker-1",
     today: Any = None,
     conn_pg: Any = None,
-    pending_notifications: list[tuple[int, str, int]] | None = None,
+    pending_notifications: list[tuple[int, str, int, str]] | None = None,
+    pending_progress: list[tuple[int, str]] | None = None,
+    pending_cleanup: list[tuple[Any, str]] | None = None,
 ) -> CycleResult:
     """Execute one item from the work queue.
 
@@ -177,8 +181,29 @@ def run_worker_cycle(
     if not item:
         return CycleResult.NO_ITEM
 
+    if pending_progress is not None and getattr(item, "scan_id", None) is not None:
+        pending_progress.append((item.scan_id, item.elr_no))
+
+    # The transaction lock also makes liveness observable from PostgreSQL when
+    # Redis is unavailable, without changing historical run data.
+    if conn_pg is not None:
+        cur_pg.execute("select pg_advisory_xact_lock(hashtext('mark_active_job'), hashtext(%s))", (item.elr_no,))
+
     work_lock = optional_lock(f"mark:lock:work:{item.item_id}")
     work_lock.__enter__()
+
+    redis_client = get_redis()
+    active_started = datetime.now(timezone.utc).isoformat()
+    active_run = [None]
+    active_lock = threading.Lock()
+    set_active_job(redis_client, item.elr_no, None, worker_id, active_started)
+    stop_job_refresh = threading.Event()
+    def refresh_job():
+        while not stop_job_refresh.wait(30):
+            with active_lock:
+                set_active_job(redis_client, item.elr_no, active_run[0], worker_id, active_started)
+    job_thread = threading.Thread(target=refresh_job, daemon=True)
+    job_thread.start()
 
     try:
         elr_no = item.elr_no
@@ -377,6 +402,9 @@ def run_worker_cycle(
             engine_version=mark_engine.__version__,
             model_version=model_ver,
         )
+        with active_lock:
+            active_run[0] = run_id
+            set_active_job(redis_client, elr_no, run_id, worker_id, active_started)
 
         # 12. Check if previous revision was approved
         prev_approved = False
@@ -408,7 +436,7 @@ def run_worker_cycle(
         # 15. Mark work item finished
         finish(cur_queue, item.item_id, revision=new_rev)
         if pending_notifications is not None:
-            pending_notifications.append((run_id, elr_no, new_rev))
+            pending_notifications.append((run_id, elr_no, new_rev, dashboard_result(job)))
         return CycleResult.PROCESSED
 
     except Exception as exc:
@@ -427,6 +455,12 @@ def run_worker_cycle(
             logger.exception("Failed to record error backoff for item %s: %s", item.item_id, queue_exc)
         return CycleResult.ERROR
     finally:
+        stop_job_refresh.set()
+        job_thread.join()
+        if pending_cleanup is None:
+            clear_active_job(redis_client, item.elr_no)
+        else:
+            pending_cleanup.append((redis_client, item.elr_no))
         work_lock.__exit__(None, None, None)
 
 
@@ -451,15 +485,35 @@ def check_nas_root(root: Path) -> None:
 
 def run_transaction(conn_pg: Any, conn_oracle: Any, worker_id: str) -> CycleResult:
     """Only publish after the database transaction commits successfully."""
-    pending_notifications: list[tuple[int, str, int]] = []
-    with conn_pg:
-        with conn_pg.cursor() as cur:
-            result = run_worker_cycle(
-                cur, cur, conn_oracle=conn_oracle, worker_id=worker_id,
-                conn_pg=conn_pg, pending_notifications=pending_notifications,
-            )
+    pending_notifications: list[tuple[int, str, int, str]] = []
+    pending_progress: list[tuple[int, str]] = []
+    pending_cleanup: list[tuple[Any, str]] = []
+    try:
+        with conn_pg:
+            with conn_pg.cursor() as cur:
+                result = run_worker_cycle(
+                    cur, cur, conn_oracle=conn_oracle, worker_id=worker_id,
+                    conn_pg=conn_pg, pending_notifications=pending_notifications,
+                    pending_progress=pending_progress, pending_cleanup=pending_cleanup,
+                )
+    finally:
+        for redis_client, elr_no in pending_cleanup:
+            clear_active_job(redis_client, elr_no)
     for event in pending_notifications:
         notify_revision(*event)
+    for scan_id, elr_no in pending_progress:
+        try:
+            with conn_pg:
+                with conn_pg.cursor() as cur:
+                    cur.execute("select count(*) filter (where state in ('done', 'failed')), count(*) "
+                                "from mark_app.work_item where scan_id = %s", (scan_id,))
+                    completed, total = cur.fetchone()
+            publish_event(get_redis(), "job_progress", {
+                "scan_id": scan_id, "completed": completed, "total": total,
+                "current_elr": elr_no, "percent": round(100 * completed / total, 1) if total else 0,
+            })
+        except Exception:
+            logger.warning("Unable to publish scan progress", exc_info=True)
     return result
 
 
@@ -484,6 +538,14 @@ def main() -> None:
         password=os.environ.get("MARK_WORKER_PG_PASSWORD", ""),
     )
     conn_oracle = connect_actl()
+
+    stop_heartbeat = threading.Event()
+    def heartbeat():
+        while not stop_heartbeat.is_set():
+            record_worker_heartbeat(get_redis(), args.worker_id)
+            stop_heartbeat.wait(10)
+    heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
+    heartbeat_thread.start()
 
     consecutive_cycle_errors = 0
     try:
@@ -510,6 +572,8 @@ def main() -> None:
                     break
                 time.sleep(args.poll_seconds)
     finally:
+        stop_heartbeat.set()
+        heartbeat_thread.join()
         try:
             conn_pg.close()
         except Exception:

@@ -19,6 +19,24 @@ MONTH = {
 }
 
 
+def dashboard_result(job: JobResult) -> str:
+    """Use the same result precedence as the ELR listing."""
+    if job.processing_status == ProcessingStatus.HOLD:
+        return "HOLD"
+    if job.processing_status == ProcessingStatus.FAILED:
+        return "ERROR"
+    statuses = [(str(line.status), bool(line.warning)) for line in job.comparisons]
+    if any(status in ("DIFF", "DB_EMPTY", "NOT_MARKED") for status, _ in statuses):
+        return "ERROR"
+    if any(status in ("MATCH_SHIFT", "NEEDS_REVIEW") or
+           (status in ("MATCH", "MATCH_SLR", "MATCH_LOT") and warning)
+           for status, warning in statuses):
+        return "WARNING"
+    if statuses and all(status in ("MATCH", "MATCH_SLR", "MATCH_LOT") for status, _ in statuses):
+        return "TRUE"
+    return "UNMEASURED"
+
+
 def _abs_number(s: str) -> str:
     m = re.search(r"ABS\d{6}", s or "", re.IGNORECASE)
     return m.group(0).upper() if m else ""
@@ -253,9 +271,14 @@ def day_run_for(
                 (period, git_commit, engine_version, model_version),
             )
             created_row = cur.fetchone()
+            if created_row[0] <= 19:
+                raise ValueError("Refusing to create a protected run ID (1-19)")
             return created_row[0]
 
         run_id = row[0]
+        if run_id <= 19:
+            suffix += 1
+            continue
         # Check if this ELR has already been recorded in this run
         cur.execute(
             "select 1 from mark_logic.job_result where run_id = %s and elr_no = %s",
@@ -286,6 +309,8 @@ def write_result(
     Returns the newly created revision number.
     """
     run_id = revision_info["run_id"]
+    if schema_logic == "mark_logic" and int(run_id) <= 19:
+        raise ValueError("Refusing to write to protected run IDs 1-19")
     elr_no = job.elr_no
 
     # 1. Determine next revision number for this ELR
